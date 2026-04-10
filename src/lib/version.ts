@@ -1,6 +1,6 @@
 // Controle de Versão - Incrementar a cada deploy
 // Formato: MAJOR.MINOR.PATCH.BUILD
-// 
+//
 // MAJOR: Mudanças significativas/incompatíveis
 // MINOR: Novas funcionalidades (compatíveis)
 // PATCH: Correções de bugs
@@ -8,7 +8,7 @@
 //
 // IMPORTANTE: Incremente o BUILD antes de cada deploy no Vercel
 
-export const VERSION_STRING = '2.5.2.0';
-export const VERSION_DISPLAY = 'v2.5.2.0';
-export const LAST_DEPLOY = '2025-03-25';
-export const VERSION_WITH_DATE = 'v2.5.2.0 (2025-03-25)';
+export const VERSION_STRING = '2.7.0.0';
+export const VERSION_DISPLAY = 'v2.7.0.0';
+export const LAST_DEPLOY = '2026-04-10';
+export const VERSION_WITH_DATE = 'v2.7.0.0 (2026-04-10)';

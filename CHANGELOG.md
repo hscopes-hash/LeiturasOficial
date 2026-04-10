@@ -4,6 +4,26 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.7.0.0] - 2026-04-10
+
+v2.7.0.0 - Criado painel administrativo SaaS completo em /admin
+v2.7.0.0 - Dashboard SaaS com KPIs globais (empresas, MRR, alertas, novos cadastros)
+v2.7.0.0 - Gestao de Empresas com CRUD completo, renovar assinatura, bloquear/desbloquear
+v2.7.0.0 - View de detalhes da empresa (usuarios, maquinas, clientes)
+v2.7.0.0 - Pagina de Planos com definicoes e distribuicao por plano
+v2.7.0.0 - Ferramentas do Sistema (limpar orfaos, reset banco, seed demo)
+v2.7.0.0 - API de Dashboard SaaS Global (/api/admin/saas-dashboard)
+v2.7.0.0 - API de Renovar Assinatura (/api/empresas/gestao/[id]/renovar)
+v2.7.0.0 - Sidebar responsiva com Sheet para mobile
+v2.7.0.0 - Acesso restrito ao super admin (hscopes@gmail.com)
+
+## [v2.6.0.0] - 2026-04-10
+
+v2.6.0.0 - Adicionado seletor de tema claro/escuro no menu lateral
+v2.6.0.0 - Preferência de tema salva automaticamente por operador (localStorage)
+v2.6.0.0 - Convertida toda a interface para usar variáveis CSS tema-aware
+v2.6.0.0 - Configurado ThemeProvider com next-themes no layout principal
+
 ## [v2.5.2.0] - 2025-03-25
 
 v2.5.2.0 - Criado arquivo AGENTE.md com instruções padrão para novas sessões

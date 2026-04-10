@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useTheme } from 'next-themes';
 import { useAuthStore, type Usuario, type Empresa, type NivelAcesso } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,7 @@ import {
   Music, Circle, Gamepad2, Gift, TrendingUp, TrendingDown, Clock,
   Plus, Pencil, Trash2, Eye, Ban, CheckCircle, AlertTriangle, Building2,
   ClipboardList, Printer, Camera, X, Image as ImageIcon, Layers, MessageCircle, LogIn,
-  CalendarDays, ShieldAlert, FileText
+  CalendarDays, ShieldAlert, FileText, Sun, Moon, DatabaseBackup, Download, Upload, HardDrive
 } from 'lucide-react';
 import { VERSION_DISPLAY, VERSION_WITH_DATE } from '@/lib/version';
 
@@ -117,6 +118,29 @@ interface DashboardData {
 // ============================================
 // LOGIN COMPONENT
 // ============================================
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <button
+      onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-muted-foreground hover:bg-card"
+    >
+      {theme === 'dark' ? (
+        <>
+          <Sun className="w-5 h-5" />
+          <span>Tema Claro</span>
+        </>
+      ) : (
+        <>
+          <Moon className="w-5 h-5" />
+          <span>Tema Escuro</span>
+        </>
+      )}
+    </button>
+  );
+}
+
 function LoginPage() {
   const [etapa, setEtapa] = useState<'empresa' | 'credenciais' | 'superadmin'>('empresa');
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -189,26 +213,26 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 mb-4 shadow-lg">
             <Cog className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Máquinas Gestão</h1>
-          <p className="text-slate-400 mt-1">Sistema de Gestão de Máquinas</p>
-          <p className="text-xs text-slate-500 mt-2">{VERSION_DISPLAY}</p>
+          <h1 className="text-2xl font-bold text-foreground">Máquinas Gestão</h1>
+          <p className="text-muted-foreground mt-1">Sistema de Gestão de Máquinas</p>
+          <p className="text-xs text-muted-foreground mt-2">{VERSION_DISPLAY}</p>
         </div>
 
-        <Card className="border-0 shadow-2xl bg-slate-800/50 backdrop-blur">
+        <Card className="border-0 shadow-2xl bg-card/80 backdrop-blur">
           <CardContent className="pt-6">
             {etapa === 'empresa' ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-slate-300">Selecione a Empresa</Label>
-                  <ScrollArea className="h-64 rounded-lg border border-slate-700">
+                  <Label className="text-muted-foreground">Selecione a Empresa</Label>
+                  <ScrollArea className="h-64 rounded-lg border border-border">
                     {empresas.length === 0 ? (
-                      <div className="p-4 text-center text-slate-400">
+                      <div className="p-4 text-center text-muted-foreground">
                         <Building2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">Nenhuma empresa cadastrada</p>
                         <Button
@@ -233,18 +257,18 @@ function LoginPage() {
                               setEmpresaSelecionada(empresa);
                               setEtapa('credenciais');
                             }}
-                            className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-slate-700/50 transition-colors text-left"
+                            className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left"
                           >
                             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-bold">
                               {empresa.nome.charAt(0)}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-white truncate">{empresa.nome}</p>
+                              <p className="font-medium text-foreground truncate">{empresa.nome}</p>
                               {empresa.cnpj && (
-                                <p className="text-xs text-slate-400">{empresa.cnpj}</p>
+                                <p className="text-xs text-muted-foreground">{empresa.cnpj}</p>
                               )}
                             </div>
-                            <ChevronRight className="w-4 h-4 text-slate-400" />
+                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
                           </button>
                         ))}
                       </div>
@@ -253,7 +277,7 @@ function LoginPage() {
                 </div>
 
                 {/* Opção para Super Admin */}
-                <div className="pt-2 border-t border-slate-700">
+                <div className="pt-2 border-t border-border">
                   <button
                     onClick={() => setEtapa('credenciais')}
                     className="w-full flex items-center justify-center gap-2 p-3 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-600/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-600/30 transition-colors"
@@ -272,7 +296,7 @@ function LoginPage() {
                     setEmail('');
                     setSenha('');
                   }}
-                  className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"
+                  className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
                 >
                   <ChevronRight className="w-4 h-4 rotate-180" />
                   <span className="text-sm">Voltar</span>
@@ -287,43 +311,43 @@ function LoginPage() {
                       </div>
                       <div>
                         <p className="font-medium text-amber-400">Super Administrador</p>
-                        <p className="text-xs text-slate-400">Acesso global a todas as empresas</p>
+                        <p className="text-xs text-muted-foreground">Acesso global a todas as empresas</p>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-700/30 mb-4">
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-accent/50 mb-4">
                     <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-bold">
                       {empresaSelecionada?.nome.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-medium text-white">{empresaSelecionada?.nome}</p>
-                      <p className="text-xs text-slate-400">Empresa selecionada</p>
+                      <p className="font-medium text-foreground">{empresaSelecionada?.nome}</p>
+                      <p className="text-xs text-muted-foreground">Empresa selecionada</p>
                     </div>
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-slate-300">Email</Label>
+                  <Label htmlFor="email" className="text-muted-foreground">Email</Label>
                   <Input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="seu@email.com"
-                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="senha" className="text-slate-300">Senha</Label>
+                  <Label htmlFor="senha" className="text-muted-foreground">Senha</Label>
                   <Input
                     id="senha"
                     type="password"
                     value={senha}
                     onChange={(e) => setSenha(e.target.value)}
                     placeholder="••••••••"
-                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
                   />
                 </div>
 
@@ -335,13 +359,13 @@ function LoginPage() {
                   {loading ? 'Entrando...' : 'Entrar'}
                 </Button>
 
-                <div className="text-center text-xs text-slate-400 mt-4">
+                <div className="text-center text-xs text-muted-foreground mt-4">
                   <p>Dados de demonstração:</p>
                   <p className="mt-1">admin@demo.com / admin123</p>
                 </div>
 
-                <div className="text-center mt-4 pt-4 border-t border-slate-700">
-                  <p className="text-xs text-slate-500">{VERSION_WITH_DATE}</p>
+                <div className="text-center mt-4 pt-4 border-t border-border">
+                  <p className="text-xs text-muted-foreground">{VERSION_WITH_DATE}</p>
                 </div>
               </div>
             )}
@@ -401,17 +425,17 @@ function DashboardPage({ data, onNavigate }: { data: DashboardData | null; onNav
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3">
         {stats.map((stat, i) => (
-          <Card key={i} className="border-0 shadow-lg bg-slate-800/50">
+          <Card key={i} className="border-0 shadow-lg bg-card">
             <CardContent className="p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs text-slate-400">{stat.title}</p>
-                  <p className="text-xl font-bold text-white mt-1">{stat.value}</p>
+                  <p className="text-xs text-muted-foreground">{stat.title}</p>
+                  <p className="text-xl font-bold text-foreground mt-1">{stat.value}</p>
                   {stat.total && (
-                    <p className="text-xs text-slate-500 mt-1">de {stat.total} total</p>
+                    <p className="text-xs text-muted-foreground mt-1">de {stat.total} total</p>
                   )}
                   {stat.subtitle && (
-                    <p className="text-xs text-slate-500 mt-1">{stat.subtitle}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
                   )}
                 </div>
                 <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center`}>
@@ -425,28 +449,28 @@ function DashboardPage({ data, onNavigate }: { data: DashboardData | null; onNav
 
       {/* Alerts */}
       {(data.clientes.bloqueados > 0 || data.financeiro.pagamentosAtrasados > 0 || data.maquinas.manutencao > 0) && (
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-red-900/30 to-orange-900/30 border border-red-800/50">
+        <Card className="border-0 shadow-lg bg-destructive/10 border-destructive/30">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
-              <h3 className="font-semibold text-white">Alertas</h3>
+              <h3 className="font-semibold text-foreground">Alertas</h3>
             </div>
             <div className="space-y-2">
               {data.clientes.bloqueados > 0 && (
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-300">Clientes bloqueados</span>
+                  <span className="text-muted-foreground">Clientes bloqueados</span>
                   <Badge variant="destructive">{data.clientes.bloqueados}</Badge>
                 </div>
               )}
               {data.financeiro.pagamentosAtrasados > 0 && (
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-300">Pagamentos em atraso</span>
+                  <span className="text-muted-foreground">Pagamentos em atraso</span>
                   <Badge variant="destructive">{data.financeiro.pagamentosAtrasados}</Badge>
                 </div>
               )}
               {data.maquinas.manutencao > 0 && (
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-300">Máquinas em manutenção</span>
+                  <span className="text-muted-foreground">Máquinas em manutenção</span>
                   <Badge variant="secondary">{data.maquinas.manutencao}</Badge>
                 </div>
               )}
@@ -456,9 +480,9 @@ function DashboardPage({ data, onNavigate }: { data: DashboardData | null; onNav
       )}
 
       {/* Máquinas por Tipo */}
-      <Card className="border-0 shadow-lg bg-slate-800/50">
+      <Card className="border-0 shadow-lg bg-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base text-white">Máquinas por Tipo</CardTitle>
+          <CardTitle className="text-base text-foreground">Máquinas por Tipo</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -476,8 +500,8 @@ function DashboardPage({ data, onNavigate }: { data: DashboardData | null; onNav
                   <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colors[idx % colors.length]} flex items-center justify-center mx-auto mb-1`}>
                     <Cog className="w-6 h-6 text-white" />
                   </div>
-                  <p className="text-lg font-bold text-white">{item._count}</p>
-                  <p className="text-xs text-slate-400">{item.tipo}</p>
+                  <p className="text-lg font-bold text-foreground">{item._count}</p>
+                  <p className="text-xs text-muted-foreground">{item.tipo}</p>
                 </div>
               );
             })}
@@ -486,24 +510,24 @@ function DashboardPage({ data, onNavigate }: { data: DashboardData | null; onNav
       </Card>
 
       {/* Últimos Clientes */}
-      <Card className="border-0 shadow-lg bg-slate-800/50">
+      <Card className="border-0 shadow-lg bg-card">
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-base text-white">Últimos Clientes</CardTitle>
+          <CardTitle className="text-base text-foreground">Últimos Clientes</CardTitle>
           <Button variant="ghost" size="sm" onClick={() => onNavigate('clientes')} className="text-amber-500">
             Ver todos
           </Button>
         </CardHeader>
         <CardContent className="space-y-2">
           {data.ultimos.clientes.slice(0, 3).map((cliente) => (
-            <div key={cliente.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-700/30">
+            <div key={cliente.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50">
               <Avatar className="w-8 h-8">
                 <AvatarFallback className="bg-gradient-to-br from-amber-500 to-orange-600 text-white text-xs">
                   {cliente.nome.charAt(0)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{cliente.nome}</p>
-                <p className="text-xs text-slate-400">{cliente.telefone || 'Sem telefone'}</p>
+                <p className="text-sm font-medium text-foreground truncate">{cliente.nome}</p>
+                <p className="text-xs text-muted-foreground">{cliente.telefone || 'Sem telefone'}</p>
               </div>
             </div>
           ))}
@@ -659,7 +683,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white">Clientes</h2>
+        <h2 className="text-xl font-bold text-foreground">Clientes</h2>
         {isSupervisor && (
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
@@ -667,7 +691,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                 <Plus className="w-4 h-4 mr-1" /> Novo
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-slate-800 border-slate-700 text-white max-h-[90vh] overflow-y-auto">
+            <DialogContent className="bg-card border-border text-foreground max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{clienteEditando ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
               </DialogHeader>
@@ -677,7 +701,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                   <Input
                     value={formData.nome}
                     onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -686,7 +710,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                     <Input
                       value={formData.cpfCnpj}
                       onChange={(e) => setFormData({ ...formData, cpfCnpj: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                     />
                   </div>
                   <div className="space-y-2">
@@ -695,7 +719,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                     />
                   </div>
                 </div>
@@ -705,7 +729,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                     <Input
                       value={formData.telefone}
                       onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                     />
                   </div>
                   <div className="space-y-2">
@@ -713,7 +737,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                     <Input
                       value={formData.telefone2}
                       onChange={(e) => setFormData({ ...formData, telefone2: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                     />
                   </div>
                 </div>
@@ -722,7 +746,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                   <Input
                     value={formData.endereco}
                     onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                   />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -731,7 +755,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                     <Input
                       value={formData.cidade}
                       onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                     />
                   </div>
                   <div className="space-y-2">
@@ -739,7 +763,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                     <Input
                       value={formData.estado}
                       onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                       maxLength={2}
                     />
                   </div>
@@ -748,7 +772,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                     <Input
                       value={formData.cep}
                       onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                     />
                   </div>
                 </div>
@@ -757,7 +781,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                   <Textarea
                     value={formData.observacoes}
                     onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                   />
                 </div>
               </div>
@@ -773,10 +797,10 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
       </div>
 
       {loading ? (
-        <div className="text-center py-8 text-slate-400">Carregando...</div>
+        <div className="text-center py-8 text-muted-foreground">Carregando...</div>
       ) : clientes.length === 0 ? (
-        <Card className="border-0 shadow-lg bg-slate-800/50">
-          <CardContent className="py-8 text-center text-slate-400">
+        <Card className="border-0 shadow-lg bg-card">
+          <CardContent className="py-8 text-center text-muted-foreground">
             <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>Nenhum cliente cadastrado</p>
           </CardContent>
@@ -784,7 +808,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
       ) : (
         <div className="space-y-2">
           {clientes.map((cliente) => (
-            <Card key={cliente.id} className={`border-0 shadow-lg ${cliente.bloqueado ? 'bg-red-900/20 border border-red-800/50' : 'bg-slate-800/50'}`}>
+            <Card key={cliente.id} className={`border-0 shadow-lg ${cliente.bloqueado ? 'bg-destructive/10 border-destructive/30' : 'bg-card'}`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
                   <Avatar className="w-10 h-10">
@@ -794,13 +818,13 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-white truncate">{cliente.nome}</p>
+                      <p className="font-medium text-foreground truncate">{cliente.nome}</p>
                       {cliente.bloqueado && (
                         <Badge variant="destructive" className="text-xs">Bloqueado</Badge>
                       )}
                     </div>
-                    <p className="text-sm text-slate-400">{cliente.telefone || 'Sem telefone'}</p>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
+                    <p className="text-sm text-muted-foreground">{cliente.telefone || 'Sem telefone'}</p>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
                       <span>{cliente._count?.maquinas || 0} máquinas</span>
                       <span>{cliente._count?.assinaturas || 0} assinaturas</span>
                     </div>
@@ -810,7 +834,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-slate-400 hover:text-white"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
                         onClick={() => openEditDialog(cliente)}
                       >
                         <Pencil className="w-4 h-4" />
@@ -838,7 +862,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-slate-400 hover:text-red-400"
+                          className="h-8 w-8 text-muted-foreground hover:text-red-400"
                           onClick={() => handleExcluir(cliente)}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1048,7 +1072,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white">Máquinas</h2>
+        <h2 className="text-xl font-bold text-foreground">Máquinas</h2>
         {isAdmin && (
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
@@ -1056,7 +1080,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                 <Plus className="w-4 h-4 mr-1" /> Nova
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-slate-800 border-slate-700 text-white max-h-[90vh] overflow-y-auto">
+            <DialogContent className="bg-card border-border text-foreground max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{maquinaEditando ? 'Editar Máquina' : 'Nova Máquina'}</DialogTitle>
               </DialogHeader>
@@ -1067,14 +1091,14 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                     <Input
                       value={formData.codigo}
                       onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                       placeholder="MUS-001"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Tipo *</Label>
                     <Select value={formData.tipoId} onValueChange={(v) => setFormData({ ...formData, tipoId: v })}>
-                      <SelectTrigger className="bg-slate-700 border-slate-600">
+                      <SelectTrigger className="bg-muted border-border">
                         <SelectValue placeholder="Selecione o tipo" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1088,7 +1112,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                 <div className="space-y-2">
                   <Label>Cliente *</Label>
                   <Select value={formData.clienteId} onValueChange={(v) => setFormData({ ...formData, clienteId: v })}>
-                    <SelectTrigger className="bg-slate-700 border-slate-600">
+                    <SelectTrigger className="bg-muted border-border">
                       <SelectValue placeholder="Selecione o cliente" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1104,7 +1128,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                     <Input
                       value={formData.marca}
                       onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                     />
                   </div>
                   <div className="space-y-2">
@@ -1112,7 +1136,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                     <Input
                       value={formData.modelo}
                       onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                     />
                   </div>
                 </div>
@@ -1123,14 +1147,14 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                       type="number"
                       value={formData.valorMensal}
                       onChange={(e) => setFormData({ ...formData, valorMensal: e.target.value })}
-                      className="bg-slate-700 border-slate-600"
+                      className="bg-muted border-border"
                       placeholder="0.00"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Status</Label>
                     <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v as Maquina['status'] })}>
-                      <SelectTrigger className="bg-slate-700 border-slate-600">
+                      <SelectTrigger className="bg-muted border-border">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1147,7 +1171,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                   <Input
                     value={formData.localizacao}
                     onChange={(e) => setFormData({ ...formData, localizacao: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1155,19 +1179,19 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                   <Input
                     value={formData.whatsapp}
                     onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                     placeholder="https://chat.whatsapp.com/XXXXX"
                   />
-                  <p className="text-xs text-slate-400">Link do grupo para enviar foto da leitura</p>
+                  <p className="text-xs text-muted-foreground">Link do grupo para enviar foto da leitura</p>
                 </div>
                 {/* Controle de Moedas */}
-                <div className="border-t border-slate-600 pt-4 mt-2">
-                  <h4 className="text-sm font-medium text-slate-300 mb-3">Controle de Moedas</h4>
+                <div className="border-t border-border pt-4 mt-2">
+                  <h4 className="text-sm font-medium text-muted-foreground mb-3">Controle de Moedas</h4>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label>Moeda</Label>
                       <Select value={formData.moeda} onValueChange={(v) => setFormData({ ...formData, moeda: v as Maquina['moeda'] })}>
-                        <SelectTrigger className="bg-slate-700 border-slate-600">
+                        <SelectTrigger className="bg-muted border-border">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1184,7 +1208,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                         type="number"
                         value={formData.entradaAtual}
                         onChange={(e) => setFormData({ ...formData, entradaAtual: e.target.value })}
-                        className="bg-slate-700 border-slate-600"
+                        className="bg-muted border-border"
                         placeholder="0"
                       />
                     </div>
@@ -1194,7 +1218,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                         type="number"
                         value={formData.saidaAtual}
                         onChange={(e) => setFormData({ ...formData, saidaAtual: e.target.value })}
-                        className="bg-slate-700 border-slate-600"
+                        className="bg-muted border-border"
                         placeholder="0"
                       />
                     </div>
@@ -1205,7 +1229,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                   <Textarea
                     value={formData.observacoes}
                     onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                   />
                 </div>
               </div>
@@ -1223,7 +1247,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
       {/* Filtros */}
       <div className="flex gap-2">
         <Select value={filtroTipoId} onValueChange={setFiltroTipoId}>
-          <SelectTrigger className="w-40 bg-slate-800 border-slate-700">
+          <SelectTrigger className="w-40 bg-card border-border">
             <SelectValue placeholder="Tipo" />
           </SelectTrigger>
           <SelectContent>
@@ -1234,7 +1258,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
           </SelectContent>
         </Select>
         <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-          <SelectTrigger className="w-32 bg-slate-800 border-slate-700">
+          <SelectTrigger className="w-32 bg-card border-border">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -1248,10 +1272,10 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
       </div>
 
       {loading ? (
-        <div className="text-center py-8 text-slate-400">Carregando...</div>
+        <div className="text-center py-8 text-muted-foreground">Carregando...</div>
       ) : maquinas.length === 0 ? (
-        <Card className="border-0 shadow-lg bg-slate-800/50">
-          <CardContent className="py-8 text-center text-slate-400">
+        <Card className="border-0 shadow-lg bg-card">
+          <CardContent className="py-8 text-center text-muted-foreground">
             <Cog className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>Nenhuma máquina cadastrada</p>
           </CardContent>
@@ -1269,7 +1293,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
               return labels[moeda] || moeda;
             };
             return (
-              <Card key={maquina.id} className={`border-0 shadow-lg ${maquina.status === 'MANUTENCAO' ? 'bg-amber-900/20' : maquina.status === 'INATIVA' ? 'bg-slate-700/30' : 'bg-slate-800/50'}`}>
+              <Card key={maquina.id} className={`border-0 shadow-lg ${maquina.status === 'MANUTENCAO' ? 'bg-amber-900/20' : maquina.status === 'INATIVA' ? 'bg-accent/50' : 'bg-card'}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
@@ -1277,11 +1301,11 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-white truncate">{maquina.codigo}</p>
+                        <p className="font-medium text-foreground truncate">{maquina.codigo}</p>
                         {getStatusBadge(maquina.status)}
                       </div>
-                      <p className="text-sm text-slate-400">{maquina.tipo?.descricao || 'Tipo não definido'}</p>
-                      <p className="text-xs text-slate-500 mt-1">{maquina.cliente?.nome || 'Sem cliente'}</p>
+                      <p className="text-sm text-muted-foreground">{maquina.tipo?.descricao || 'Tipo não definido'}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{maquina.cliente?.nome || 'Sem cliente'}</p>
                       {maquina.valorMensal && (
                         <p className="text-xs text-emerald-400 mt-1">
                           R$ {maquina.valorMensal.toFixed(2)}/mês
@@ -1289,7 +1313,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                       )}
                       {/* Controle de Moedas */}
                       <div className="flex items-center gap-3 mt-2 text-xs">
-                        <span className="px-2 py-0.5 rounded bg-slate-700 text-slate-300">
+                        <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground">
                           Moeda: {getMoedaLabel(maquina.moeda)}
                         </span>
                         <span className="text-green-400">
@@ -1305,7 +1329,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-slate-400 hover:text-white"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
                           onClick={() => openEditDialog(maquina)}
                         >
                           <Pencil className="w-4 h-4" />
@@ -1313,7 +1337,7 @@ function MaquinasPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-slate-400 hover:text-red-400"
+                          className="h-8 w-8 text-muted-foreground hover:text-red-400"
                           onClick={() => handleExcluir(maquina)}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1455,8 +1479,8 @@ function UsuariosPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
 
   if (!isAdmin) {
     return (
-      <Card className="border-0 shadow-lg bg-slate-800/50">
-        <CardContent className="py-8 text-center text-slate-400">
+      <Card className="border-0 shadow-lg bg-card">
+        <CardContent className="py-8 text-center text-muted-foreground">
           <Settings className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>Acesso restrito a administradores</p>
         </CardContent>
@@ -1467,14 +1491,14 @@ function UsuariosPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white">Usuários</h2>
+        <h2 className="text-xl font-bold text-foreground">Usuários</h2>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button size="sm" className="bg-gradient-to-r from-amber-500 to-orange-600">
               <Plus className="w-4 h-4 mr-1" /> Novo
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-slate-800 border-slate-700 text-white">
+          <DialogContent className="bg-card border-border text-foreground">
             <DialogHeader>
               <DialogTitle>{usuarioEditando ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
             </DialogHeader>
@@ -1484,7 +1508,7 @@ function UsuariosPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                 <Input
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="bg-slate-700 border-slate-600"
+                  className="bg-muted border-border"
                 />
               </div>
               <div className="space-y-2">
@@ -1493,7 +1517,7 @@ function UsuariosPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="bg-slate-700 border-slate-600"
+                  className="bg-muted border-border"
                 />
               </div>
               <div className="space-y-2">
@@ -1502,7 +1526,7 @@ function UsuariosPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                   type="password"
                   value={formData.senha}
                   onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
-                  className="bg-slate-700 border-slate-600"
+                  className="bg-muted border-border"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1511,13 +1535,13 @@ function UsuariosPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                   <Input
                     value={formData.telefone}
                     onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Nível de Acesso</Label>
                   <Select value={formData.nivelAcesso} onValueChange={(v) => setFormData({ ...formData, nivelAcesso: v as NivelAcesso })}>
-                    <SelectTrigger className="bg-slate-700 border-slate-600">
+                    <SelectTrigger className="bg-muted border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1547,10 +1571,10 @@ function UsuariosPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
       </div>
 
       {loading ? (
-        <div className="text-center py-8 text-slate-400">Carregando...</div>
+        <div className="text-center py-8 text-muted-foreground">Carregando...</div>
       ) : usuarios.length === 0 ? (
-        <Card className="border-0 shadow-lg bg-slate-800/50">
-          <CardContent className="py-8 text-center text-slate-400">
+        <Card className="border-0 shadow-lg bg-card">
+          <CardContent className="py-8 text-center text-muted-foreground">
             <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>Nenhum usuário cadastrado</p>
           </CardContent>
@@ -1558,7 +1582,7 @@ function UsuariosPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
       ) : (
         <div className="space-y-2">
           {usuarios.map((usuario) => (
-            <Card key={usuario.id} className={`border-0 shadow-lg ${!usuario.ativo ? 'bg-slate-700/30' : 'bg-slate-800/50'}`}>
+            <Card key={usuario.id} className={`border-0 shadow-lg ${!usuario.ativo ? 'bg-accent/50' : 'bg-card'}`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
                   <Avatar className="w-10 h-10">
@@ -1568,19 +1592,19 @@ function UsuariosPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-white truncate">{usuario.nome}</p>
+                      <p className="font-medium text-foreground truncate">{usuario.nome}</p>
                       {!usuario.ativo && (
                         <Badge variant="secondary">Inativo</Badge>
                       )}
                     </div>
-                    <p className="text-sm text-slate-400">{usuario.email}</p>
+                    <p className="text-sm text-muted-foreground">{usuario.email}</p>
                     <div className="mt-1">{getNivelBadge(usuario.nivelAcesso)}</div>
                   </div>
                   <div className="flex gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-slate-400 hover:text-white"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
                       onClick={() => openEditDialog(usuario)}
                     >
                       <Pencil className="w-4 h-4" />
@@ -1588,7 +1612,7 @@ function UsuariosPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: bool
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-slate-400 hover:text-red-400"
+                      className="h-8 w-8 text-muted-foreground hover:text-red-400"
                       onClick={() => handleExcluir(usuario)}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -2438,16 +2462,16 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white">Cobranças</h2>
+        <h2 className="text-xl font-bold text-foreground">Cobranças</h2>
       </div>
 
       {/* Seleção de Cliente */}
-      <Card className="border-0 shadow-lg bg-slate-800/50">
+      <Card className="border-0 shadow-lg bg-card">
         <CardContent className="p-4">
           <div className="space-y-2">
-            <Label className="text-slate-300">Selecione o Cliente</Label>
+            <Label className="text-muted-foreground">Selecione o Cliente</Label>
             <Select value={clienteSelecionado?.id || ''} onValueChange={handleClienteChange}>
-              <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+              <SelectTrigger className="bg-muted border-border text-foreground">
                 <SelectValue placeholder="Escolha um cliente" />
               </SelectTrigger>
               <SelectContent>
@@ -2461,10 +2485,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       </Card>
 
       {loading ? (
-        <div className="text-center py-8 text-slate-400">Carregando máquinas...</div>
+        <div className="text-center py-8 text-muted-foreground">Carregando máquinas...</div>
       ) : clienteSelecionado && maquinas.length === 0 ? (
-        <Card className="border-0 shadow-lg bg-slate-800/50">
-          <CardContent className="py-8 text-center text-slate-400">
+        <Card className="border-0 shadow-lg bg-card">
+          <CardContent className="py-8 text-center text-muted-foreground">
             <Cog className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>Este cliente não possui máquinas cadastradas</p>
           </CardContent>
@@ -2474,17 +2498,17 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           {/* Lista de Máquinas */}
           <div className="space-y-3">
             {maquinas.map((maquina, index) => (
-              <Card key={maquina.id} className="border-0 shadow-lg bg-slate-800/50">
+              <Card key={maquina.id} className="border-0 shadow-lg bg-card">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex-1">
-                      <p className="font-medium text-white">{maquina.codigo} - {maquina.tipo?.descricao || 'Tipo não definido'}</p>
-                      <p className="text-xs text-slate-400">Moeda: {getMoedaLabel(maquina.moeda)}</p>
+                      <p className="font-medium text-foreground">{maquina.codigo} - {maquina.tipo?.descricao || 'Tipo não definido'}</p>
+                      <p className="text-xs text-muted-foreground">Moeda: {getMoedaLabel(maquina.moeda)}</p>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className={`h-9 w-9 ${maquinasComFotoAplicada.has(maquina.id) ? 'text-green-400 hover:text-green-300 hover:bg-green-900/30' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                      className={`h-9 w-9 ${maquinasComFotoAplicada.has(maquina.id) ? 'text-green-400 hover:text-green-300 hover:bg-green-900/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
                       onClick={() => abrirModalFoto(maquina)}
                     >
                       {maquinasComFotoAplicada.has(maquina.id) ? (
@@ -2495,7 +2519,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                     </Button>
                   </div>
                   {/* Cabeçalho das colunas */}
-                  <div className="grid grid-cols-3 gap-2 mb-2 text-xs text-slate-400 text-center">
+                  <div className="grid grid-cols-3 gap-2 mb-2 text-xs text-muted-foreground text-center">
                     <span>ANTERIOR</span>
                     <span>ATUAL</span>
                     <span>SALDO</span>
@@ -2521,7 +2545,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       onChange={(e) => handleNovaEntrada(index, e.target.value)}
                       onBlur={() => validateNovaEntrada(index)}
                       ref={(el) => { entradaRefs.current[index] = el; }}
-                      className="bg-slate-700 border-slate-600 text-white text-right pr-2 h-10 font-mono no-spinners"
+                      className="bg-muted border-border text-foreground text-right pr-2 h-10 font-mono no-spinners"
                       placeholder="0"
                     />
                     <Input
@@ -2554,7 +2578,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       onChange={(e) => handleNovaSaida(index, e.target.value)}
                       onBlur={() => validateNovaSaida(index)}
                       ref={(el) => { saidaRefs.current[index] = el; }}
-                      className="bg-slate-700 border-slate-600 text-white text-right pr-2 h-10 font-mono no-spinners"
+                      className="bg-muted border-border text-foreground text-right pr-2 h-10 font-mono no-spinners"
                       placeholder="0"
                     />
                     <Input
@@ -2568,7 +2592,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   </div>
                   {/* Crédito e Saldo da máquina */}
                   <div className="flex justify-between mt-3 text-sm">
-                    <span className="text-slate-400">X {getMoedaLabel(maquina.moeda || 'M010')}</span>
+                    <span className="text-muted-foreground">X {getMoedaLabel(maquina.moeda || 'M010')}</span>
                     <span className={maquina.saldoMaquina >= 0 ? 'text-green-400' : 'text-red-400'}>
                       Saldo: R$ {formatNumber(maquina.saldoMaquina || 0)}
                     </span>
@@ -2579,24 +2603,24 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           </div>
 
           {/* Resumo */}
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-800/50 to-slate-700/50">
+          <Card className="border-0 shadow-lg bg-card">
             <CardContent className="p-4">
-              <h3 className="font-semibold text-white mb-3">Resumo</h3>
+              <h3 className="font-semibold text-foreground mb-3">Resumo</h3>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Entradas:</span>
+                  <span className="text-muted-foreground">Entradas:</span>
                   <span className="text-green-400">R$ {formatNumber(totais.entradas)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Saídas:</span>
+                  <span className="text-muted-foreground">Saídas:</span>
                   <span className="text-red-400">R$ {formatNumber(totais.saidas)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Jogado:</span>
-                  <span className="text-white">R$ {formatNumber(totais.jogado)}</span>
+                  <span className="text-muted-foreground">Jogado:</span>
+                  <span className="text-foreground">R$ {formatNumber(totais.jogado)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Cliente (50%):</span>
+                  <span className="text-muted-foreground">Cliente (50%):</span>
                   <span className="text-amber-400">R$ {formatNumber(totais.cliente)}</span>
                 </div>
               </div>
@@ -2604,29 +2628,29 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           </Card>
 
           {/* Despesa Extra */}
-          <Card className="border-0 shadow-lg bg-slate-800/50">
+          <Card className="border-0 shadow-lg bg-card">
             <CardContent className="p-4">
-              <h3 className="font-semibold text-white mb-3">Despesa</h3>
+              <h3 className="font-semibold text-foreground mb-3">Despesa</h3>
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2 space-y-1">
-                  <Label className="text-slate-400 text-xs">Descrição</Label>
+                  <Label className="text-muted-foreground text-xs">Descrição</Label>
                   <Input
                     type="text"
                     value={despesa}
                     onChange={(e) => setDespesa(e.target.value)}
                     placeholder="Descrição da despesa"
-                    className="bg-slate-700 border-slate-600 text-white"
+                    className="bg-muted border-border text-foreground"
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-slate-400 text-xs">Valor (R$)</Label>
+                  <Label className="text-muted-foreground text-xs">Valor (R$)</Label>
                   <Input
                     type="text"
                     inputMode="decimal"
                     value={valorDespesa}
                     onChange={(e) => setValorDespesa(e.target.value.replace(/[^\d.,]/g, ''))}
                     placeholder="0,00"
-                    className="bg-slate-700 border-slate-600 text-white text-right"
+                    className="bg-muted border-border text-foreground text-right"
                   />
                 </div>
               </div>
@@ -2647,13 +2671,13 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
 
           {/* Modal de Captura de Foto */}
           <Dialog open={fotoModalOpen} onOpenChange={setFotoModalOpen}>
-            <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogContent className="bg-card border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Camera className="w-5 h-5" />
                   Capturar Foto - {maquinaFoto?.codigo}
                 </DialogTitle>
-                <DialogDescription className="text-slate-400">
+                <DialogDescription className="text-muted-foreground">
                   {maquinaFoto?.nome}
                 </DialogDescription>
               </DialogHeader>
@@ -2665,25 +2689,25 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                     <img
                       src={fotoCapturada}
                       alt="Foto capturada - clique duplo para ampliar"
-                      className="w-full max-h-[40vh] object-contain rounded-lg border border-slate-600 cursor-zoom-in hover:border-amber-500/50 transition-colors mx-auto"
+                      className="w-full max-h-[40vh] object-contain rounded-lg border border-border cursor-zoom-in hover:border-amber-500/50 transition-colors mx-auto"
                       onDoubleClick={handleDuploCliqueFoto}
                     />
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="absolute top-2 right-2 bg-slate-900/80 hover:bg-slate-800"
+                      className="absolute top-2 right-2 bg-background/80 hover:bg-card"
                       onClick={() => setFotoCapturada(null)}
                     >
                       <X className="w-4 h-4" />
                     </Button>
-                    <div className="absolute bottom-2 left-2 bg-slate-900/80 px-2 py-1 rounded text-xs text-slate-300">
+                    <div className="absolute bottom-2 left-2 bg-background/80 px-2 py-1 rounded text-xs text-muted-foreground">
                       Duplo clique para ampliar
                     </div>
                   </div>
                 ) : (
-                  <div className="border-2 border-dashed border-slate-600 rounded-lg p-8 text-center">
-                    <Camera className="w-12 h-12 mx-auto text-slate-500 mb-3" />
-                    <p className="text-slate-400 text-sm">Nenhuma foto capturada</p>
+                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                    <Camera className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground text-sm">Nenhuma foto capturada</p>
                   </div>
                 )}
 
@@ -2713,9 +2737,9 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                         onChange={handleFileChange}
                         className="hidden"
                       />
-                      <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-gradient-to-br from-slate-600/50 to-slate-700/50 border border-slate-500/30 hover:from-slate-600/70 hover:to-slate-700/70 transition-colors">
-                        <ImageIcon className="w-6 h-6 text-slate-300" />
-                        <span className="text-sm text-slate-300 font-medium">Galeria</span>
+                      <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-muted border-border hover:bg-accent transition-colors">
+                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground font-medium">Galeria</span>
                       </div>
                     </label>
                   </div>
@@ -2744,9 +2768,9 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
 
                     {/* Valores Extraídos */}
                     {leituraExtraida && (
-                      <div className="bg-slate-800 rounded-lg p-3 border border-slate-600">
+                      <div className="bg-card rounded-lg p-3 border border-border">
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs text-slate-400">Valores identificados:</p>
+                          <p className="text-xs text-muted-foreground">Valores identificados:</p>
                           {leituraExtraida.confianca !== undefined && (
                             <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded ${
                               leituraExtraida.confianca >= 90 ? 'bg-green-900/50 text-green-400' :
@@ -2754,7 +2778,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                               'bg-red-900/50 text-red-400'
                             }`}>
                               <span>{leituraExtraida.confianca}%</span>
-                              <span className="text-slate-500">conf.</span>
+                              <span className="text-muted-foreground">conf.</span>
                             </div>
                           )}
                         </div>
@@ -2872,7 +2896,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
 
           {/* Modal do Extrato */}
           <Dialog open={extratoVisivel} onOpenChange={setExtratoVisivel}>
-            <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogContent className="bg-card border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Extrato de Leitura</DialogTitle>
               </DialogHeader>
@@ -2917,7 +2941,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   step="0.01"
                   value={recebido}
                   onChange={(e) => setRecebido(e.target.value)}
-                  className="bg-slate-700 border-slate-600"
+                  className="bg-muted border-border"
                   placeholder="0.00"
                 />
               </div>
@@ -2940,7 +2964,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
 
           {/* Modal de Resumo após Salvar */}
           <Dialog open={resumoModalOpen} onOpenChange={setResumoModalOpen}>
-            <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogContent className="bg-card border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle className="text-center text-xl">✅ Cobrança Salva!</DialogTitle>
               </DialogHeader>
@@ -3117,8 +3141,8 @@ function TiposMaquinaPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: 
 
   if (!isAdmin) {
     return (
-      <Card className="border-0 shadow-lg bg-slate-800/50">
-        <CardContent className="py-8 text-center text-slate-400">
+      <Card className="border-0 shadow-lg bg-card">
+        <CardContent className="py-8 text-center text-muted-foreground">
           <Settings className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>Acesso restrito a administradores</p>
         </CardContent>
@@ -3129,14 +3153,14 @@ function TiposMaquinaPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white">Tipos de Máquina</h2>
+        <h2 className="text-xl font-bold text-foreground">Tipos de Máquina</h2>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button size="sm" className="bg-gradient-to-r from-amber-500 to-orange-600">
               <Plus className="w-4 h-4 mr-1" /> Novo
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-slate-800 border-slate-700 text-white">
+          <DialogContent className="bg-card border-border text-foreground">
             <DialogHeader>
               <DialogTitle>{tipoEditando ? 'Editar Tipo' : 'Novo Tipo de Máquina'}</DialogTitle>
             </DialogHeader>
@@ -3146,7 +3170,7 @@ function TiposMaquinaPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: 
                 <Input
                   value={formData.descricao}
                   onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  className="bg-slate-700 border-slate-600"
+                  className="bg-muted border-border"
                   placeholder="Ex: Música, Sinuca, Urso..."
                 />
               </div>
@@ -3156,22 +3180,22 @@ function TiposMaquinaPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: 
                   <Input
                     value={formData.nomeEntrada}
                     onChange={(e) => setFormData({ ...formData, nomeEntrada: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                     placeholder="E"
                     maxLength={20}
                   />
-                  <p className="text-xs text-slate-400">Label do campo de entrada</p>
+                  <p className="text-xs text-muted-foreground">Label do campo de entrada</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Nome Saída</Label>
                   <Input
                     value={formData.nomeSaida}
                     onChange={(e) => setFormData({ ...formData, nomeSaida: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                     placeholder="S"
                     maxLength={20}
                   />
-                  <p className="text-xs text-slate-400">Label do campo de saída</p>
+                  <p className="text-xs text-muted-foreground">Label do campo de saída</p>
                 </div>
               </div>
             </div>
@@ -3186,10 +3210,10 @@ function TiposMaquinaPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: 
       </div>
 
       {loading ? (
-        <div className="text-center py-8 text-slate-400">Carregando...</div>
+        <div className="text-center py-8 text-muted-foreground">Carregando...</div>
       ) : tipos.length === 0 ? (
-        <Card className="border-0 shadow-lg bg-slate-800/50">
-          <CardContent className="py-8 text-center text-slate-400">
+        <Card className="border-0 shadow-lg bg-card">
+          <CardContent className="py-8 text-center text-muted-foreground">
             <Layers className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>Nenhum tipo de máquina cadastrado</p>
             <p className="text-sm mt-2">Cadastre tipos para usar nas máquinas</p>
@@ -3198,7 +3222,7 @@ function TiposMaquinaPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: 
       ) : (
         <div className="space-y-2">
           {tipos.map((tipo) => (
-            <Card key={tipo.id} className={`border-0 shadow-lg ${!tipo.ativo ? 'bg-slate-700/30' : 'bg-slate-800/50'}`}>
+            <Card key={tipo.id} className={`border-0 shadow-lg ${!tipo.ativo ? 'bg-accent/50' : 'bg-card'}`}>
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white">
@@ -3206,12 +3230,12 @@ function TiposMaquinaPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: 
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-white">{tipo.descricao}</p>
+                      <p className="font-medium text-foreground">{tipo.descricao}</p>
                       {!tipo.ativo && (
                         <Badge variant="secondary">Inativo</Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-4 mt-1 text-xs text-slate-400">
+                    <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                       <span>Entrada: <strong className="text-green-400">{tipo.nomeEntrada}</strong></span>
                       <span>Saída: <strong className="text-red-400">{tipo.nomeSaida}</strong></span>
                       <span>{tipo._count?.maquinas || 0} máquinas</span>
@@ -3221,7 +3245,7 @@ function TiposMaquinaPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: 
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-slate-400 hover:text-white"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
                       onClick={() => openEditDialog(tipo)}
                     >
                       <Pencil className="w-4 h-4" />
@@ -3229,7 +3253,7 @@ function TiposMaquinaPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: 
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-slate-400 hover:text-red-400"
+                      className="h-8 w-8 text-muted-foreground hover:text-red-400"
                       onClick={() => handleExcluir(tipo)}
                       disabled={(tipo._count?.maquinas || 0) > 0}
                     >
@@ -3324,9 +3348,9 @@ function PagamentosPage({ empresaId, isSupervisor }: { empresaId: string; isSupe
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-white">Pagamentos</h2>
+        <h2 className="text-xl font-bold text-foreground">Pagamentos</h2>
         <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-          <SelectTrigger className="w-32 bg-slate-800 border-slate-700">
+          <SelectTrigger className="w-32 bg-card border-border">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -3340,10 +3364,10 @@ function PagamentosPage({ empresaId, isSupervisor }: { empresaId: string; isSupe
       </div>
 
       {loading ? (
-        <div className="text-center py-8 text-slate-400">Carregando...</div>
+        <div className="text-center py-8 text-muted-foreground">Carregando...</div>
       ) : pagamentos.length === 0 ? (
-        <Card className="border-0 shadow-lg bg-slate-800/50">
-          <CardContent className="py-8 text-center text-slate-400">
+        <Card className="border-0 shadow-lg bg-card">
+          <CardContent className="py-8 text-center text-muted-foreground">
             <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>Nenhum pagamento encontrado</p>
           </CardContent>
@@ -3352,9 +3376,9 @@ function PagamentosPage({ empresaId, isSupervisor }: { empresaId: string; isSupe
         <div className="space-y-2">
           {pagamentos.map((pagamento) => (
             <Card key={pagamento.id} className={`border-0 shadow-lg ${
-              pagamento.status === 'ATRASADO' ? 'bg-red-900/20 border border-red-800/50' :
+              pagamento.status === 'ATRASADO' ? 'bg-destructive/10 border-destructive/30' :
               pagamento.status === 'PENDENTE' ? 'bg-amber-900/20' :
-              'bg-slate-800/50'
+              'bg-card'
             }`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
@@ -3367,11 +3391,11 @@ function PagamentosPage({ empresaId, isSupervisor }: { empresaId: string; isSupe
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-bold text-white">{formatCurrency(pagamento.valor)}</p>
+                      <p className="font-bold text-foreground">{formatCurrency(pagamento.valor)}</p>
                       {getStatusBadge(pagamento.status)}
                     </div>
-                    <p className="text-sm text-slate-400">{pagamento.cliente?.nome || 'Cliente'}</p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                    <p className="text-sm text-muted-foreground">{pagamento.cliente?.nome || 'Cliente'}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         Venc: {formatDate(pagamento.dataVencimento)}
@@ -3385,7 +3409,7 @@ function PagamentosPage({ empresaId, isSupervisor }: { empresaId: string; isSupe
                     <Button
                       size="sm"
                       variant="outline"
-                      className="border-green-600 text-green-400 hover:bg-green-600 hover:text-white"
+                      className="border-green-600 text-green-400 hover:bg-green-600 hover:text-foreground"
                       onClick={() => handleMarcarPago(pagamento)}
                     >
                       <CheckCircle className="w-4 h-4 mr-1" />
@@ -3552,16 +3576,16 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-white">Extrato</h2>
+      <h2 className="text-xl font-bold text-foreground">Extrato</h2>
 
       {/* Filtros */}
-      <Card className="border-0 shadow-lg bg-slate-800/50">
+      <Card className="border-0 shadow-lg bg-card">
         <CardContent className="p-4">
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="space-y-2">
-              <Label className="text-slate-400">Cliente</Label>
+              <Label className="text-muted-foreground">Cliente</Label>
               <Select value={clienteSelecionado} onValueChange={setClienteSelecionado}>
-                <SelectTrigger className="bg-slate-700 border-slate-600 text-white">
+                <SelectTrigger className="bg-muted border-border text-foreground">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -3573,21 +3597,21 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-slate-400">Data Início</Label>
+              <Label className="text-muted-foreground">Data Início</Label>
               <Input
                 type="date"
                 value={dataInicio}
                 onChange={(e) => setDataInicio(e.target.value)}
-                className="bg-slate-700 border-slate-600 text-white"
+                className="bg-muted border-border text-foreground"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-slate-400">Data Fim</Label>
+              <Label className="text-muted-foreground">Data Fim</Label>
               <Input
                 type="date"
                 value={dataFim}
                 onChange={(e) => setDataFim(e.target.value)}
-                className="bg-slate-700 border-slate-600 text-white"
+                className="bg-muted border-border text-foreground"
               />
             </div>
             <div className="flex items-end">
@@ -3607,26 +3631,26 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
       {gerado && (
         <>
           {/* Resumo */}
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-slate-800/50 to-slate-700/50">
+          <Card className="border-0 shadow-lg bg-card">
             <CardContent className="p-4">
-              <h3 className="font-semibold text-white mb-3">Resumo do Período</h3>
+              <h3 className="font-semibold text-foreground mb-3">Resumo do Período</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                 <div>
-                  <p className="text-slate-400">Total Lançamentos</p>
-                  <p className="text-xl font-bold text-white">{lancamentos.length}</p>
+                  <p className="text-muted-foreground">Total Lançamentos</p>
+                  <p className="text-xl font-bold text-foreground">{lancamentos.length}</p>
                 </div>
                 <div>
-                  <p className="text-slate-400">Total Saldo</p>
+                  <p className="text-muted-foreground">Total Saldo</p>
                   <p className={`text-xl font-bold ${totais.totalSaldo >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {formatCurrency(totais.totalSaldo)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-slate-400">Total Despesas</p>
+                  <p className="text-muted-foreground">Total Despesas</p>
                   <p className="text-xl font-bold text-red-400">{formatCurrency(totais.totalDespesas)}</p>
                 </div>
                 <div>
-                  <p className="text-slate-400">Líquido</p>
+                  <p className="text-muted-foreground">Líquido</p>
                   <p className={`text-xl font-bold ${(totais.totalSaldo - totais.totalDespesas) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {formatCurrency(totais.totalSaldo - totais.totalDespesas)}
                   </p>
@@ -3637,30 +3661,30 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
 
           {/* Lista de Lançamentos */}
           {lancamentos.length === 0 ? (
-            <Card className="border-0 shadow-lg bg-slate-800/50">
-              <CardContent className="py-8 text-center text-slate-400">
+            <Card className="border-0 shadow-lg bg-card">
+              <CardContent className="py-8 text-center text-muted-foreground">
                 <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>Nenhum lançamento encontrado no período</p>
               </CardContent>
             </Card>
           ) : (
-            <Card className="border-0 shadow-lg bg-slate-800/50">
+            <Card className="border-0 shadow-lg bg-card">
               <CardContent className="p-4">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-700">
-                        <th className="text-left py-2 px-2 text-slate-400 font-medium">Data</th>
-                        <th className="text-left py-2 px-2 text-slate-400 font-medium">Cliente</th>
-                        <th className="text-right py-2 px-2 text-slate-400 font-medium">Despesa</th>
-                        <th className="text-right py-2 px-2 text-slate-400 font-medium">Cobrança</th>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 px-2 text-muted-foreground font-medium">Data</th>
+                        <th className="text-left py-2 px-2 text-muted-foreground font-medium">Cliente</th>
+                        <th className="text-right py-2 px-2 text-muted-foreground font-medium">Despesa</th>
+                        <th className="text-right py-2 px-2 text-muted-foreground font-medium">Cobrança</th>
                       </tr>
                     </thead>
                     <tbody>
                       {lancamentos.map((l) => (
-                        <tr key={l.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
-                          <td className="py-2 px-2 text-white">{formatDate(l.dataLeitura)}</td>
-                          <td className="py-2 px-2 text-white">{l.cliente?.nome || '-'}</td>
+                        <tr key={l.id} className="border-b border-border/50 hover:bg-accent/50">
+                          <td className="py-2 px-2 text-foreground">{formatDate(l.dataLeitura)}</td>
+                          <td className="py-2 px-2 text-foreground">{l.cliente?.nome || '-'}</td>
                           <td className="py-2 px-2 text-red-400 text-right">
                             {l.valorDespesa ? formatCurrency(l.valorDespesa) : '-'}
                           </td>
@@ -3670,8 +3694,8 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
                         </tr>
                       ))}
                       {/* Linha de Totais */}
-                      <tr className="border-t-2 border-slate-600 bg-slate-700/50 font-bold">
-                        <td className="py-3 px-2 text-white" colSpan={2}>TOTAIS</td>
+                      <tr className="border-t-2 border-border bg-muted/50 font-bold">
+                        <td className="py-3 px-2 text-foreground" colSpan={2}>TOTAIS</td>
                         <td className="py-3 px-2 text-red-400 text-right">
                           {formatCurrency(totais.totalDespesas)}
                         </td>
@@ -3708,6 +3732,316 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ============================================
+// BACKUP & RESTORE COMPONENT (Admin Only)
+// ============================================
+function BackupRestorePage({ empresaId, nomeEmpresa }: { empresaId: string; nomeEmpresa: string }) {
+  const [loadingBackup, setLoadingBackup] = useState(false);
+  const [loadingRestore, setLoadingRestore] = useState(false);
+  const [backupInfo, setBackupInfo] = useState<{ dataBackup: string; resumo: Record<string, number> } | null>(null);
+  const [restoredInfo, setRestoredInfo] = useState<Record<string, number> | null>(null);
+  const [fileSelected, setFileSelected] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+
+  const handleBackup = async () => {
+    setLoadingBackup(true);
+    setBackupInfo(null);
+    try {
+      const res = await fetch(`/api/backup?empresaId=${empresaId}`);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Erro ao gerar backup');
+      }
+      const data = await res.json();
+
+      setBackupInfo({
+        dataBackup: data.dataBackup,
+        resumo: data.resumo,
+      });
+
+      // Download do arquivo JSON
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `backup_${nomeEmpresa.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('Backup gerado e baixado com sucesso!');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erro ao gerar backup';
+      toast.error(message);
+    } finally {
+      setLoadingBackup(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setRestoreFile(file);
+      setFileSelected(true);
+      setConfirmRestore(false);
+      setRestoredInfo(null);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (!restoreFile) {
+      toast.error('Selecione um arquivo de backup primeiro');
+      return;
+    }
+
+    // Validação do arquivo
+    let backupData;
+    try {
+      const text = await restoreFile.text();
+      backupData = JSON.parse(text);
+
+      if (!backupData.versao || !backupData.dados) {
+        toast.error('Formato de backup inválido. O arquivo não contém a estrutura esperada.');
+        return;
+      }
+    } catch {
+      toast.error('O arquivo selecionado não é um backup válido. Selecione um arquivo .json de backup.');
+      return;
+    }
+
+    setLoadingRestore(true);
+    try {
+      const res = await fetch('/api/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backupData, empresaId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao restaurar backup');
+      }
+
+      setRestoredInfo(data.restaurados);
+      setConfirmRestore(false);
+      setConfirmText('');
+      setFileSelected(false);
+      setRestoreFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+
+      toast.success('Backup restaurado com sucesso!');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Erro ao restaurar backup';
+      toast.error(message);
+    } finally {
+      setLoadingRestore(false);
+    }
+  };
+
+  const handleConfirmRestore = () => {
+    if (confirmText === 'RESTAURAR') {
+      handleRestore();
+    }
+  };
+
+  const formatNumber = (n: number) => n.toLocaleString('pt-BR');
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-xl font-bold text-foreground">Backup e Restauração</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Gerencie backups dos dados da empresa <span className="font-medium text-foreground">{nomeEmpresa}</span>
+        </p>
+      </div>
+
+      {/* Alerta Importante */}
+      <Card className="border-0 shadow-lg bg-amber-500/10 border border-amber-500/30">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium text-amber-400">Atenção</p>
+              <p className="mt-1">O backup contém todos os dados da empresa incluindo clientes, máquinas, leituras e pagamentos. A restauração <span className="text-foreground font-medium">substituirá todos os dados atuais</span> pelo conteúdo do backup.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Backup Section */}
+      <Card className="border-0 shadow-lg bg-card">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+              <Download className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-base text-foreground">Gerar Backup</CardTitle>
+              <CardDescription className="text-xs">Exporte todos os dados da empresa em um arquivo JSON</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Button
+            onClick={handleBackup}
+            disabled={loadingBackup}
+            className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700"
+          >
+            {loadingBackup ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                Gerando backup...
+              </>
+            ) : (
+              <>
+                <DatabaseBackup className="w-4 h-4 mr-2" />
+                Gerar e Baixar Backup
+              </>
+            )}
+          </Button>
+
+          {backupInfo && (
+            <div className="mt-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+              <p className="text-sm font-medium text-emerald-400 mb-2">Backup gerado com sucesso!</p>
+              <p className="text-xs text-muted-foreground mb-2">Data: {new Date(backupInfo.dataBackup).toLocaleString('pt-BR')}</p>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                {Object.entries(backupInfo.resumo).map(([key, value]) => (
+                  <div key={key} className="text-center">
+                    <p className="text-sm font-bold text-foreground">{formatNumber(value)}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{key}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Restore Section */}
+      <Card className="border-0 shadow-lg bg-card">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+              <Upload className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-base text-foreground">Restaurar Backup</CardTitle>
+              <CardDescription className="text-xs">Importe um arquivo de backup para restaurar os dados</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Seleção de arquivo */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className={`relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+              fileSelected
+                ? 'border-emerald-500/50 bg-emerald-500/5'
+                : 'border-border hover:border-amber-500/50 hover:bg-muted/30'
+            }`}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleFileSelect}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+            <HardDrive className={`w-8 h-8 mx-auto mb-2 ${fileSelected ? 'text-emerald-400' : 'text-muted-foreground'}`} />
+            <p className="text-sm font-medium text-foreground">
+              {fileSelected ? restoreFile?.name : 'Clique para selecionar o arquivo de backup'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {fileSelected ? 'Arquivo selecionado' : 'Formato aceito: .json'}
+            </p>
+          </div>
+
+          {/* Botão de restaurar */}
+          {fileSelected && !confirmRestore && (
+            <Button
+              onClick={() => setConfirmRestore(true)}
+              variant="outline"
+              className="w-full border-orange-500/50 text-orange-400 hover:bg-orange-500/10"
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Iniciar Restauração
+            </Button>
+          )}
+
+          {/* Confirmação de restauração */}
+          {confirmRestore && (
+            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30 space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                <p className="font-medium text-destructive">Confirmação Necessária</p>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Esta ação irá <span className="text-foreground font-medium">apagar todos os dados atuais</span> da empresa e substituir pelo conteúdo do backup. Esta operação não pode ser desfeita.
+              </p>
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">
+                  Digite <span className="font-mono font-bold text-foreground">RESTAURAR</span> para confirmar:
+                </Label>
+                <Input
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="RESTAURAR"
+                  className="bg-muted border-border font-mono"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => { setConfirmRestore(false); setConfirmText(''); }}
+                  className="flex-1"
+                  disabled={loadingRestore}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleConfirmRestore}
+                  disabled={confirmText !== 'RESTAURAR' || loadingRestore}
+                  className="flex-1 bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700"
+                >
+                  {loadingRestore ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
+                      Restaurando...
+                    </>
+                  ) : (
+                    'Confirmar Restauração'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Resultado da restauração */}
+          {restoredInfo && (
+            <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+              <p className="text-sm font-medium text-emerald-400 mb-2">Dados restaurados com sucesso!</p>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {Object.entries(restoredInfo).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between p-2 rounded bg-muted/30">
+                    <span className="text-xs text-muted-foreground capitalize">{key}</span>
+                    <span className="text-sm font-bold text-foreground">{formatNumber(value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -3904,8 +4238,8 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">Gestão de Empresas</h2>
-          <p className="text-sm text-slate-400">Gerencie todas as empresas do sistema</p>
+          <h2 className="text-xl font-bold text-foreground">Gestão de Empresas</h2>
+          <p className="text-sm text-muted-foreground">Gerencie todas as empresas do sistema</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
@@ -3913,7 +4247,7 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
               <Plus className="w-4 h-4 mr-1" /> Nova Empresa
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-slate-800 border-slate-700 text-white max-h-[90vh] overflow-y-auto">
+          <DialogContent className="bg-card border-border text-foreground max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{empresaEditando ? 'Editar Empresa' : 'Nova Empresa'}</DialogTitle>
             </DialogHeader>
@@ -3923,7 +4257,7 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                 <Input
                   value={formData.nome}
                   onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                  className="bg-slate-700 border-slate-600"
+                  className="bg-muted border-border"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -3932,13 +4266,13 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                   <Input
                     value={formData.cnpj}
                     onChange={(e) => setFormData({ ...formData, cnpj: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Plano</Label>
                   <Select value={formData.plano} onValueChange={(v) => setFormData({ ...formData, plano: v })}>
-                    <SelectTrigger className="bg-slate-700 border-slate-600">
+                    <SelectTrigger className="bg-muted border-border">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -3957,7 +4291,7 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                   />
                 </div>
                 <div className="space-y-2">
@@ -3965,7 +4299,7 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                   <Input
                     value={formData.telefone}
                     onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                   />
                 </div>
               </div>
@@ -3975,7 +4309,7 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                   <Input
                     value={formData.cidade}
                     onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                   />
                 </div>
                 <div className="space-y-2">
@@ -3983,16 +4317,16 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                   <Input
                     value={formData.estado}
                     onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                     maxLength={2}
                   />
                 </div>
               </div>
-              <Separator className="bg-slate-600" />
+              <Separator className="bg-border" />
               <div className="flex items-center justify-between">
                 <div>
                   <Label>Versão Demo</Label>
-                  <p className="text-xs text-slate-400">Teste gratuito com limite de dias</p>
+                  <p className="text-xs text-muted-foreground">Teste gratuito com limite de dias</p>
                 </div>
                 <Switch
                   checked={formData.isDemo}
@@ -4006,7 +4340,7 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                     type="number"
                     value={formData.diasDemo}
                     onChange={(e) => setFormData({ ...formData, diasDemo: Number(e.target.value) })}
-                    className="bg-slate-700 border-slate-600"
+                    className="bg-muted border-border"
                     min={1}
                     placeholder="7"
                   />
@@ -4018,9 +4352,9 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                   type="date"
                   value={formData.dataVencimento}
                   onChange={(e) => setFormData({ ...formData, dataVencimento: e.target.value })}
-                  className="bg-slate-700 border-slate-600"
+                  className="bg-muted border-border"
                 />
-                <p className="text-xs text-slate-400">Deixe em branco para usar dias de demo</p>
+                <p className="text-xs text-muted-foreground">Deixe em branco para usar dias de demo</p>
               </div>
             </div>
             <DialogFooter>
@@ -4034,10 +4368,10 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
       </div>
 
       {loading ? (
-        <div className="text-center py-8 text-slate-400">Carregando...</div>
+        <div className="text-center py-8 text-muted-foreground">Carregando...</div>
       ) : empresas.length === 0 ? (
-        <Card className="border-0 shadow-lg bg-slate-800/50">
-          <CardContent className="py-8 text-center text-slate-400">
+        <Card className="border-0 shadow-lg bg-card">
+          <CardContent className="py-8 text-center text-muted-foreground">
             <Building2 className="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>Nenhuma empresa cadastrada</p>
           </CardContent>
@@ -4045,7 +4379,7 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
       ) : (
         <div className="space-y-2">
           {empresas.map((empresa) => (
-            <Card key={empresa.id} className={`border-0 shadow-lg ${empresa.bloqueada ? 'bg-red-900/20 border border-red-800/50' : empresa.status === 'expirado' ? 'bg-orange-900/20' : 'bg-slate-800/50'}`}>
+            <Card key={empresa.id} className={`border-0 shadow-lg ${empresa.bloqueada ? 'bg-destructive/10 border-destructive/30' : empresa.status === 'expirado' ? 'bg-orange-900/20' : 'bg-card'}`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
                   <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-bold text-lg">
@@ -4053,21 +4387,21 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-white">{empresa.nome}</p>
+                      <p className="font-medium text-foreground">{empresa.nome}</p>
                       {getStatusBadge(empresa)}
                       {empresa.isDemo && <Badge variant="outline" className="text-blue-400 border-blue-400">Demo</Badge>}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                       <span>Plano: {getPlanoLabel(empresa.plano)}</span>
                       {empresa.cnpj && <span>CNPJ: {empresa.cnpj}</span>}
                       {empresa.email && <span>{empresa.email}</span>}
                     </div>
                     <div className="flex items-center gap-4 mt-2 text-xs">
-                      <span className="text-slate-400">
+                      <span className="text-muted-foreground">
                         <Users className="w-3 h-3 inline mr-1" />
                         {empresa._count?.usuarios || 0} usuários
                       </span>
-                      <span className="text-slate-400">
+                      <span className="text-muted-foreground">
                         <Building2 className="w-3 h-3 inline mr-1" />
                         {empresa._count?.clientes || 0} clientes
                       </span>
@@ -4089,7 +4423,7 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-slate-400 hover:text-white"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
                       onClick={() => openEditDialog(empresa)}
                     >
                       <Pencil className="w-4 h-4" />
@@ -4116,7 +4450,7 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-slate-400 hover:text-red-400"
+                      className="h-8 w-8 text-muted-foreground hover:text-red-400"
                       onClick={() => handleExcluir(empresa)}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -4171,39 +4505,39 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur border-b border-slate-700">
+      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b border-border">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-white">
+                <Button variant="ghost" size="icon" className="text-foreground">
                   <Menu className="w-5 h-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="bg-slate-900 border-slate-700 w-72">
+              <SheetContent side="left" className="bg-background border-border w-72">
                 <SheetHeader>
-                  <SheetTitle className="text-white">Menu</SheetTitle>
+                  <SheetTitle className="text-foreground">Menu</SheetTitle>
                 </SheetHeader>
                 <div className="mt-6 space-y-2">
                   <button
                     onClick={() => { setActiveTab('dashboard'); setMenuOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-300 hover:bg-slate-800'}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'dashboard' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
                   >
                     <TrendingUp className="w-5 h-5" />
                     <span>Dashboard</span>
                   </button>
                   <button
                     onClick={() => { setActiveTab('clientes'); setMenuOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'clientes' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-300 hover:bg-slate-800'}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'clientes' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
                   >
                     <Users className="w-5 h-5" />
                     <span>Clientes</span>
                   </button>
                   <button
                     onClick={() => { setActiveTab('maquinas'); setMenuOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'maquinas' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-300 hover:bg-slate-800'}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'maquinas' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
                   >
                     <Cog className="w-5 h-5" />
                     <span>Máquinas</span>
@@ -4211,7 +4545,7 @@ export default function App() {
                   {isAdmin && (
                     <button
                       onClick={() => { setActiveTab('tipos-maquina'); setMenuOpen(false); }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'tipos-maquina' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-300 hover:bg-slate-800'}`}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'tipos-maquina' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
                     >
                       <Settings className="w-5 h-5" />
                       <span>Tipos de Máquina</span>
@@ -4219,14 +4553,14 @@ export default function App() {
                   )}
                   <button
                     onClick={() => { setActiveTab('leituras'); setMenuOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'leituras' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-300 hover:bg-slate-800'}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'leituras' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
                   >
                     <ClipboardList className="w-5 h-5" />
                     <span>Cobrança</span>
                   </button>
                   <button
                     onClick={() => { setActiveTab('pagamentos'); setMenuOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'pagamentos' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-300 hover:bg-slate-800'}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'pagamentos' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
                   >
                     <DollarSign className="w-5 h-5" />
                     <span>Pagamentos</span>
@@ -4234,62 +4568,76 @@ export default function App() {
                   {isAdmin && (
                     <button
                       onClick={() => { setActiveTab('usuarios'); setMenuOpen(false); }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'usuarios' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-300 hover:bg-slate-800'}`}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'usuarios' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
                     >
                       <Settings className="w-5 h-5" />
                       <span>Usuários</span>
                     </button>
                   )}
-                  <Separator className="my-2 bg-slate-700" />
+                  <Separator className="my-2 bg-border" />
                   <button
                     onClick={() => { setActiveTab('relatorios'); setMenuOpen(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'relatorios' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-300 hover:bg-slate-800'}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'relatorios' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
                   >
                     <FileText className="w-5 h-5" />
                     <span>Relatórios</span>
                   </button>
+                  {isAdmin && (
+                    <>
+                      <Separator className="my-2 bg-border" />
+                      <button
+                        onClick={() => { setActiveTab('backup-restore'); setMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'backup-restore' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
+                      >
+                        <DatabaseBackup className="w-5 h-5" />
+                        <span>Backup / Restaurar</span>
+                      </button>
+                    </>
+                  )}
                   {usuario?.email === 'hscopes@gmail.com' && (
                     <>
-                      <Separator className="my-2 bg-slate-700" />
+                      <Separator className="my-2 bg-border" />
                       <button
                         onClick={() => { setActiveTab('gestao-empresas'); setMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'gestao-empresas' ? 'bg-amber-500/20 text-amber-400' : 'text-slate-300 hover:bg-slate-800'}`}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'gestao-empresas' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
                       >
                         <Building2 className="w-5 h-5" />
                         <span>Gestão de Empresas</span>
                       </button>
                     </>
                   )}
+                  <Separator className="my-2 bg-border" />
+                  <ThemeToggle />
                 </div>
-                <Separator className="my-4 bg-slate-700" />
+                <Separator className="my-4 bg-border" />
                 <div className="px-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-bold">
                       {empresa?.nome?.charAt(0)}
                     </div>
                     <div>
-                      <p className="font-medium text-white text-sm">{empresa?.nome}</p>
-                      <p className="text-xs text-slate-400">Plano: {empresa?.plano}</p>
+                      <p className="font-medium text-foreground text-sm">{empresa?.nome}</p>
+                      <p className="text-xs text-muted-foreground">Plano: {empresa?.plano}</p>
                     </div>
                   </div>
                 </div>
               </SheetContent>
             </Sheet>
             <div>
-              <h1 className="font-bold text-white">Máquinas Gestão</h1>
-              <p className="text-xs text-slate-400">EMPRESA: {empresa?.nome}</p>
+              <h1 className="font-bold text-foreground">Máquinas Gestão</h1>
+              <p className="text-xs text-muted-foreground">EMPRESA: {empresa?.nome}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="text-right mr-2">
-              <p className="text-sm font-medium text-white">{usuario?.nome}</p>
-              <p className="text-xs text-slate-400">{usuario?.nivelAcesso}</p>
+              <p className="text-sm font-medium text-foreground">{usuario?.nome}</p>
+              <p className="text-xs text-muted-foreground">{usuario?.nivelAcesso}</p>
             </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => logout()}
-              className="text-slate-400 hover:text-white"
+              className="text-muted-foreground hover:text-foreground"
             >
               <LogOut className="w-5 h-5" />
             </Button>
@@ -4301,7 +4649,7 @@ export default function App() {
       <main className="flex-1 p-4">
         {activeTab === 'dashboard' && (
           loadingDashboard ? (
-            <div className="text-center py-8 text-slate-400">Carregando...</div>
+            <div className="text-center py-8 text-muted-foreground">Carregando...</div>
           ) : (
             <DashboardPage data={dashboardData} onNavigate={setActiveTab} />
           )
@@ -4327,6 +4675,9 @@ export default function App() {
         {activeTab === 'relatorios' && (
           <RelatoriosPage empresaId={empresa?.id || ''} />
         )}
+        {activeTab === 'backup-restore' && isAdmin && (
+          <BackupRestorePage empresaId={empresa?.id || ''} nomeEmpresa={empresa?.nome || ''} />
+        )}
         {activeTab === 'gestao-empresas' && usuario?.email === 'hscopes@gmail.com' && (
           <GestaoEmpresasPage adminEmail={usuario.email} />
         )}
@@ -4339,7 +4690,7 @@ export default function App() {
           className={`fixed bottom-20 left-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg transition-all ${
             activeTab === 'gestao-empresas'
               ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
-              : 'bg-slate-800 border border-amber-500/50 text-amber-400 hover:bg-slate-700'
+              : 'bg-card border border-amber-500/50 text-amber-400 hover:bg-muted'
           }`}
         >
           <Building2 className="w-5 h-5" />
@@ -4348,7 +4699,7 @@ export default function App() {
       )}
 
       {/* Bottom Navigation */}
-      <nav className="sticky bottom-0 bg-slate-900/95 backdrop-blur border-t border-slate-700 px-4 py-2 safe-area-bottom">
+      <nav className="sticky bottom-0 bg-background/95 backdrop-blur border-t border-border px-4 py-2 safe-area-bottom">
         <div className="flex justify-around">
           {[
             { id: 'dashboard', icon: TrendingUp, label: 'Início' },
@@ -4360,7 +4711,7 @@ export default function App() {
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               className={`flex flex-col items-center gap-1 px-3 py-1 rounded-lg transition-colors ${
-                activeTab === item.id ? 'text-amber-400' : 'text-slate-400'
+                activeTab === item.id ? 'text-amber-400' : 'text-muted-foreground'
               }`}
             >
               <item.icon className="w-5 h-5" />
