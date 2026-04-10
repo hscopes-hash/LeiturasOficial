@@ -50,6 +50,12 @@ Sua tarefa:
 2. O display de ENTRADA geralmente mostra um número maior
 3. O display de SAÍDA geralmente mostra um número menor
 
+REGRA IMPORTANTE PARA VALORES MONETÁRIOS:
+- Quando o número exibido no display tiver formato de moeda (com ponto ou vírgula como separador decimal, ex: "1.234,56" ou "1234.56"), retorne APENAS os algarismos numéricos, removendo todo e qualquer separador decimal.
+- Exemplo: se o display mostra "1.234,56", retorne 123456. Se mostra "12.34", retorne 1234.
+- Se o número NÃO tiver separador decimal (é um contador inteiro), retorne o número como está.
+- O valor final deve SEMPRE ser um número inteiro sem pontos, vírgulas ou casas decimais.
+
 Responda APENAS com este JSON (sem markdown, sem explicações):
 {"entrada": NUMERO_INTEIRO_OU_NULL, "saida": NUMERO_INTEIRO_OU_NULL, "confianca": PERCENTUAL_0_100, "observacoes": "texto breve"}`;
 
@@ -185,12 +191,14 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
       );
     }
 
-    // Validar resultado
-    if (typeof resultado.entrada !== 'number' && resultado.entrada !== null) {
-      resultado.entrada = null;
+    // Validar resultado e garantir que sejam inteiros (remover decimais se a IA falhar)
+    if (resultado.entrada !== null && resultado.entrada !== undefined) {
+      resultado.entrada = Math.floor(Number(resultado.entrada));
+      if (isNaN(resultado.entrada)) resultado.entrada = null;
     }
-    if (typeof resultado.saida !== 'number' && resultado.saida !== null) {
-      resultado.saida = null;
+    if (resultado.saida !== null && resultado.saida !== undefined) {
+      resultado.saida = Math.floor(Number(resultado.saida));
+      if (isNaN(resultado.saida)) resultado.saida = null;
     }
     if (typeof resultado.confianca !== 'number') {
       resultado.confianca = 0;
