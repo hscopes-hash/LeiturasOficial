@@ -2508,7 +2508,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                     <Button
                       variant="ghost"
                       size="icon"
-                      className={`h-9 w-9 ${maquinasComFotoAplicada.has(maquina.id) ? 'text-green-600 dark:text-green-400 hover:text-green-500 dark:hover:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                      className={`h-9 w-9 ${maquinasComFotoAplicada.has(maquina.id) ? 'text-success hover:text-success/80 hover:bg-success-bg' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
                       onClick={() => abrirModalFoto(maquina)}
                     >
                       {maquinasComFotoAplicada.has(maquina.id) ? (
@@ -2527,14 +2527,14 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   {/* Linha Entrada */}
                   <div className="grid grid-cols-3 gap-2 mb-2">
                     <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-green-700 dark:text-green-400 font-bold">E</span>
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-success font-bold">E</span>
                       <Input
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
                         value={maquina.entradaAtual || 0}
                         disabled
-                        className="bg-gray-200 border-gray-300 dark:bg-slate-600 dark:border-slate-500 text-green-700 dark:text-green-400 text-right pr-2 pl-6 h-10 font-mono no-spinners"
+                        className="bg-field-bg border-field-border text-success text-right pr-2 pl-6 h-10 font-mono no-spinners"
                       />
                     </div>
                     <Input
@@ -2554,20 +2554,20 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       pattern="[0-9]*"
                       value={maquina.diferencaEntrada}
                       disabled
-                      className={`text-right pr-2 h-10 font-mono no-spinners ${maquina.diferencaEntrada >= 0 ? 'bg-green-100 border-green-300 dark:bg-green-900/50 dark:border-green-700 text-green-700 dark:text-green-400' : 'bg-red-100 border-red-300 dark:bg-red-900/50 dark:border-red-700 text-red-600 dark:text-red-400'}`}
+                      className={`text-right pr-2 h-10 font-mono no-spinners ${maquina.diferencaEntrada >= 0 ? 'bg-success-bg border-success/30 text-success' : 'bg-danger-bg border-danger/30 text-danger'}`}
                     />
                   </div>
                   {/* Linha Saída */}
                   <div className="grid grid-cols-3 gap-2">
                     <div className="relative">
-                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-red-600 dark:text-red-400 font-bold">S</span>
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-danger font-bold">S</span>
                       <Input
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
                         value={maquina.saidaAtual || 0}
                         disabled
-                        className="bg-gray-200 border-gray-300 dark:bg-slate-600 dark:border-slate-500 text-green-700 dark:text-green-400 text-right pr-2 pl-6 h-10 font-mono no-spinners"
+                        className="bg-field-bg border-field-border text-success text-right pr-2 pl-6 h-10 font-mono no-spinners"
                       />
                     </div>
                     <Input
@@ -2587,13 +2587,13 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       pattern="[0-9]*"
                       value={maquina.diferencaSaida}
                       disabled
-                      className={`text-right pr-2 h-10 font-mono no-spinners ${maquina.diferencaSaida >= 0 ? 'bg-red-100 border-red-300 dark:bg-red-900/50 dark:border-red-700 text-red-600 dark:text-red-400' : 'bg-green-100 border-green-300 dark:bg-green-900/50 dark:border-green-700 text-green-700 dark:text-green-400'}`}
+                      className={`text-right pr-2 h-10 font-mono no-spinners ${maquina.diferencaSaida >= 0 ? 'bg-danger-bg border-danger/30 text-danger' : 'bg-success-bg border-success/30 text-success'}`}
                     />
                   </div>
                   {/* Crédito e Saldo da máquina */}
                   <div className="flex justify-between mt-3 text-sm">
                     <span className="text-muted-foreground">X {getMoedaLabel(maquina.moeda || 'M010')}</span>
-                    <span className={maquina.saldoMaquina >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                    <span className={maquina.saldoMaquina >= 0 ? 'text-success' : 'text-danger'}>
                       Saldo: R$ {formatNumber(maquina.saldoMaquina || 0)}
                     </span>
                   </div>
@@ -2609,11 +2609,11 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Entradas:</span>
-                  <span className="text-green-700 dark:text-green-400">R$ {formatNumber(totais.entradas)}</span>
+                  <span className="text-success">R$ {formatNumber(totais.entradas)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Saídas:</span>
-                  <span className="text-red-600 dark:text-red-400">R$ {formatNumber(totais.saidas)}</span>
+                  <span className="text-danger">R$ {formatNumber(totais.saidas)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Jogado:</span>
@@ -2621,7 +2621,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Cliente (50%):</span>
-                  <span className="text-amber-600 dark:text-amber-400">R$ {formatNumber(totais.cliente)}</span>
+                  <span className="text-warning">R$ {formatNumber(totais.cliente)}</span>
                 </div>
               </div>
             </CardContent>
@@ -2724,8 +2724,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                         className="hidden"
                       />
                       <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-500/30 transition-colors">
-                        <Camera className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                        <span className="text-sm text-amber-600 dark:text-amber-400 font-medium">Tirar Foto</span>
+                        <Camera className="w-6 h-6 text-warning" />
+                        <span className="text-sm text-warning font-medium">Tirar Foto</span>
                       </div>
                     </label>
 
@@ -2773,9 +2773,9 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                           <p className="text-xs text-muted-foreground">Valores identificados:</p>
                           {leituraExtraida.confianca !== undefined && (
                             <div className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded ${
-                              leituraExtraida.confianca >= 90 ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-400' :
-                              leituraExtraida.confianca >= 70 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-600 dark:text-yellow-400' :
-                              'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400'
+                              leituraExtraida.confianca >= 90 ? 'bg-success-bg text-success' :
+                              leituraExtraida.confianca >= 70 ? 'bg-warning-bg text-warning' :
+                              'bg-danger-bg text-danger'
                             }`}>
                               <span>{leituraExtraida.confianca}%</span>
                               <span className="text-muted-foreground">conf.</span>
@@ -2783,17 +2783,17 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                           )}
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                          <div className="text-center p-2 bg-green-50 dark:bg-green-900/30 rounded border border-green-200 dark:border-green-700/50">
-                            <p className="text-xs text-green-700 dark:text-green-400">{maquinaFoto?.tipo?.nomeEntrada || 'E'}</p>
-                            <p className="text-xl font-bold text-green-700 dark:text-green-400">{leituraExtraida.entrada ?? '-'}</p>
+                          <div className="text-center p-2 bg-success-bg rounded border border-success/30">
+                            <p className="text-xs text-success">{maquinaFoto?.tipo?.nomeEntrada || 'E'}</p>
+                            <p className="text-xl font-bold text-success">{leituraExtraida.entrada ?? '-'}</p>
                           </div>
-                          <div className="text-center p-2 bg-red-50 dark:bg-red-900/30 rounded border border-red-200 dark:border-red-700/50">
-                            <p className="text-xs text-red-600 dark:text-red-400">{maquinaFoto?.tipo?.nomeSaida || 'S'}</p>
-                            <p className="text-xl font-bold text-red-600 dark:text-red-400">{leituraExtraida.saida ?? '-'}</p>
+                          <div className="text-center p-2 bg-danger-bg rounded border border-danger/30">
+                            <p className="text-xs text-danger">{maquinaFoto?.tipo?.nomeSaida || 'S'}</p>
+                            <p className="text-xl font-bold text-danger">{leituraExtraida.saida ?? '-'}</p>
                           </div>
                         </div>
                         {leituraExtraida.confianca !== undefined && leituraExtraida.confianca < 70 && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 text-center">
+                          <p className="text-xs text-warning mt-2 text-center">
                             ⚠️ Baixa confiança - verifique os valores antes de aplicar
                           </p>
                         )}
