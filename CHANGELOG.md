@@ -4,6 +4,11 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.10.0.3] - 2026-04-11
+
+v2.10.0.3 - Corrigido botao Testar Reserva: agora so habilita quando API Key E modelo estao preenchidos
+v2.10.0.3 - Mensagens de erro especificas indicando qual campo esta faltando (API Key ou modelo)
+
 ## [v2.10.0.2] - 2026-04-11
 
 v2.10.0.2 - Corrigido GLM/Zhipu AI: agora gera JWT correto a partir da API Key ({id}.{secret}) para autenticacao

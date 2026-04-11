@@ -44,9 +44,21 @@ export async function POST(request: NextRequest) {
       }
 
       origem = 'reserva';
-      if (!apiKey || !model) {
+      if (!apiKey && !model) {
         return NextResponse.json(
           { error: 'Nenhuma IA reserva configurada. Defina o modelo e API Key reserva nas Configurações.' },
+          { status: 400 }
+        );
+      }
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: 'API Key reserva não informada. Preencha o campo de Token da IA Reserva.' },
+          { status: 400 }
+        );
+      }
+      if (!model) {
+        return NextResponse.json(
+          { error: 'Modelo reserva não selecionado. Escolha um modelo no campo IA Reserva.' },
           { status: 400 }
         );
       }
