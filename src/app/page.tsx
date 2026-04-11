@@ -1668,6 +1668,12 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   const [valorDespesa, setValorDespesa] = useState('');
   // Estado para o valor da despesa salva (para exibir no resumo)
   const [valorDespesaSalva, setValorDespesaSalva] = useState<number>(0);
+  // Estados para Lançamento de Lote
+  const [loteModalOpen, setLoteModalOpen] = useState(false);
+  const [fotosLote, setFotosLote] = useState<{ id: string; imagem: string; status: 'pendente' | 'processando' | 'concluido' | 'erro'; resultado?: { codigoMaquina: string; codigoReconhecido: boolean; entrada: number | null; saida: number | null; confianca: number; observacoes: string }; erro?: string }[]>([]);
+  const [processandoLote, setProcessandoLote] = useState(false);
+  const [loteProgresso, setLoteProgresso] = useState(0);
+  const loteIdCounter = useRef(0);
   
   // Refs para os inputs de entrada e saída
   const entradaRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
@@ -2176,6 +2182,103 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     setLeituraExtraida(null);
   };
 
+  // ============================================
+  // LANCAMENTO DE LOTE
+  // ============================================
+  const processarLote = async () => {
+    if (fotosLote.length === 0) return;
+
+    setProcessandoLote(true);
+    setLoteProgresso(0);
+
+    // Preparar lista de códigos de máquinas do cliente
+    const codigosMaquinas = maquinas.map(m => m.codigo);
+
+    for (let i = 0; i < fotosLote.length; i++) {
+      const foto = fotosLote[i];
+      if (foto.status !== 'pendente') continue;
+
+      // Marcar como processando
+      setFotosLote(prev => prev.map((f, idx) =>
+        idx === i ? { ...f, status: 'processando' } : f
+      ));
+
+      try {
+        const res = await fetch('/api/leituras/identificar-lote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imagem: foto.imagem,
+            codigosMaquinas,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Erro ao processar foto');
+        }
+
+        // Marcar como concluído
+        setFotosLote(prev => prev.map((f, idx) =>
+          idx === i ? { ...f, status: 'concluido', resultado: data } : f
+        ));
+
+        // Se a máquina foi reconhecida e encontrada, aplicar os valores
+        if (data.codigoReconhecido && (data.entrada !== null || data.saida !== null)) {
+          const indexMaquina = maquinas.findIndex(m => m.codigo.toUpperCase() === data.codigoMaquina.toUpperCase());
+          if (indexMaquina !== -1) {
+            setMaquinas(prev => {
+              const novasMaquinas = [...prev];
+              if (data.entrada !== null) {
+                novasMaquinas[indexMaquina].novaEntrada = String(data.entrada);
+                const entradaAtual = novasMaquinas[indexMaquina].entradaAtual || 0;
+                novasMaquinas[indexMaquina].diferencaEntrada = data.entrada - entradaAtual;
+              }
+              if (data.saida !== null) {
+                novasMaquinas[indexMaquina].novaSaida = String(data.saida);
+                const saidaAtual = novasMaquinas[indexMaquina].saidaAtual || 0;
+                novasMaquinas[indexMaquina].diferencaSaida = data.saida - saidaAtual;
+              }
+              novasMaquinas[indexMaquina].saldoMaquina = calcularValor(
+                novasMaquinas[indexMaquina].moeda,
+                novasMaquinas[indexMaquina].diferencaEntrada - novasMaquinas[indexMaquina].diferencaSaida
+              );
+              return novasMaquinas;
+            });
+            // Marcar como foto aplicada
+            setMaquinasComFotoAplicada(prev => new Set(prev).add(maquinas[indexMaquina].id));
+          }
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+        setFotosLote(prev => prev.map((f, idx) =>
+          idx === i ? { ...f, status: 'erro', erro: errorMsg } : f
+        ));
+      }
+
+      setLoteProgresso(i + 1);
+
+      // Pequeno delay entre processamentos para não sobrecarregar a API
+      if (i < fotosLote.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    setProcessandoLote(false);
+
+    const concluidas = fotosLote.filter(f => f.status === 'concluido' && f.resultado?.codigoReconhecido).length;
+    const erros = fotosLote.filter(f => f.status === 'erro').length;
+
+    if (erros === 0 && concluidas > 0) {
+      toast.success(`${concluidas} foto(s) processada(s) com sucesso!`);
+    } else if (concluidas > 0) {
+      toast.warning(`${concluidas} processada(s), ${erros} com erro.`);
+    } else {
+      toast.error('Nenhuma foto processada com sucesso.');
+    }
+  };
+
   // Funções para tela cheia e zoom
   const handleDuploCliqueFoto = () => {
     if (fotoCapturada) {
@@ -2652,6 +2755,20 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
             ))}
           </div>
 
+          {/* Botão Lançamento de Lote */}
+          <Button
+            onClick={() => {
+              setFotosLote([]);
+              setLoteProgresso(0);
+              setProcessandoLote(false);
+              setLoteModalOpen(true);
+            }}
+            className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+          >
+            <Layers className="w-4 h-4 mr-2" />
+            LANCAMENTO DE LOTE
+          </Button>
+
           {/* Resumo */}
           <Card className="border-0 shadow-lg bg-card">
             <CardContent className="p-4">
@@ -2718,6 +2835,212 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
               {saving ? 'Salvando...' : 'SALVAR COBRANÇA'}
             </Button>
           </div>
+
+          {/* Modal de Lançamento de Lote */}
+          <Dialog open={loteModalOpen} onOpenChange={(open) => { if (!open && !processandoLote) { setLoteModalOpen(false); setFotosLote([]); setLoteProgresso(0); } }}>
+            <DialogContent className="bg-card border-border text-foreground max-w-md max-h-[92vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Layers className="w-5 h-5" />
+                  Lancamento de Lote
+                </DialogTitle>
+                <DialogDescription className="text-muted-foreground">
+                  Tire as fotos das maquinas. Elas serao processadas automaticamente.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                {/* Botao Tirar Foto */}
+                {!processandoLote && (
+                  <label className="cursor-pointer block">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) return;
+                        event.target.value = '';
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          const img = new Image();
+                          img.onload = () => {
+                            const maxDim = 1280;
+                            let w = img.width, h = img.height;
+                            if (w > maxDim || h > maxDim) {
+                              if (w > h) { h = Math.round((h / w) * maxDim); w = maxDim; }
+                              else { w = Math.round((w / h) * maxDim); h = maxDim; }
+                            }
+                            const canvas = document.createElement('canvas');
+                            canvas.width = w; canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+                            if (ctx) {
+                              ctx.drawImage(img, 0, 0, w, h);
+                              const base64 = canvas.toDataURL('image/jpeg', 0.75);
+                              setFotosLote(prev => [...prev, {
+                                id: `lote_${++loteIdCounter.current}_${Date.now()}`,
+                                imagem: base64,
+                                status: 'pendente',
+                              }]);
+                            }
+                          };
+                          img.src = reader.result as string;
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                    <Button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600" asChild>
+                      <span>
+                        <Camera className="w-4 h-4 mr-2" />
+                        TIRAR FOTO
+                      </span>
+                    </Button>
+                  </label>
+                )}
+
+                {/* Lista de fotos enfileiradas */}
+                {fotosLote.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {fotosLote.length} foto(s) na fila
+                      </p>
+                      {!processandoLote && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-400 hover:text-red-300 h-7"
+                          onClick={() => setFotosLote([])}
+                        >
+                          <Trash2 className="w-3 h-3 mr-1" />
+                          Limpar
+                        </Button>
+                      )}
+                    </div>
+                    <div className="space-y-2 max-h-[40vh] overflow-y-auto">
+                      {fotosLote.map((foto, idx) => (
+                        <div
+                          key={foto.id}
+                          className={`flex items-center gap-3 p-2 rounded-lg border ${
+                            foto.status === 'concluido' ? 'bg-success-bg border-success/30' :
+                            foto.status === 'erro' ? 'bg-danger-bg border-danger/30' :
+                            foto.status === 'processando' ? 'bg-amber-500/10 border-amber-500/30' :
+                            'bg-muted border-border'
+                          }`}
+                        >
+                          <img
+                            src={foto.imagem}
+                            alt={`Foto ${idx + 1}`}
+                            className="w-14 h-14 object-cover rounded border border-border flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground">Foto {idx + 1}</p>
+                            {foto.status === 'pendente' && (
+                              <p className="text-xs text-muted-foreground">Aguardando processamento...</p>
+                            )}
+                            {foto.status === 'processando' && (
+                              <p className="text-xs text-amber-400">Processando...</p>
+                            )}
+                            {foto.status === 'concluido' && foto.resultado && (
+                              <div className="text-xs space-y-0.5">
+                                <p className={foto.resultado.codigoReconhecido ? 'text-success' : 'text-warning'}>
+                                  Maq: {foto.resultado.codigoMaquina} {!foto.resultado.codigoReconhecido && '(nao encontrada)'}
+                                </p>
+                                <p className="text-muted-foreground">
+                                  E: {foto.resultado.entrada ?? '-'} / S: {foto.resultado.saida ?? '-'} ({foto.resultado.confianca}%)
+                                </p>
+                              </div>
+                            )}
+                            {foto.status === 'erro' && (
+                              <p className="text-xs text-danger truncate">{foto.erro || 'Erro'}</p>
+                            )}
+                          </div>
+                          {foto.status === 'pendente' && !processandoLote && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-400 hover:text-red-300 flex-shrink-0"
+                              onClick={() => setFotosLote(prev => prev.filter(f => f.id !== foto.id))}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {foto.status === 'concluido' && (
+                            <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
+                          )}
+                          {foto.status === 'erro' && (
+                            <AlertTriangle className="w-4 h-4 text-danger flex-shrink-0" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {fotosLote.length === 0 && !processandoLote && (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <Layers className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                    <p className="text-sm">Nenhuma foto na fila</p>
+                    <p className="text-xs mt-1">Tire foto das maquinas para processar em lote</p>
+                  </div>
+                )}
+
+                {/* Barra de Progresso durante processamento */}
+                {processandoLote && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Processando lote...</span>
+                      <span className="font-medium text-foreground">{loteProgresso}/{fotosLote.length}</span>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${fotosLote.length > 0 ? (loteProgresso / fotosLote.length) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Resultado do lote */}
+                {!processandoLote && fotosLote.length > 0 && fotosLote.every(f => f.status === 'concluido' || f.status === 'erro') && (
+                  <div className="space-y-3">
+                    <Separator />
+                    <div className="text-center">
+                      <p className="font-medium text-foreground">
+                        {fotosLote.filter(f => f.status === 'concluido').length} de {fotosLote.length} processadas
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">Valores aplicados as maquinas correspondentes</p>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setLoteModalOpen(false);
+                        setFotosLote([]);
+                        setLoteProgresso(0);
+                      }}
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-600"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      CONCLUIR
+                    </Button>
+                  </div>
+                )}
+
+                {/* Botao Processar Lote */}
+                {!processandoLote && fotosLote.some(f => f.status === 'pendente') && (
+                  <Button
+                    onClick={processarLote}
+                    className="w-full bg-gradient-to-r from-amber-500 to-orange-600"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    PROCESSAR LOTE ({fotosLote.filter(f => f.status === 'pendente').length})
+                  </Button>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Modal de Captura de Foto */}
           <Dialog open={fotoModalOpen} onOpenChange={setFotoModalOpen}>

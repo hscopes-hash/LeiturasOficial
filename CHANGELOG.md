@@ -4,6 +4,14 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.8.0.0] - 2026-04-11
+
+v2.8.0.0 - Novo recurso: Lancamento de Lote na Cobranca - tirar fotos em sequencia e processar automaticamente
+v2.8.0.0 - Nova API /api/leituras/identificar-lote para identificar maquina pela etiqueta e extrair valores via IA
+v2.8.0.0 - Modal de lote com lista de fotos enfileiradas e barra de progresso
+v2.8.0.0 - IA identifica o codigo da maquina na foto e correlaciona com as maquinas do cliente
+v2.8.0.0 - Valores extraidos em lote sao aplicados automaticamente nos campos da maquina correspondente
+
 ## [v2.7.1.1] - 2026-04-11
 
 v2.7.1.1 - Corrigido envio de foto para grupo WhatsApp: fallback agora salva a foto automaticamente no dispositivo e copia a mensagem antes de abrir o grupo
