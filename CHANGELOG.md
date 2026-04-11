@@ -4,6 +4,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.10.0.1] - 2026-04-11
+
+v2.10.0.1 - Corrigido botao Testar Conexao Reserva: agora usa valores do formulario antes de salvar no banco
+v2.10.0.1 - Backend aceita valores do corpo da requisicao como prioridade sobre o banco de dados
+v2.10.0.1 - Mesma correcao aplica ao teste de conexao principal
+
 ## [v2.10.0.0] - 2026-04-11
 
 v2.10.0.0 - Fallback automatico de IA: quando a principal falha, usa a reserva automaticamente
