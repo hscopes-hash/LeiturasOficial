@@ -5356,7 +5356,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
           <Button
             variant="outline"
             onClick={() => handleTestarConexao('fallback')}
-            disabled={testandoFallback || !llmApiKeyFallback || !llmModelFallback}
+            disabled={testandoFallback}
             className="w-full sm:w-auto"
           >
             {testandoFallback ? (

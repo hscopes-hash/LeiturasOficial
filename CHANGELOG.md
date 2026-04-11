@@ -4,6 +4,13 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.10.0.4] - 2026-04-11
+
+v2.10.0.4 - Quando nenhuma API Key informada pelo usuario, usa a padrao do sistema (env var LLM_API_KEY)
+v2.10.0.4 - Logica unificada para principal e reserva: corpo > banco > variaveis de ambiente
+v2.10.0.4 - Botao Testar Reserva sempre habilitado (usa config do sistema se nada foi preenchido)
+v2.10.0.4 - Origem da API Key mostrada no log: formulario, DB ou sistema (env)
+
 ## [v2.10.0.3] - 2026-04-11
 
 v2.10.0.3 - Corrigido botao Testar Reserva: agora so habilita quando API Key E modelo estao preenchidos

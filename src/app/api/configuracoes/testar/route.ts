@@ -19,77 +19,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
     }
 
-    // Se os valores foram enviados no corpo da requisição (formulário ainda não salvo), usar eles
-    // Senão, buscar do banco de dados
-    let apiKey: string | null;
-    let model: string;
-    let origem: string;
+    // Prioridade unificada: corpo da requisição > banco de dados > variáveis de ambiente
+    let apiKey: string | null = null;
+    let model: string = '';
+    let origem: string = '';
+
+    // Buscar configurações do banco (usado tanto para principal quanto fallback)
+    const empresa = await prisma.empresa.findUnique({
+      where: { id: empresaId },
+      select: { llmApiKey: true, llmModel: true, llmApiKeyFallback: true, llmModelFallback: true },
+    });
+
+    if (!empresa) {
+      return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 });
+    }
 
     if (testarFallback) {
-      // Prioridade: valores do corpo > banco de dados
-      apiKey = bodyApiKeyFallback?.trim() || null;
-      model = bodyModelFallback?.trim() || '';
-
-      // Se não veio no corpo, buscar do banco
-      if (!apiKey || !model) {
-        const empresa = await prisma.empresa.findUnique({
-          where: { id: empresaId },
-          select: { llmApiKeyFallback: true, llmModelFallback: true },
-        });
-        if (!empresa) {
-          return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 });
-        }
-        if (!apiKey) apiKey = empresa.llmApiKeyFallback?.trim() || null;
-        if (!model) model = empresa.llmModelFallback?.trim() || '';
-      }
-
-      origem = 'reserva';
-      if (!apiKey && !model) {
-        return NextResponse.json(
-          { error: 'Nenhuma IA reserva configurada. Defina o modelo e API Key reserva nas Configurações.' },
-          { status: 400 }
-        );
-      }
-      if (!apiKey) {
-        return NextResponse.json(
-          { error: 'API Key reserva não informada. Preencha o campo de Token da IA Reserva.' },
-          { status: 400 }
-        );
-      }
-      if (!model) {
-        return NextResponse.json(
-          { error: 'Modelo reserva não selecionado. Escolha um modelo no campo IA Reserva.' },
-          { status: 400 }
-        );
-      }
+      apiKey = bodyApiKeyFallback?.trim() || empresa.llmApiKeyFallback?.trim() || process.env.LLM_API_KEY?.trim() || null;
+      model = bodyModelFallback?.trim() || empresa.llmModelFallback?.trim() || process.env.LLM_MODEL?.trim() || 'gemini-2.5-flash-lite';
+      if (!apiKey) origem = 'sem configurar';
+      else if (bodyApiKeyFallback?.trim()) origem = 'reserva (formulário)';
+      else if (empresa.llmApiKeyFallback?.trim()) origem = 'reserva (DB)';
+      else origem = 'sistema (env)';
     } else {
-      // Prioridade: valores do corpo > banco de dados > env vars
-      apiKey = bodyApiKey?.trim() || null;
-      model = bodyModel?.trim() || '';
+      apiKey = bodyApiKey?.trim() || empresa.llmApiKey?.trim() || process.env.LLM_API_KEY?.trim() || null;
+      model = bodyModel?.trim() || empresa.llmModel?.trim() || process.env.LLM_MODEL?.trim() || 'gemini-2.5-flash-lite';
+      if (!apiKey) origem = 'sem configurar';
+      else if (bodyApiKey?.trim()) origem = 'principal (formulário)';
+      else if (empresa.llmApiKey?.trim()) origem = 'principal (DB)';
+      else origem = 'sistema (env)';
+    }
 
-      // Se não veio no corpo, buscar do banco + env
-      if (!apiKey || !model) {
-        const empresa = await prisma.empresa.findUnique({
-          where: { id: empresaId },
-          select: { llmApiKey: true, llmModel: true },
-        });
-        if (!empresa) {
-          return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 });
-        }
-        if (!apiKey) apiKey = empresa.llmApiKey?.trim() || process.env.LLM_API_KEY?.trim() || null;
-        if (!model) model = empresa.llmModel?.trim() || process.env.LLM_MODEL?.trim() || 'gemini-2.5-flash-lite';
-        if (apiKey && !origem) origem = empresa?.llmApiKey ? 'personalizada' : 'sistema (env)';
-      } else {
-        origem = 'personalizada (formulário)';
-      }
-
-      if (!apiKey) {
-        return NextResponse.json(
-          { error: 'Nenhuma API Key configurada. Defina uma chave nas Configurações ou configure LLM_API_KEY no Vercel.' },
-          { status: 400 }
-        );
-      }
-      if (!origem) origem = 'sistema (env)';
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'Nenhuma API Key configurada. Defina uma chave nas Configurações ou configure LLM_API_KEY no Vercel.' },
+        { status: 400 }
+      );
     }
 
     const provider = getProvider(model);
