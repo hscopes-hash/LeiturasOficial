@@ -12,29 +12,36 @@ function getProvider(model: string): 'gemini' | 'glm' {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { empresaId, testarFallback } = body;
+    const { empresaId, testarFallback, llmApiKeyFallback: bodyApiKeyFallback, llmModelFallback: bodyModelFallback, llmApiKey: bodyApiKey, llmModel: bodyModel } = body;
 
     if (!empresaId) {
       return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
     }
 
-    const empresa = await prisma.empresa.findUnique({
-      where: { id: empresaId },
-      select: { llmApiKey: true, llmModel: true, llmApiKeyFallback: true, llmModelFallback: true },
-    });
-
-    if (!empresa) {
-      return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 });
-    }
-
-    // Se testarFallback=true, usar as configurações de fallback; senão, as principais
+    // Se os valores foram enviados no corpo da requisição (formulário ainda não salvo), usar eles
+    // Senão, buscar do banco de dados
     let apiKey: string | null;
     let model: string;
     let origem: string;
 
     if (testarFallback) {
-      apiKey = empresa.llmApiKeyFallback?.trim() || null;
-      model = empresa.llmModelFallback?.trim() || '';
+      // Prioridade: valores do corpo > banco de dados
+      apiKey = bodyApiKeyFallback?.trim() || null;
+      model = bodyModelFallback?.trim() || '';
+
+      // Se não veio no corpo, buscar do banco
+      if (!apiKey || !model) {
+        const empresa = await prisma.empresa.findUnique({
+          where: { id: empresaId },
+          select: { llmApiKeyFallback: true, llmModelFallback: true },
+        });
+        if (!empresa) {
+          return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 });
+        }
+        if (!apiKey) apiKey = empresa.llmApiKeyFallback?.trim() || null;
+        if (!model) model = empresa.llmModelFallback?.trim() || '';
+      }
+
       origem = 'reserva';
       if (!apiKey || !model) {
         return NextResponse.json(
@@ -43,15 +50,33 @@ export async function POST(request: NextRequest) {
         );
       }
     } else {
-      apiKey = empresa.llmApiKey?.trim() || process.env.LLM_API_KEY?.trim() || null;
-      model = empresa.llmModel?.trim() || process.env.LLM_MODEL?.trim() || 'gemini-2.5-flash-lite';
-      origem = empresa.llmApiKey ? 'personalizada' : 'sistema (env)';
+      // Prioridade: valores do corpo > banco de dados > env vars
+      apiKey = bodyApiKey?.trim() || null;
+      model = bodyModel?.trim() || '';
+
+      // Se não veio no corpo, buscar do banco + env
+      if (!apiKey || !model) {
+        const empresa = await prisma.empresa.findUnique({
+          where: { id: empresaId },
+          select: { llmApiKey: true, llmModel: true },
+        });
+        if (!empresa) {
+          return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 });
+        }
+        if (!apiKey) apiKey = empresa.llmApiKey?.trim() || process.env.LLM_API_KEY?.trim() || null;
+        if (!model) model = empresa.llmModel?.trim() || process.env.LLM_MODEL?.trim() || 'gemini-2.5-flash-lite';
+        if (apiKey && !origem) origem = empresa?.llmApiKey ? 'personalizada' : 'sistema (env)';
+      } else {
+        origem = 'personalizada (formulário)';
+      }
+
       if (!apiKey) {
         return NextResponse.json(
           { error: 'Nenhuma API Key configurada. Defina uma chave nas Configurações ou configure LLM_API_KEY no Vercel.' },
           { status: 400 }
         );
       }
+      if (!origem) origem = 'sistema (env)';
     }
 
     const provider = getProvider(model);

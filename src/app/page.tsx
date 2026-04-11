@@ -5016,10 +5016,22 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
       setResultadoTesteFallback(null);
     }
     try {
+      // Enviar os valores atuais do formulário para testar mesmo sem salvar
+      const testBody: Record<string, unknown> = {
+        empresaId,
+        testarFallback: tipo === 'fallback',
+      };
+      if (tipo === 'fallback') {
+        testBody.llmApiKeyFallback = llmApiKeyFallback;
+        testBody.llmModelFallback = llmModelFallback;
+      } else {
+        testBody.llmApiKey = llmApiKey;
+        testBody.llmModel = llmModel;
+      }
       const res = await fetch('/api/configuracoes/testar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ empresaId, testarFallback: tipo === 'fallback' }),
+        body: JSON.stringify(testBody),
       });
       const data = await res.json();
       const resultado = {
