@@ -1,19 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Extrair valores de leitura de uma imagem usando Google Gemini (gratuito)
+// Função para detectar o provedor com base no nome do modelo
+function getProvider(model: string): 'gemini' | 'glm' {
+  if (model.startsWith('glm-')) return 'glm';
+  return 'gemini';
+}
+
+// Função para extrair texto da resposta de qualquer provedor
+function extractContent(data: any, provider: string): string | null {
+  if (provider === 'glm') {
+    // Resposta OpenAI-compatible: data.choices[0].message.content
+    return data?.choices?.[0]?.message?.content || null;
+  }
+  // Gemini: data.candidates[0].content.parts[0].text
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+}
+
+// Extrair valores de leitura de uma imagem (Gemini ou GLM)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { imagem, nomeEntrada, nomeSaida, apiKey: bodyApiKey, model: bodyModel } = body;
 
     if (!imagem) {
-      return NextResponse.json(
-        { error: 'Imagem é obrigatória' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Imagem é obrigatória' }, { status: 400 });
     }
 
-    // Validar formato da imagem
     if (!imagem.startsWith('data:image/')) {
       return NextResponse.json(
         { error: 'Formato de imagem inválido. Envie uma imagem em base64.' },
@@ -21,22 +33,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Configurações da API Gemini (prioridade: body > env)
+    // Configurações (prioridade: body > env)
     const apiKey = bodyApiKey?.trim() || process.env.LLM_API_KEY?.trim();
     const model = bodyModel?.trim() || process.env.LLM_MODEL?.trim() || 'gemini-2.5-flash-lite';
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'API Key não configurada. Configure LLM_API_KEY no Vercel. Obtenha em: https://aistudio.google.com/apikey' },
+        { error: 'API Key não configurada. Configure nas Configurações ou LLM_API_KEY no Vercel.' },
         { status: 500 }
       );
     }
 
-    console.log('=== DEBUG GEMINI ===');
+    const provider = getProvider(model);
+
+    console.log('=== DEBUG IA ===');
+    console.log('Provedor:', provider);
     console.log('Modelo:', model);
     console.log('API Key (primeiros 10 chars):', apiKey.substring(0, 10));
-    console.log('API Key (últimos 5 chars):', apiKey.substring(apiKey.length - 5));
-    console.log('===================');
+    console.log('==================');
 
     // Prompt otimizado para leitura de contadores
     const prompt = `Analise esta foto de um contador de máquina de entretenimento.
@@ -61,44 +75,65 @@ REGRA IMPORTANTE PARA VALORES MONETÁRIOS:
 Responda APENAS com este JSON (sem markdown, sem explicações):
 {"entrada": "STRING_COM_APENAS_DIGITOS_OU_NULL", "saida": "STRING_COM_APENAS_DIGITOS_OU_NULL", "confianca": PERCENTUAL_0_100, "observacoes": "texto breve"}`;
 
-    // Extrair dados da imagem base64
     const base64Data = imagem.split(',')[1];
     const mimeType = imagem.split(';')[0].split(':')[1];
 
-    // Montar payload para Gemini API
-    const payload = {
-      contents: [
-        {
-          parts: [
-            { text: prompt },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: base64Data
-              }
-            }
-          ]
-        }
-      ],
-      generationConfig: {
+    let response: Response;
+
+    if (provider === 'glm') {
+      // ===== Zhipu AI (GLM) - OpenAI-compatible API =====
+      const url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+      const payload = {
+        model: model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: imagem } },
+            ],
+          },
+        ],
         temperature: 0.1,
-        maxOutputTokens: 200,
-      }
-    };
+        max_tokens: 200,
+      };
 
-    // URL correta para Gemini API
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    
-    console.log('URL completa:', url.replace(apiKey, 'API_KEY_HIDDEN'));
+      console.log('URL GLM:', url);
 
-    // Fazer chamada para a API Gemini
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload)
-    });
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      // ===== Google Gemini API =====
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [
+          {
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: mimeType, data: base64Data } },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 200,
+        },
+      };
+
+      console.log('URL Gemini:', url.replace(apiKey, 'API_KEY_HIDDEN'));
+
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
 
     const responseText = await response.text();
     console.log('Status:', response.status);
@@ -107,36 +142,32 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
     if (!response.ok) {
       try {
         const errorJson = JSON.parse(responseText);
-        const errorMsg = errorJson?.error?.message || responseText;
-        
-        if (response.status === 400) {
-          return NextResponse.json(
-            { error: `Erro 400: ${errorMsg}` },
-            { status: 500 }
-          );
-        }
-        
+        const errorMsg = errorJson?.error?.message || errorJson?.message || responseText;
+
         if (response.status === 401 || response.status === 403) {
+          const hint = provider === 'glm'
+            ? 'Verifique sua chave em https://open.bigmodel.cn/usercenter/apikeys'
+            : 'Verifique sua chave em https://aistudio.google.com/apikey';
           return NextResponse.json(
-            { error: 'API Key inválida. Verifique sua chave em https://aistudio.google.com/apikey' },
+            { error: `API Key inválida. ${hint}` },
             { status: 500 }
           );
         }
-        
+
         if (response.status === 404) {
           return NextResponse.json(
-            { error: `Modelo "${model}" não encontrado. Modelos válidos: gemini-2.0-flash, gemini-2.5-flash, gemini-2.5-pro` },
+            { error: `Modelo "${model}" não encontrado para o provedor ${provider}.` },
             { status: 500 }
           );
         }
-        
+
         if (response.status === 429) {
           return NextResponse.json(
-            { error: 'Limite de requisições atingido (15/min). Aguarde 1 minuto.' },
+            { error: 'Limite de requisições atingido. Aguarde um momento e tente novamente.' },
             { status: 500 }
           );
         }
-        
+
         return NextResponse.json(
           { error: `Erro ${response.status}: ${errorMsg}` },
           { status: 500 }
@@ -150,42 +181,31 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
     }
 
     const data = JSON.parse(responseText);
-    
-    // Extrair conteúdo da resposta do Gemini
-    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const content = extractContent(data, provider);
 
     if (!content) {
-      // Verificar se foi bloqueado por segurança
+      // Verificar bloqueio por segurança
       if (data?.promptFeedback?.blockReason) {
         return NextResponse.json(
           { error: `Imagem bloqueada: ${data.promptFeedback.blockReason}` },
           { status: 500 }
         );
       }
-      
-      return NextResponse.json(
-        { error: 'Resposta vazia da IA' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Resposta vazia da IA' }, { status: 500 });
     }
 
-    console.log('Conteúdo:', content);
+    console.log('Conteúdo extraído:', content);
 
-    // Tentar extrair o JSON da resposta
+    // Extrair JSON da resposta
     let resultado;
     try {
       let cleanContent = content
         .replace(/```json\s*/gi, '')
         .replace(/```\s*/gi, '')
         .trim();
-      
+
       const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-      
-      if (jsonMatch) {
-        resultado = JSON.parse(jsonMatch[0]);
-      } else {
-        resultado = JSON.parse(cleanContent);
-      }
+      resultado = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleanContent);
     } catch {
       return NextResponse.json(
         { error: 'Erro ao processar resposta. Tente outra foto.', rawResponse: content },
@@ -193,11 +213,8 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
       );
     }
 
-    // Função para sanitizar valor: remove ponto e vírgula, mantém todos os algarismos
-    // Exemplo: "2.324,00" → 232400 | "1234.56" → 123456 | "1234" → 1234
     const sanitizarValor = (valor: any): number | null => {
       if (valor === null || valor === undefined || valor === 'null') return null;
-      // Converter para string, remover tudo que não for dígito
       const digitos = String(valor).replace(/\D/g, '');
       if (!digitos) return null;
       return parseInt(digitos, 10);
@@ -214,15 +231,14 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
       entrada: resultado.entrada,
       saida: resultado.saida,
       confianca: resultado.confianca,
-      observacoes: resultado.observacoes || ''
+      observacoes: resultado.observacoes || '',
+      provider,
+      model,
     });
 
   } catch (error) {
     console.error('Erro:', error);
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    return NextResponse.json(
-      { error: `Erro: ${errorMessage}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: `Erro: ${errorMessage}` }, { status: 500 });
   }
 }

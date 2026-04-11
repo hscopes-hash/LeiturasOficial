@@ -4946,12 +4946,14 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
   const [resultadoTeste, setResultadoTeste] = useState<{ sucesso: boolean; mensagem: string } | null>(null);
 
   const modelosIA = [
-    { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite (Padrão - Rápido)' },
-    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Equilibrado)' },
-    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Preciso - Lento)' },
-    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Alternativa)' },
-    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Legado)' },
-    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Legado Preciso)' },
+    { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite (Padrão - Rápido)', provider: 'gemini' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Equilibrado)', provider: 'gemini' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Preciso - Lento)', provider: 'gemini' },
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Alternativa)', provider: 'gemini' },
+    { value: 'glm-4v-flash', label: 'GLM-4V Flash (Zhipu AI - Rápido)', provider: 'glm' },
+    { value: 'glm-4v-plus', label: 'GLM-4V Plus (Zhipu AI - Equilibrado)', provider: 'glm' },
+    { value: 'glm-4v', label: 'GLM-4V (Zhipu AI - Preciso)', provider: 'glm' },
+    { value: 'glm-4v-long', label: 'GLM-4V Long (Zhipu AI - Alta Resolução)', provider: 'glm' },
   ];
 
   useEffect(() => {
@@ -5059,15 +5061,27 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Obtenha sua chave em:{' '}
-            <a
-              href="https://aistudio.google.com/apikey"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-amber-500 hover:text-amber-400 underline"
-            >
-              https://aistudio.google.com/apikey
-            </a>
+            {llmModel?.startsWith('glm-') ? (
+              <>Obtenha sua chave em:{' '}
+              <a
+                href="https://open.bigmodel.cn/usercenter/apikeys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-amber-500 hover:text-amber-400 underline"
+              >
+                https://open.bigmodel.cn/usercenter/apikeys
+              </a></>
+            ) : (
+              <>Obtenha sua chave em:{' '}
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-amber-500 hover:text-amber-400 underline"
+              >
+                https://aistudio.google.com/apikey
+              </a></>
+            )}
           </p>
         </CardContent>
       </Card>
@@ -5089,7 +5103,14 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
               <SelectValue placeholder="Selecione um modelo..." />
             </SelectTrigger>
             <SelectContent>
-              {modelosIA.map((modelo) => (
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Google Gemini</div>
+              {modelosIA.filter(m => m.provider === 'gemini').map((modelo) => (
+                <SelectItem key={modelo.value} value={modelo.value}>
+                  {modelo.label}
+                </SelectItem>
+              ))}
+              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t border-border mt-1 pt-2">Zhipu AI (GLM)</div>
+              {modelosIA.filter(m => m.provider === 'glm').map((modelo) => (
                 <SelectItem key={modelo.value} value={modelo.value}>
                   {modelo.label}
                 </SelectItem>

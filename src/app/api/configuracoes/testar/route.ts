@@ -3,7 +3,13 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// POST - Testar conexão com a API de IA
+// Função para detectar o provedor com base no nome do modelo
+function getProvider(model: string): 'gemini' | 'glm' {
+  if (model.startsWith('glm-')) return 'glm';
+  return 'gemini';
+}
+
+// POST - Testar conexão com a API de IA (Gemini ou GLM)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -34,26 +40,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Teste simples: chamada à API Gemini com prompt mínimo
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const provider = getProvider(model);
+    let response: Response;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: 'Responda APENAS com a palavra "OK".' },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 10,
+    if (provider === 'glm') {
+      // ===== Zhipu AI (GLM) =====
+      const url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
         },
-      }),
-    });
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: 'user', content: 'Responda APENAS com a palavra "OK".' },
+          ],
+          temperature: 0,
+          max_tokens: 10,
+        }),
+      });
+    } else {
+      // ===== Google Gemini =====
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            { parts: [{ text: 'Responda APENAS com a palavra "OK".' }] },
+          ],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 10,
+          },
+        }),
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -61,12 +85,15 @@ export async function POST(request: NextRequest) {
 
       try {
         const errorJson = JSON.parse(errorText);
-        const apiMsg = errorJson?.error?.message;
+        const apiMsg = errorJson?.error?.message || errorJson?.message;
 
         if (response.status === 401 || response.status === 403) {
-          errorMsg = 'API Key inválida ou sem permissão';
+          const hint = provider === 'glm'
+            ? 'Verifique sua chave em https://open.bigmodel.cn/usercenter/apikeys'
+            : 'Verifique sua chave em https://aistudio.google.com/apikey';
+          errorMsg = `API Key inválida. ${hint}`;
         } else if (response.status === 404) {
-          errorMsg = `Modelo "${model}" não encontrado`;
+          errorMsg = `Modelo "${model}" não encontrado para o provedor ${provider}`;
         } else if (response.status === 429) {
           errorMsg = 'Limite de requisições atingido. Tente novamente em instantes.';
         } else if (apiMsg) {
@@ -80,12 +107,22 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    // Extrair resposta conforme provedor
+    let content: string | null;
+    if (provider === 'glm') {
+      content = data?.choices?.[0]?.message?.content || null;
+    } else {
+      content = data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    }
+
+    const provedorLabel = provider === 'glm' ? 'Zhipu AI' : 'Google';
 
     return NextResponse.json({
       success: true,
-      mensagem: `Conexão OK! Modelo: ${model}`,
+      mensagem: `Conexão OK! ${provedorLabel} - Modelo: ${model}`,
       modelo: model,
+      provider,
       apiKeyFonte: empresa.llmApiKey ? 'personalizada' : 'sistema',
     });
   } catch (error) {

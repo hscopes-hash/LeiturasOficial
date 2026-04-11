@@ -4,6 +4,18 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.9.1.0] - 2026-04-11
+
+v2.9.1.0 - Adicionados modelos GLM (Zhipu AI) ao menu de configurações de IA
+v2.9.1.0 - Novos modelos: GLM-4V Flash (Rápido), GLM-4V Plus (Equilibrado), GLM-4V (Preciso), GLM-4V Long (Alta Resolução)
+v2.9.1.0 - Dropdown organizado por provedor: Google Gemini e Zhipu AI (GLM)
+v2.9.1.0 - Link de obtenção de API Key muda dinamicamente conforme o provedor selecionado
+v2.9.1.0 - Rotas de IA (extrair, identificar-lote, testar) reescritas com suporte multi-provedor
+v2.9.1.0 - Detecção automática de provedor pelo nome do modelo (glm-* = Zhipu AI, demais = Gemini)
+v2.9.1.0 - GLM usa API OpenAI-compatible com Authorization Bearer no header
+v2.9.1.0 - Gemini mantém formato original com API Key na URL
+v2.9.1.0 - Mensagens de erro now mostram o link correto para cada provedor
+
 ## [v2.9.0.0] - 2026-04-11
 
 v2.9.0.0 - Novo recurso: Configurações de IA Vision no menu lateral (somente ADMIN)
