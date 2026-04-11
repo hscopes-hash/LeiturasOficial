@@ -4,6 +4,14 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.10.0.2] - 2026-04-11
+
+v2.10.0.2 - Corrigido GLM/Zhipu AI: agora gera JWT correto a partir da API Key ({id}.{secret}) para autenticacao
+v2.10.0.2 - Criado modulo zhipu-auth.ts com funcao generateZhipuToken() para gerar JWT HMAC-SHA256
+v2.10.0.2 - Antes enviava API Key crua como Bearer, agora gera token JWT valido com expiracao de 1 hora
+v2.10.0.2 - Adicionado timeout de 30s no teste de conexao e 60s nas chamadas com imagem
+v2.10.0.2 - Mensagem de erro clara quando modelo excede o tempo de resposta
+
 ## [v2.10.0.1] - 2026-04-11
 
 v2.10.0.1 - Corrigido botao Testar Conexao Reserva: agora usa valores do formulario antes de salvar no banco

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { generateZhipuToken } from '@/lib/zhipu-auth';
 
 const prisma = new PrismaClient();
 
@@ -88,31 +89,60 @@ export async function POST(request: NextRequest) {
 
     let response: Response;
 
-    if (provider === 'glm') {
-      const url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [{ role: 'user', content: 'Responda APENAS com a palavra "OK".' }],
-          temperature: 0,
-          max_tokens: 10,
-        }),
-      });
-    } else {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: 'Responda APENAS com a palavra "OK".' }] }],
-          generationConfig: { temperature: 0, maxOutputTokens: 10 },
-        }),
-      });
+    // Timeout de 30 segundos para modelos pesados (ex: Gemini Pro)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      if (provider === 'glm') {
+        // Zhipu AI requer JWT gerado a partir da API Key ({id}.{secret})
+        let authToken: string;
+        try {
+          authToken = generateZhipuToken(apiKey);
+        } catch (jwtError) {
+          return NextResponse.json(
+            { error: `API Key Zhipu AI inválida. O formato deve ser {id}.{secret}. Obtenha em https://open.bigmodel.cn/usercenter/apikeys`, detalhe: String(jwtError) },
+            { status: 400 }
+          );
+        }
+        const url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+        response = await fetch(url, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: 'user', content: 'Responda APENAS com a palavra "OK".' }],
+            temperature: 0,
+            max_tokens: 10,
+          }),
+        });
+      } else {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        response = await fetch(url, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: 'Responda APENAS com a palavra "OK".' }] }],
+            generationConfig: { temperature: 0, maxOutputTokens: 10 },
+          }),
+        });
+      }
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError?.name === 'AbortError') {
+        return NextResponse.json(
+          { error: `Tempo esgotado (30s). O modelo "${model}" pode estar lento ou indisponível no momento. Tente um modelo mais rápido.` },
+          { status: 400 }
+        );
+      }
+      throw fetchError;
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     const responseText = await response.text();

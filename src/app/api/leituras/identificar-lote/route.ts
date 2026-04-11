@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { generateZhipuToken } from '@/lib/zhipu-auth';
 
 // ============================================
 // FUNÇÕES COMPARTILHADAS - Multi-provedor com Fallback
@@ -25,48 +26,66 @@ async function callAI(prompt: string, imagem: string, apiKey: string, model: str
   let response: Response;
 
   if (provider === 'glm') {
+    // Zhipu AI requer JWT gerado a partir da API Key ({id}.{secret})
+    const authToken = generateZhipuToken(apiKey);
     const url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-    response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: imagem } },
-            ],
-          },
-        ],
-        temperature,
-        max_tokens: maxTokens,
-      }),
-    });
+    // Timeout de 60 segundos para chamadas com imagem
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: imagem } },
+              ],
+            },
+          ],
+          temperature,
+          max_tokens: maxTokens,
+        }),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
   } else {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: mimeType, data: base64Data } },
-            ],
+    // Timeout de 60 segundos para chamadas com imagem
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                { inline_data: { mime_type: mimeType, data: base64Data } },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature,
+            maxOutputTokens: maxTokens,
           },
-        ],
-        generationConfig: {
-          temperature,
-          maxOutputTokens: maxTokens,
-        },
-      }),
-    });
+        }),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   const responseText = await response.text();
