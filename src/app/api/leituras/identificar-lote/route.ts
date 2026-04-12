@@ -155,7 +155,7 @@ function parseApiError(errorText: string, status?: number, provider?: string): s
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imagem, codigosMaquinas, model: bodyModel, modelFallback } = body;
+    const { imagem, codigosMaquinas, model: bodyModel, modelFallback, llmApiKey, llmApiKeyFallback } = body;
 
     if (!imagem) {
       return NextResponse.json({ error: 'Imagem é obrigatória' }, { status: 400 });
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
     const model = bodyModel?.trim() || process.env.LLM_MODEL?.trim() || 'gemini-2.5-flash-lite';
 
     // API Key: automática baseada no provedor do modelo
-    const apiKey = getApiKeyForModel(model);
+    const apiKey = getApiKeyForModel(model, llmApiKey, llmApiKeyFallback);
     if (!apiKey) {
       return NextResponse.json(
         { error: 'API Key não configurada. Configure LLM_API_KEY no Vercel.' },
@@ -222,7 +222,7 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
         );
       }
 
-      const fallbackApiKey = getApiKeyForModel(fallbackModel);
+      const fallbackApiKey = getApiKeyForModel(fallbackModel, llmApiKeyFallback, llmApiKey);
       if (!fallbackApiKey) {
         const errorText = primaryError instanceof Error ? primaryError.message : String(primaryError);
         return NextResponse.json(
