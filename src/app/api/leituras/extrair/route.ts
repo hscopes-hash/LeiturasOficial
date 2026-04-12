@@ -250,12 +250,26 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
     // Extrair JSON da resposta
     let resultado;
     try {
-      let cleanContent = content.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
-      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-      resultado = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleanContent);
+      // Limpar resposta: remover markdown, espaços extras, e normalizar
+      let cleanContent = content
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/gi, '')
+        .replace(/^[\s\S]*?(\{)/, '$1')  // remover texto antes do primeiro {
+        .replace(/(\})[\s\S]*$/, '$1')  // remover texto depois do último }
+        .trim();
+      const jsonMatch = cleanContent.match(/\{[^{}]*\}/);
+      if (jsonMatch) {
+        resultado = JSON.parse(jsonMatch[0]);
+      } else {
+        // Tentar parse direto
+        resultado = JSON.parse(cleanContent);
+      }
     } catch {
+      // Incluir trecho da resposta da IA para depuração
+      const trecho = content.substring(0, 120).replace(/\n/g, ' ');
+      console.error('[EXTRAIR] Falha ao parsear resposta da IA:', content.substring(0, 300));
       return NextResponse.json(
-        { error: 'Erro ao processar resposta. Tente outra foto.', rawResponse: content },
+        { error: `A IA não retornou um formato válido. Resposta: ${trecho}...` },
         { status: 500 }
       );
     }
