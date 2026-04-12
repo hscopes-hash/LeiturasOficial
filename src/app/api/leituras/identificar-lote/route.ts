@@ -142,7 +142,7 @@ function parseApiError(errorText: string, status?: number, provider?: string): s
   try {
     const errorJson = JSON.parse(errorText);
     const msg = errorJson?.error?.message || errorJson?.message || '';
-    if (status === 429) return 'Limite de requisições atingido';
+    if (status === 429) return 'Limite de requisições atingido. Aguarde 1 minuto e tente novamente.';
     if (status === 401 || status === 403) return 'API Key inválida';
     if (status === 404) return 'Modelo não encontrado';
     if (msg) return msg.substring(0, 150);

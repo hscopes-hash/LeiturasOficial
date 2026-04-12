@@ -2365,7 +2365,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
 
       // Delay entre processamentos para não sobrecarregar a API (2 chamadas por foto)
       if (i < fotosLote.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5s entre fotos para respeitar rate limits
       }
     }
 
@@ -4966,9 +4966,10 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
 
   const modelosIA = [
     { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite (Padrão - Rápido)', provider: 'gemini' },
+    { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite (Alternativa rápida)', provider: 'gemini' },
     { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Equilibrado)', provider: 'gemini' },
-    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Preciso - Lento)', provider: 'gemini' },
     { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Alternativa)', provider: 'gemini' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Preciso - Lento)', provider: 'gemini' },
     { value: 'glm-4.6v-flash', label: 'GLM-4.6V Flash (Zhipu AI - Gratuito)', provider: 'glm' },
     { value: 'glm-4.6v', label: 'GLM-4.6V (Zhipu AI - Pago)', provider: 'glm' },
     { value: 'glm-5v-turbo', label: 'GLM-5V Turbo (Zhipu AI - Pago)', provider: 'glm' },
