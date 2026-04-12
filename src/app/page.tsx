@@ -4962,7 +4962,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
 
   const getProviderLocal = (m: string) => m.startsWith('glm-') ? 'glm' : 'gemini';
   const getKeyLink = (provider: string) => provider === 'glm'
-    ? 'https://open.bigmodel.cn/usercenter/apikeys?lang=en'
+    ? 'https://z.ai/manage-apikey/apikey-list'
     : 'https://aistudio.google.com/apikey';
   const getKeyLabel = (provider: string) => provider === 'glm' ? 'Obter API Key Zhipu AI' : 'Obter API Key Google Gemini';
 
