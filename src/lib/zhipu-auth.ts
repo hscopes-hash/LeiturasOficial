@@ -29,8 +29,8 @@ export function getApiKeyForModel(model: string, empresaApiKey?: string | null, 
   if (provider === 'glm') {
     return empresaApiKeyFallback?.trim() || process.env.LLM_API_KEY_GLM?.trim() || process.env.LLM_API_KEY?.trim() || null;
   }
-  // OpenRouter e Gemini usam a API Key do formulário ou env var
-  return empresaApiKey?.trim() || process.env.LLM_API_KEY?.trim() || null;
+  // OpenRouter e Gemini usam a API Key do formulário ou env var (ambos principal e fallback)
+  return empresaApiKey?.trim() || empresaApiKeyFallback?.trim() || process.env.LLM_API_KEY?.trim() || null;
 }
 
 /**
