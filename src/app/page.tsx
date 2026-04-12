@@ -5172,51 +5172,40 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
         </CardContent>
       </Card>
 
-      {/* Card - Testar Conexão Principal */}
-      <Card className="border-border">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Wifi className="w-5 h-5 text-amber-500" />
-            Status da Conexão
-          </CardTitle>
-          <CardDescription className="text-sm">
-            Teste a conexão com a API de IA para verificar se as configurações estão corretas.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Button
-            variant="outline"
-            onClick={() => handleTestarConexao('principal')}
-            disabled={testando}
-            className="w-full sm:w-auto"
-          >
-            {testando ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                Testando...
-              </>
-            ) : (
-              <>
-                <Wifi className="w-4 h-4 mr-2" />
-                Testar Conexão
-              </>
-            )}
-          </Button>
-          {resultadoTeste && (
-            <div className={`text-sm p-3 rounded-lg ${resultadoTeste.sucesso ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-              <div className="flex items-start gap-2">
-                {resultadoTeste.sucesso ? <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" /> : <X className="w-4 h-4 mt-0.5 shrink-0" />}
-                <div>
-                  <p>{resultadoTeste.mensagem}</p>
-                  {resultadoTeste.detalhe && (
-                    <p className="mt-1 text-xs opacity-70 font-mono break-all">{resultadoTeste.detalhe}</p>
-                  )}
-                </div>
+      {/* Botão Testar + Resultado Principal */}
+      <div className="space-y-3">
+        <Button
+          variant="outline"
+          onClick={() => handleTestarConexao('principal')}
+          disabled={testando}
+          className="w-full"
+        >
+          {testando ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+              Testando...
+            </>
+          ) : (
+            <>
+              <Wifi className="w-4 h-4 mr-2" />
+              Testar Conexão Principal
+            </>
+          )}
+        </Button>
+        {resultadoTeste && (
+          <div className={`text-sm p-3 rounded-lg ${resultadoTeste.sucesso ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+            <div className="flex items-start gap-2">
+              {resultadoTeste.sucesso ? <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" /> : <X className="w-4 h-4 mt-0.5 shrink-0" />}
+              <div>
+                <p>{resultadoTeste.mensagem}</p>
+                {resultadoTeste.detalhe && (
+                  <p className="mt-1 text-xs opacity-70 font-mono break-all">{resultadoTeste.detalhe}</p>
+                )}
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
 
       <Separator className="my-2 bg-border" />
       <div>
@@ -5334,51 +5323,40 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
         </CardContent>
       </Card>
 
-      {/* Card - Testar Conexão Reserva */}
-      <Card className="border-border">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
-            <Wifi className="w-5 h-5 text-amber-500" />
-            Testar IA Reserva
-          </CardTitle>
-          <CardDescription className="text-sm">
-            Verifique se a IA reserva está configurada corretamente.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Button
-            variant="outline"
-            onClick={() => handleTestarConexao('fallback')}
-            disabled={testandoFallback}
-            className="w-full sm:w-auto"
-          >
-            {testandoFallback ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
-                Testando...
-              </>
-            ) : (
-              <>
-                <Wifi className="w-4 h-4 mr-2" />
-                Testar Conexão Reserva
-              </>
-            )}
-          </Button>
-          {resultadoTesteFallback && (
-            <div className={`text-sm p-3 rounded-lg ${resultadoTesteFallback.sucesso ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-              <div className="flex items-start gap-2">
-                {resultadoTesteFallback.sucesso ? <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" /> : <X className="w-4 h-4 mt-0.5 shrink-0" />}
-                <div>
-                  <p>{resultadoTesteFallback.mensagem}</p>
-                  {resultadoTesteFallback.detalhe && (
-                    <p className="mt-1 text-xs opacity-70 font-mono break-all">{resultadoTesteFallback.detalhe}</p>
-                  )}
-                </div>
+      {/* Botão Testar + Resultado Reserva */}
+      <div className="space-y-3">
+        <Button
+          variant="outline"
+          onClick={() => handleTestarConexao('fallback')}
+          disabled={testandoFallback}
+          className="w-full"
+        >
+          {testandoFallback ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2" />
+              Testando...
+            </>
+          ) : (
+            <>
+              <Wifi className="w-4 h-4 mr-2" />
+              Testar Conexão Reserva
+            </>
+          )}
+        </Button>
+        {resultadoTesteFallback && (
+          <div className={`text-sm p-3 rounded-lg ${resultadoTesteFallback.sucesso ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+            <div className="flex items-start gap-2">
+              {resultadoTesteFallback.sucesso ? <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" /> : <X className="w-4 h-4 mt-0.5 shrink-0" />}
+              <div>
+                <p>{resultadoTesteFallback.mensagem}</p>
+                {resultadoTesteFallback.detalhe && (
+                  <p className="mt-1 text-xs opacity-70 font-mono break-all">{resultadoTesteFallback.detalhe}</p>
+                )}
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </div>
 
       {/* Save Button */}
       <div className="flex justify-end">
