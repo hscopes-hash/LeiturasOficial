@@ -13,7 +13,7 @@ function getProvider(model: string): 'gemini' | 'glm' {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { empresaId, testarFallback, llmModelFallback: bodyModelFallback, llmModel: bodyModel } = body;
+    const { empresaId, testarFallback, llmModelFallback: bodyModelFallback, llmModel: bodyModel, llmApiKey: bodyApiKey, llmApiKeyFallback: bodyApiKeyFallback } = body;
 
     if (!empresaId) {
       return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     // Buscar modelo configurado no banco
     const empresa = await prisma.empresa.findUnique({
       where: { id: empresaId },
-      select: { llmModel: true, llmModelFallback: true },
+      select: { llmModel: true, llmModelFallback: true, llmApiKey: true, llmApiKeyFallback: true },
     });
 
     if (!empresa) {
@@ -38,12 +38,15 @@ export async function POST(request: NextRequest) {
       model = bodyModel?.trim() || empresa.llmModel?.trim() || defaultModel;
     }
 
-    // API Key: sempre do sistema baseada no provedor do modelo
-    const apiKey = getApiKeyForModel(model);
+    // API Key: corpo > banco > env > padrão
+    const empresaKey = testarFallback
+      ? (bodyApiKeyFallback?.trim() || empresa.llmApiKeyFallback?.trim() || null)
+      : (bodyApiKey?.trim() || empresa.llmApiKey?.trim() || null);
+    const apiKey = getApiKeyForModel(model, testarFallback ? null : empresaKey, testarFallback ? empresaKey : null);
     if (!apiKey) {
-      const provedor = getProvider(model) === 'glm' ? 'LLM_API_KEY_GLM ou LLM_API_KEY' : 'LLM_API_KEY';
+      const provedor = getProvider(model) === 'glm' ? 'Zhipu AI' : 'Google Gemini';
       return NextResponse.json(
-        { error: `Nenhuma API Key configurada para ${getProvider(model) === 'glm' ? 'Zhipu AI' : 'Gemini'}. Configure ${provedor} no Vercel.` },
+        { error: `Nenhuma API Key configurada para ${provedor}. Informe sua API Key nas Configurações.` },
         { status: 400 }
       );
     }
@@ -67,7 +70,7 @@ export async function POST(request: NextRequest) {
           authToken = generateZhipuToken(apiKey);
         } catch (jwtError) {
           return NextResponse.json(
-            { error: `API Key Zhipu AI inválida. O formato deve ser {id}.{secret}. Configure LLM_API_KEY_GLM no Vercel.`, detalhe: String(jwtError) },
+            { error: `API Key Zhipu AI inválida. O formato deve ser {id}.{secret}. Informe a API Key da Zhipu AI nas Configurações.`, detalhe: String(jwtError) },
             { status: 400 }
           );
         }
@@ -126,7 +129,7 @@ export async function POST(request: NextRequest) {
           const glmMsg = errorJson?.error?.message || '';
           errorDetalhe = `[${errorJson?.error?.code || ''}] ${glmMsg}`;
           if (response.status === 401 || response.status === 403) {
-            errorMsg = `API Key inválida para Zhipu AI. Verifique LLM_API_KEY_GLM no Vercel.`;
+            errorMsg = `API Key inválida para Zhipu AI. Verifique a API Key da Zhipu AI nas Configurações.`;
           } else if (response.status === 400) {
             errorMsg = `Requisição inválida: ${glmMsg || responseText.substring(0, 200)}`;
           } else if (response.status === 429) {
@@ -140,7 +143,7 @@ export async function POST(request: NextRequest) {
           const geminiMsg = errorJson?.error?.message || '';
           errorDetalhe = geminiMsg;
           if (response.status === 401 || response.status === 403) {
-            errorMsg = `API Key inválida para Google Gemini. Verifique LLM_API_KEY no Vercel.`;
+            errorMsg = `API Key inválida para Google Gemini. Verifique a API Key do Google Gemini nas Configurações.`;
           } else if (response.status === 400) {
             errorMsg = `Requisição inválida: ${geminiMsg || responseText.substring(0, 200)}`;
           } else if (response.status === 429) {

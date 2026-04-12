@@ -4,6 +4,17 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.10.0.7] - 2026-04-12
+
+v2.10.0.7 - Revertido: usuario cadastra suas proprias API Keys nas Configuracoes
+v2.10.0.7 - Campo de API Key com botao mostrar/ocultar (icone de olho)
+v2.10.0.7 - Link dinamico para obter API Key conforme provedor selecionado (Gemini/Zhipu)
+v2.10.0.7 - Formato Zhipu AI (id.secret) indicado visualmente quando necessario
+v2.10.0.7 - Badge "Key personalizada" mostrada quando usuario informa API Key propria
+v2.10.0.7 - GET/PUT /configuracoes agora salva e retorna todos 4 campos (apiKey + model x2)
+v2.10.0.7 - Rota testar aceita API Key do formulario para teste sem salvar
+v2.10.0.7 - Prioridade da API Key: formulario > banco > env var do sistema
+
 ## [v2.10.0.5] - 2026-04-11
 
 v2.10.0.5 - Simplificacao das Configuracoes: removido campo de API Key da interface

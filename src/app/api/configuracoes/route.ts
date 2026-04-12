@@ -3,6 +3,11 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+function maskApiKey(key?: string | null): string {
+  if (!key || key.length < 8) return '';
+  return key.substring(0, 4) + '****' + key.substring(key.length - 4);
+}
+
 // GET - Buscar configurações de IA da empresa
 export async function GET(request: NextRequest) {
   try {
@@ -18,7 +23,9 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         nome: true,
+        llmApiKey: true,
         llmModel: true,
+        llmApiKeyFallback: true,
         llmModelFallback: true,
       },
     });
@@ -29,11 +36,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      llmApiKey: empresa.llmApiKey || '',
       llmModel: empresa.llmModel,
+      llmApiKeyFallback: empresa.llmApiKeyFallback || '',
       llmModelFallback: empresa.llmModelFallback,
+      llmApiKeyMasked: maskApiKey(empresa.llmApiKey),
+      llmApiKeyFallbackMasked: maskApiKey(empresa.llmApiKeyFallback),
       modeloPadrao: process.env.LLM_MODEL || 'gemini-2.5-flash-lite',
-      temGeminiKey: !!process.env.LLM_API_KEY,
-      temGlmKey: !!(process.env.LLM_API_KEY_GLM || process.env.LLM_API_KEY),
     });
   } catch (error) {
     console.error('Erro ao buscar configurações:', error);
@@ -41,11 +50,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PUT - Atualizar configurações de IA da empresa (somente modelos)
+// PUT - Atualizar configurações de IA da empresa
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { empresaId, llmModel, llmModelFallback } = body;
+    const { empresaId, llmApiKey, llmModel, llmApiKeyFallback, llmModelFallback } = body;
 
     if (!empresaId) {
       return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
@@ -62,13 +71,21 @@ export async function PUT(request: NextRequest) {
 
     const dadosAtualizacao: Record<string, string | null> = {};
 
+    if (llmApiKey !== undefined && llmApiKey !== null) {
+      const trimmed = llmApiKey.trim();
+      dadosAtualizacao.llmApiKey = trimmed === '' ? null : trimmed;
+    }
     if (llmModel !== undefined && llmModel !== null) {
-      const modelTrimmed = llmModel.trim();
-      dadosAtualizacao.llmModel = modelTrimmed === '' ? null : modelTrimmed;
+      const trimmed = llmModel.trim();
+      dadosAtualizacao.llmModel = trimmed === '' ? null : trimmed;
+    }
+    if (llmApiKeyFallback !== undefined && llmApiKeyFallback !== null) {
+      const trimmed = llmApiKeyFallback.trim();
+      dadosAtualizacao.llmApiKeyFallback = trimmed === '' ? null : trimmed;
     }
     if (llmModelFallback !== undefined && llmModelFallback !== null) {
-      const modelTrimmed = llmModelFallback.trim();
-      dadosAtualizacao.llmModelFallback = modelTrimmed === '' ? null : modelTrimmed;
+      const trimmed = llmModelFallback.trim();
+      dadosAtualizacao.llmModelFallback = trimmed === '' ? null : trimmed;
     }
 
     const empresaAtualizada = await prisma.empresa.update({
@@ -76,15 +93,21 @@ export async function PUT(request: NextRequest) {
       data: dadosAtualizacao,
       select: {
         id: true,
+        llmApiKey: true,
         llmModel: true,
+        llmApiKeyFallback: true,
         llmModelFallback: true,
       },
     });
 
     return NextResponse.json({
       success: true,
+      llmApiKey: empresaAtualizada.llmApiKey || '',
       llmModel: empresaAtualizada.llmModel,
+      llmApiKeyFallback: empresaAtualizada.llmApiKeyFallback || '',
       llmModelFallback: empresaAtualizada.llmModelFallback,
+      llmApiKeyMasked: maskApiKey(empresaAtualizada.llmApiKey),
+      llmApiKeyFallbackMasked: maskApiKey(empresaAtualizada.llmApiKeyFallback),
       mensagem: 'Configurações salvas com sucesso',
     });
   } catch (error) {

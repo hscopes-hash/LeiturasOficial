@@ -4936,7 +4936,9 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
 // ============================================
 function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
   const { updateEmpresa } = useAuthStore();
+  const [llmApiKey, setLlmApiKey] = useState('');
   const [llmModel, setLlmModel] = useState('');
+  const [llmApiKeyFallback, setLlmApiKeyFallback] = useState('');
   const [llmModelFallback, setLlmModelFallback] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -4944,6 +4946,8 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
   const [testandoFallback, setTestandoFallback] = useState(false);
   const [resultadoTeste, setResultadoTeste] = useState<{ sucesso: boolean; mensagem: string; detalhe?: string } | null>(null);
   const [resultadoTesteFallback, setResultadoTesteFallback] = useState<{ sucesso: boolean; mensagem: string; detalhe?: string } | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [showApiKeyFallback, setShowApiKeyFallback] = useState(false);
 
   const modelosIA = [
     { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite (Padrão - Rápido)', provider: 'gemini' },
@@ -4956,13 +4960,21 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
     { value: 'glm-4v-long', label: 'GLM-4V Long (Zhipu AI - Alta Resolução)', provider: 'glm' },
   ];
 
+  const getProviderLocal = (m: string) => m.startsWith('glm-') ? 'glm' : 'gemini';
+  const getKeyLink = (provider: string) => provider === 'glm'
+    ? 'https://open.bigmodel.cn/usercenter/apikeys'
+    : 'https://aistudio.google.com/apikey';
+  const getKeyLabel = (provider: string) => provider === 'glm' ? 'Obter API Key Zhipu AI' : 'Obter API Key Google Gemini';
+
   useEffect(() => {
     if (!empresaId) return;
     setCarregando(true);
     fetch(`/api/configuracoes?empresaId=${empresaId}`)
       .then((res) => res.json())
       .then((data) => {
+        setLlmApiKey(data.llmApiKey || '');
         setLlmModel(data.llmModel || '');
+        setLlmApiKeyFallback(data.llmApiKeyFallback || '');
         setLlmModelFallback(data.llmModelFallback || '');
       })
       .catch((err) => {
@@ -4978,11 +4990,11 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
       const res = await fetch('/api/configuracoes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ empresaId, llmModel, llmModelFallback }),
+        body: JSON.stringify({ empresaId, llmApiKey, llmModel, llmApiKeyFallback, llmModelFallback }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar configurações');
-      updateEmpresa({ llmModel, llmModelFallback });
+      updateEmpresa({ llmApiKey, llmModel, llmApiKeyFallback, llmModelFallback });
       toast.success('Configurações salvas com sucesso!');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao salvar configurações';
@@ -5001,15 +5013,16 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
       setResultadoTesteFallback(null);
     }
     try {
-      // Enviar os valores atuais do formulário para testar mesmo sem salvar
       const testBody: Record<string, unknown> = {
         empresaId,
         testarFallback: tipo === 'fallback',
       };
       if (tipo === 'fallback') {
         testBody.llmModelFallback = llmModelFallback;
+        testBody.llmApiKeyFallback = llmApiKeyFallback;
       } else {
         testBody.llmModel = llmModel;
+        testBody.llmApiKey = llmApiKey;
       }
       const res = await fetch('/api/configuracoes/testar', {
         method: 'POST',
@@ -5042,7 +5055,8 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
     );
   }
 
-  const getProviderLocal = (m: string) => m.startsWith('glm-') ? 'glm' : 'gemini';
+  const providerPrincipal = llmModel ? getProviderLocal(llmModel) : 'gemini';
+  const providerReserva = llmModelFallback ? getProviderLocal(llmModelFallback) : 'glm';
 
   return (
     <div className="space-y-6">
@@ -5051,7 +5065,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
         <p className="text-sm text-muted-foreground mt-1">Configuração da IA Vision para extração de leituras</p>
       </div>
 
-      {/* Card 1 - Modelo de IA Principal */}
+      {/* Card - Modelo de IA Principal */}
       <Card className="border-border">
         <CardHeader className="pb-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -5059,7 +5073,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
             Modelo de IA Principal
           </CardTitle>
           <CardDescription className="text-sm">
-            Selecione o modelo de IA para extração de leituras. Se a IA apresentar problemas, alterne para outra opção.
+            Selecione o modelo e informe sua API Key. Se a IA apresentar problemas, alterne para outra opção.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -5083,6 +5097,44 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
             </SelectContent>
           </Select>
 
+          {/* API Key Principal */}
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">API Key</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={llmApiKey}
+                  onChange={(e) => setLlmApiKey(e.target.value)}
+                  placeholder="Cole sua API Key aqui..."
+                  className="bg-muted border-border pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Provedor: <span className="font-medium text-foreground">{providerPrincipal === 'glm' ? 'Zhipu AI (GLM)' : 'Google Gemini'}</span>
+              {providerPrincipal === 'glm' && !llmApiKey && (
+                <span className="text-amber-400 ml-1"> - Formato: id.secret</span>
+              )}
+            </p>
+            <a
+              href={getKeyLink(providerPrincipal)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-amber-500 hover:text-amber-400 transition-colors"
+            >
+              <Key className="w-3 h-3" />
+              {getKeyLabel(providerPrincipal)}
+            </a>
+          </div>
+
           {/* Status Indicator */}
           <div className="flex items-center gap-2">
             {llmModel ? (
@@ -5096,11 +5148,17 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
                 Usando configuração padrão do sistema
               </Badge>
             )}
+            {llmApiKey && (
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30">
+                <Key className="w-3 h-3 mr-1" />
+                Key personalizada
+              </Badge>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Card 3 - Testar Conexão */}
+      {/* Card - Testar Conexão Principal */}
       <Card className="border-border">
         <CardHeader className="pb-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -5131,19 +5189,9 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
             )}
           </Button>
           {resultadoTeste && (
-            <div
-              className={`text-sm p-3 rounded-lg ${
-                resultadoTeste.sucesso
-                  ? 'bg-green-500/10 text-green-400'
-                  : 'bg-red-500/10 text-red-400'
-              }`}
-            >
+            <div className={`text-sm p-3 rounded-lg ${resultadoTeste.sucesso ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
               <div className="flex items-start gap-2">
-                {resultadoTeste.sucesso ? (
-                  <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                ) : (
-                  <X className="w-4 h-4 mt-0.5 shrink-0" />
-                )}
+                {resultadoTeste.sucesso ? <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" /> : <X className="w-4 h-4 mt-0.5 shrink-0" />}
                 <div>
                   <p>{resultadoTeste.mensagem}</p>
                   {resultadoTeste.detalhe && (
@@ -5165,7 +5213,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
         <p className="text-sm text-muted-foreground mt-1">Quando a IA principal atingir o limite de requisições, o sistema usa automaticamente a reserva.</p>
       </div>
 
-      {/* Card 3 - Modelo Reserva */}
+      {/* Card - Modelo Reserva */}
       <Card className="border-border">
         <CardHeader className="pb-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
@@ -5173,7 +5221,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
             Modelo de IA Reserva
           </CardTitle>
           <CardDescription className="text-sm">
-            Selecione um modelo diferente do principal. Será usado automaticamente quando o principal atingir o limite de requisições.
+            Selecione um modelo diferente do principal. Será usado automaticamente quando o principal atingir o limite.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -5197,6 +5245,44 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
             </SelectContent>
           </Select>
 
+          {/* API Key Reserva */}
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">API Key Reserva</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type={showApiKeyFallback ? 'text' : 'password'}
+                  value={llmApiKeyFallback}
+                  onChange={(e) => setLlmApiKeyFallback(e.target.value)}
+                  placeholder="Cole sua API Key reserva aqui..."
+                  className="bg-muted border-border pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyFallback(!showApiKeyFallback)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showApiKeyFallback ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Provedor: <span className="font-medium text-foreground">{providerReserva === 'glm' ? 'Zhipu AI (GLM)' : 'Google Gemini'}</span>
+              {providerReserva === 'glm' && !llmApiKeyFallback && (
+                <span className="text-amber-400 ml-1"> - Formato: id.secret</span>
+              )}
+            </p>
+            <a
+              href={getKeyLink(providerReserva)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-amber-500 hover:text-amber-400 transition-colors"
+            >
+              <Key className="w-3 h-3" />
+              {getKeyLabel(providerReserva)}
+            </a>
+          </div>
+
           {/* Aviso se reserva é do mesmo provedor */}
           {llmModel && llmModelFallback && getProviderLocal(llmModel) === getProviderLocal(llmModelFallback) && (
             <div className="flex items-center gap-2">
@@ -5212,15 +5298,23 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
               Nenhum modelo reserva configurado
             </Badge>
           ) : (
-            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30">
-              <CheckCircle className="w-3 h-3 mr-1" />
-              {modelosIA.find(m => m.value === llmModelFallback)?.label || llmModelFallback}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 hover:bg-blue-500/30">
+                <CheckCircle className="w-3 h-3 mr-1" />
+                {modelosIA.find(m => m.value === llmModelFallback)?.label || llmModelFallback}
+              </Badge>
+              {llmApiKeyFallback && (
+                <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30">
+                  <Key className="w-3 h-3 mr-1" />
+                  Key personalizada
+                </Badge>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Card 6 - Testar Conexão Reserva */}
+      {/* Card - Testar Conexão Reserva */}
       <Card className="border-border">
         <CardHeader className="pb-4">
           <CardTitle className="text-base font-semibold flex items-center gap-2">
