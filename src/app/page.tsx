@@ -4957,9 +4957,9 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
     { value: 'glm-4.6v-flash', label: 'GLM-4.6V Flash (Zhipu AI - Gratuito)', provider: 'glm' },
     { value: 'glm-4.6v', label: 'GLM-4.6V (Zhipu AI - Pago)', provider: 'glm' },
     { value: 'glm-5v-turbo', label: 'GLM-5V Turbo (Zhipu AI - Pago)', provider: 'glm' },
-    { value: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash (OpenRouter - Gratuito)', provider: 'openrouter' },
-    { value: 'qwen/qwen2.5-vl-72b-instruct:free', label: 'Qwen 2.5 VL 72B (OpenRouter - Gratuito)', provider: 'openrouter' },
-    { value: 'meta-llama/llama-4-scout:free', label: 'Llama 4 Scout (OpenRouter - Gratuito)', provider: 'openrouter' },
+    { value: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (OpenRouter - Gratuito)', provider: 'openrouter' },
+    { value: 'google/gemma-3-27b-it:free', label: 'Gemma 3 27B (OpenRouter - Gratuito)', provider: 'openrouter' },
+    { value: 'nvidia/nemotron-nano-12b-v2-vl:free', label: 'Nemotron 12B VL (OpenRouter - Gratuito)', provider: 'openrouter' },
   ];
 
   const getProviderLocal = (m: string) => m.includes('/') ? 'openrouter' : m.startsWith('glm-') ? 'glm' : 'gemini';

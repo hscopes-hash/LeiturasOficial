@@ -8,7 +8,7 @@
 //
 // IMPORTANTE: Incremente o BUILD antes de cada deploy no Vercel
 
-export const VERSION_STRING = '2.11.0.0';
-export const VERSION_DISPLAY = 'v2.11.0.0';
+export const VERSION_STRING = '2.11.0.1';
+export const VERSION_DISPLAY = 'v2.11.0.1';
 export const LAST_DEPLOY = '2026-04-12';
-export const VERSION_WITH_DATE = 'v2.11.0.0 (2026-04-12)';
+export const VERSION_WITH_DATE = 'v2.11.0.1 (2026-04-12)';
