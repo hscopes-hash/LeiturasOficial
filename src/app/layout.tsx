@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { ThemeProvider } from "next-themes";
+import { PWARegister } from "@/components/pwa-register";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -22,12 +23,22 @@ export const metadata: Metadata = {
   authors: [{ name: "LeiturasOficial" }],
   icons: {
     icon: "/logo.svg",
+    apple: "/icon-192.png",
   },
+  manifest: "/manifest.json",
   openGraph: {
     title: "LeiturasOficial",
     description: "Sistema de gestão de máquinas de entretenimento",
     siteName: "LeiturasOficial",
     type: "website",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+    "apple-mobile-web-app-title": "Leituras",
+    "theme-color": "#1e3a5f",
+    "msapplication-TileColor": "#1e3a5f",
   },
 };
 
@@ -45,6 +56,7 @@ export default function RootLayout({
           {children}
           <Toaster />
           <SonnerToaster position="top-center" richColors />
+          <PWARegister />
         </ThemeProvider>
       </body>
     </html>

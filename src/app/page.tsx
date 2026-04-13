@@ -5479,6 +5479,71 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
 }
 
 // ============================================
+// PWA INSTALL BANNER
+// ============================================
+function PWAInstallBanner() {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showBanner, setShowBanner] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      // Não mostrar se já instalou
+      if (!window.matchMedia('(display-mode: standalone)').matches) {
+        const dismissed = localStorage.getItem('pwa-install-dismissed');
+        if (!dismissed) {
+          // Esperar 3 segundos para mostrar
+          setTimeout(() => setShowBanner(true), 3000);
+        }
+      }
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowBanner(false);
+    }
+    setDeferredPrompt(null);
+  };
+
+  const handleDismiss = () => {
+    setShowBanner(false);
+    localStorage.setItem('pwa-install-dismissed', 'true');
+  };
+
+  if (!showBanner) return null;
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-[100] bg-gradient-to-r from-[#1e3a5f] to-[#0f172a] border-t border-[#00d4aa]/30 px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom duration-300">
+      <img src="/icon-192.png" alt="App" className="w-10 h-10 rounded-lg flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-white">Instalar LeiturasOficial</p>
+        <p className="text-xs text-gray-300">Acesse como app no seu celular</p>
+      </div>
+      <button
+        onClick={handleDismiss}
+        className="text-gray-400 hover:text-white p-1 flex-shrink-0"
+        aria-label="Fechar"
+      >
+        <X className="w-5 h-5" />
+      </button>
+      <button
+        onClick={handleInstall}
+        className="bg-[#00d4aa] hover:bg-[#00b894] text-[#0f172a] font-bold text-sm px-4 py-2 rounded-lg flex-shrink-0 transition-colors"
+      >
+        Instalar
+      </button>
+    </div>
+  );
+}
+
+// ============================================
 // MAIN APP COMPONENT
 // ============================================
 export default function App() {
@@ -5518,6 +5583,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      <PWAInstallBanner />
       {/* Header */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b border-border">
         <div className="flex items-center justify-between px-4 py-3">
