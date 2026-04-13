@@ -2,5 +2,16 @@
   "buildCommand": "prisma generate && prisma db push --accept-data-loss && next build",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "regions": ["gru1"]
+  "regions": ["gru1"],
+  "functions": {
+    "src/app/api/leituras/identificar-lote/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/leituras/extrair/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/configuracoes/testar/route.ts": {
+      "maxDuration": 30
+    }
+  }
 }

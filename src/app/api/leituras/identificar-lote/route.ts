@@ -23,14 +23,14 @@ async function callAI(prompt: string, imagem: string, apiKey: string, model: str
   const mimeType = imagem.split(';')[0].split(':')[1];
 
   let response: Response;
+  const AI_TIMEOUT = 25000; // 25s cada chamada (principal+fallback ~55s, dentro do limite do Vercel)
 
   if (provider === 'glm') {
     // Zhipu AI requer JWT gerado a partir da API Key ({id}.{secret})
     const authToken = generateZhipuToken(apiKey);
     const url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-    // Timeout de 60 segundos para chamadas com imagem
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT);
     try {
       response = await fetch(url, {
         method: 'POST',
@@ -61,7 +61,7 @@ async function callAI(prompt: string, imagem: string, apiKey: string, model: str
     // OpenRouter usa Bearer token simples e formato OpenAI-compatible
     const url = 'https://openrouter.ai/api/v1/chat/completions';
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT);
     try {
       response = await fetch(url, {
         method: 'POST',
@@ -90,9 +90,8 @@ async function callAI(prompt: string, imagem: string, apiKey: string, model: str
     }
   } else {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    // Timeout de 60 segundos para chamadas com imagem
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT);
     try {
       response = await fetch(url, {
         method: 'POST',
@@ -143,7 +142,7 @@ function parseApiError(errorText: string, status?: number, provider?: string): s
   try {
     const errorJson = JSON.parse(errorText);
     const msg = errorJson?.error?.message || errorJson?.message || '';
-    if (status === 429) return 'Limite de requisições atingido';
+    if (status === 429) return 'Limite de requisições atingido. Aguarde 1 minuto e tente novamente.';
     if (status === 401 || status === 403) return 'API Key inválida';
     if (status === 404) return 'Modelo não encontrado';
     if (msg) return msg.substring(0, 150);
@@ -155,7 +154,7 @@ function parseApiError(errorText: string, status?: number, provider?: string): s
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imagem, codigosMaquinas, model: bodyModel, modelFallback, llmApiKey: empresaApiKey, llmApiKeyFallback: empresaApiKeyFallback, llmApiKeyGlm: empresaApiKeyGlm, llmApiKeyOpenrouter: empresaApiKeyOpenrouter } = body;
+    const { imagem, codigosMaquinas, model: bodyModel, modelFallback, llmApiKey, llmApiKeyFallback, llmApiKeyGlm, llmApiKeyOpenrouter } = body;
 
     if (!imagem) {
       return NextResponse.json({ error: 'Imagem é obrigatória' }, { status: 400 });
@@ -172,14 +171,20 @@ export async function POST(request: NextRequest) {
     // Modelo (prioridade: body > env > padrão)
     const model = bodyModel?.trim() || process.env.LLM_MODEL?.trim() || 'gemini-2.5-flash-lite';
 
-    // API Key: automática baseada no provedor do modelo (prioridade: empresa > env)
-    const apiKey = getApiKeyForModel(model, empresaApiKey, empresaApiKeyFallback, empresaApiKeyGlm, empresaApiKeyOpenrouter);
+    // Log para depuração
+    const maskKey = (k?: string) => k ? `${k.substring(0, 6)}...${k.substring(k.length - 4)}` : 'NÃO ENVIADA';
+    console.log(`[IDENTIFICAR-LOTE] model=${model}, llmApiKey=${maskKey(llmApiKey as string)}, llmApiKeyFallback=${maskKey(llmApiKeyFallback as string)}, fallback=${modelFallback || 'nenhum'}`);
+
+    // API Key: automática baseada no provedor do modelo (com fallback para keys salvas por provedor)
+    const apiKey = getApiKeyForModel(model, llmApiKey, llmApiKeyFallback, llmApiKeyGlm, llmApiKeyOpenrouter);
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'API Key não configurada. Configure nas Configurações da empresa.' },
+        { error: 'API Key não configurada. Configure nas Configurações da empresa.', detalhe: `Provedor: ${getProvider(model)}, modelo: ${model}` },
         { status: 500 }
       );
     }
+
+    console.log(`[IDENTIFICAR-LOTE] apiKey resolvida para provider ${getProvider(model)}: ${maskKey(apiKey)}`);
 
     const listaCodigos = codigosMaquinas.map((c: string) => `"${c}"`).join(', ');
 
@@ -222,7 +227,7 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
         );
       }
 
-      const fallbackApiKey = getApiKeyForModel(fallbackModel, empresaApiKeyFallback, null, empresaApiKeyGlm, empresaApiKeyOpenrouter);
+      const fallbackApiKey = getApiKeyForModel(fallbackModel, llmApiKeyFallback, llmApiKey, llmApiKeyGlm, llmApiKeyOpenrouter);
       if (!fallbackApiKey) {
         const errorText = primaryError instanceof Error ? primaryError.message : String(primaryError);
         return NextResponse.json(
@@ -251,14 +256,38 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
 
     let resultado;
     try {
-      let cleanContent = content.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
-      const jsonMatch = cleanContent.match(/\{[\s\S]*\}/);
-      resultado = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleanContent);
+      // Limpar resposta: remover markdown, espaços extras, e normalizar
+      let cleanContent = content
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/gi, '')
+        .trim();
+
+      // Extrair JSON com suporte a aninhamento simples (1 nível)
+      const jsonMatch = cleanContent.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
+      if (jsonMatch) {
+        resultado = JSON.parse(jsonMatch[0]);
+      } else {
+        // Tentar parse direto do conteúdo limpo
+        resultado = JSON.parse(cleanContent);
+      }
     } catch {
-      return NextResponse.json(
-        { error: 'Erro ao processar resposta da IA. Tente outra foto.', rawResponse: content },
-        { status: 500 }
-      );
+      // Segunda tentativa: extrair campos com regex se JSON falhar
+      const codigoMatch = content.match(/"codigoMaquina"\s*:\s*"([^"]+)"/i);
+      if (codigoMatch) {
+        resultado = {
+          codigoMaquina: codigoMatch[1],
+          confianca: 50,
+          observacoes: 'Extraído por regex (JSON inválido)',
+        };
+      } else {
+        // Incluir trecho maior da resposta da IA para depuração
+        const trecho = content.substring(0, 200).replace(/\n/g, ' ');
+        console.error('[IDENTIFICAR] Falha ao parsear resposta da IA:', content.substring(0, 500));
+        return NextResponse.json(
+          { error: `A IA não retornou um formato válido. Resposta: ${trecho}` },
+          { status: 500 }
+        );
+      }
     }
 
     const codigoIdentificado = (resultado.codigoMaquina || '').toString().trim().toUpperCase();

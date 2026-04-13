@@ -1641,6 +1641,7 @@ interface MaquinaLeitura extends Maquina {
 }
 
 function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { empresaId: string; isSupervisor: boolean; usuarioId: string; usuarioNome: string }) {
+  const { empresa } = useAuthStore();
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clienteSelecionado, setClienteSelecionado] = useState<Cliente | null>(null);
   const [maquinas, setMaquinas] = useState<MaquinaLeitura[]>([]);
@@ -2217,20 +2218,28 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
         // =============================================
         // PASSO 1: Identificar a máquina pela etiqueta
         // =============================================
-        const resIdentificar = await fetch('/api/leituras/identificar-lote', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            imagem: foto.imagem,
-            codigosMaquinas,
-            model: empresa?.llmModel || undefined,
-            modelFallback: empresa?.llmModelFallback || undefined,
-            llmApiKey: empresa?.llmApiKey || undefined,
-            llmApiKeyFallback: empresa?.llmApiKeyFallback || undefined,
-            llmApiKeyGlm: empresa?.llmApiKeyGlm || undefined,
-            llmApiKeyOpenrouter: empresa?.llmApiKeyOpenrouter || undefined,
-          }),
-        });
+        const controllerIdentificar = new AbortController();
+        const timeoutIdentificar = setTimeout(() => controllerIdentificar.abort(), 90000); // 90s timeout
+        let resIdentificar: Response;
+        try {
+          resIdentificar = await fetch('/api/leituras/identificar-lote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controllerIdentificar.signal,
+            body: JSON.stringify({
+              imagem: foto.imagem,
+              codigosMaquinas,
+              model: empresa?.llmModel || undefined,
+              modelFallback: empresa?.llmModelFallback || undefined,
+              llmApiKey: empresa?.llmApiKey || undefined,
+              llmApiKeyFallback: empresa?.llmApiKeyFallback || undefined,
+              llmApiKeyGlm: empresa?.llmApiKeyGlm || undefined,
+              llmApiKeyOpenrouter: empresa?.llmApiKeyOpenrouter || undefined,
+            }),
+          });
+        } finally {
+          clearTimeout(timeoutIdentificar);
+        }
 
         const dataIdentificar = await resIdentificar.json();
 
@@ -2362,7 +2371,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
 
       // Delay entre processamentos para não sobrecarregar a API (2 chamadas por foto)
       if (i < fotosLote.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 5000)); // 5s entre fotos para respeitar rate limits
       }
     }
 
@@ -3057,7 +3066,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                               </div>
                             )}
                             {foto.status === 'erro' && (
-                              <p className="text-xs text-danger truncate">{foto.erro || 'Erro'}</p>
+                              <p className="text-xs text-danger break-words max-w-full">{foto.erro || 'Erro'}</p>
                             )}
                           </div>
                           {foto.status === 'pendente' && !processandoLote && (
@@ -4952,6 +4961,8 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
   const [llmModel, setLlmModel] = useState('');
   const [llmApiKeyFallback, setLlmApiKeyFallback] = useState('');
   const [llmModelFallback, setLlmModelFallback] = useState('');
+  const [savedKeyGlm, setSavedKeyGlm] = useState('');
+  const [savedKeyOpenrouter, setSavedKeyOpenrouter] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [testando, setTestando] = useState(false);
@@ -4961,11 +4972,51 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showApiKeyFallback, setShowApiKeyFallback] = useState(false);
 
+  // Funções auxiliares
+  const getProviderLocal = (m: string) => m.includes('/') ? 'openrouter' : m.startsWith('glm-') ? 'glm' : 'gemini';
+
+  // Função para trocar modelo e avisar se API Key precisa ser atualizada
+  const handleModelChange = (novoModelo: string, tipo: 'principal' | 'fallback') => {
+    const providerAnterior = tipo === 'principal'
+      ? (llmModel ? getProviderLocal(llmModel) : null)
+      : (llmModelFallback ? getProviderLocal(llmModelFallback) : null);
+    const providerNovo = getProviderLocal(novoModelo);
+
+    // Sempre que o provedor mudar, preencher com a key salva do provedor
+    const providerMudou = providerAnterior !== null && providerAnterior !== providerNovo;
+
+    if (tipo === 'principal') {
+      setLlmModel(novoModelo);
+      if (providerMudou) {
+        // Restaurar key salva do provedor, se existir
+        const keySalva = providerNovo === 'glm' ? savedKeyGlm : providerNovo === 'openrouter' ? savedKeyOpenrouter : '';
+        setLlmApiKey(keySalva);
+        if (keySalva) {
+          toast.success(`API Key do provedor restaurada automaticamente.`);
+        } else {
+          toast.info(`Provedor alterado para ${providerNovo === 'gemini' ? 'Google Gemini' : providerNovo === 'glm' ? 'Zhipu AI' : 'OpenRouter'}. Insira a API Key correspondente.`);
+        }
+      }
+    } else {
+      setLlmModelFallback(novoModelo);
+      if (providerMudou) {
+        const keySalva = providerNovo === 'glm' ? savedKeyGlm : providerNovo === 'openrouter' ? savedKeyOpenrouter : '';
+        setLlmApiKeyFallback(keySalva);
+        if (keySalva) {
+          toast.success(`API Key do provedor restaurada automaticamente.`);
+        } else {
+          toast.info(`Provedor reserva alterado para ${providerNovo === 'gemini' ? 'Google Gemini' : providerNovo === 'glm' ? 'Zhipu AI' : 'OpenRouter'}. Insira a API Key correspondente.`);
+        }
+      }
+    }
+  };
+
   const modelosIA = [
     { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite (Padrão - Rápido)', provider: 'gemini' },
+    { value: 'gemini-2.0-flash-lite', label: 'Gemini 2.0 Flash Lite (Alternativa rápida)', provider: 'gemini' },
     { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Equilibrado)', provider: 'gemini' },
-    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Preciso - Lento)', provider: 'gemini' },
     { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Alternativa)', provider: 'gemini' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (Preciso - Lento)', provider: 'gemini' },
     { value: 'glm-4.6v-flash', label: 'GLM-4.6V Flash (Zhipu AI - Gratuito)', provider: 'glm' },
     { value: 'glm-4.6v', label: 'GLM-4.6V (Zhipu AI - Pago)', provider: 'glm' },
     { value: 'glm-5v-turbo', label: 'GLM-5V Turbo (Zhipu AI - Pago)', provider: 'glm' },
@@ -4974,7 +5025,6 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
     { value: 'nvidia/nemotron-nano-12b-v2-vl:free', label: 'Nemotron 12B VL (OpenRouter - Gratuito)', provider: 'openrouter' },
   ];
 
-  const getProviderLocal = (m: string) => m.includes('/') ? 'openrouter' : m.startsWith('glm-') ? 'glm' : 'gemini';
   const getKeyLink = (provider: string) => provider === 'glm'
     ? 'https://z.ai/manage-apikey/apikey-list'
     : provider === 'openrouter'
@@ -4996,6 +5046,8 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
         setLlmModel(data.llmModel || '');
         setLlmApiKeyFallback(data.llmApiKeyFallback || '');
         setLlmModelFallback(data.llmModelFallback || '');
+        setSavedKeyGlm(data.llmApiKeyGlm || '');
+        setSavedKeyOpenrouter(data.llmApiKeyOpenrouter || '');
       })
       .catch((err) => {
         console.error('Erro ao carregar configurações:', err);
@@ -5007,14 +5059,29 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
   const handleSalvar = async () => {
     setSalvando(true);
     try {
+      // Determinar keys por provedor baseado nos modelos selecionados
+      const providerPrincipal = llmModel ? getProviderLocal(llmModel) : null;
+      const providerReserva = llmModelFallback ? getProviderLocal(llmModelFallback) : null;
+
+      // Salvar a key principal no campo do provedor correspondente
+      let newKeyGlm = savedKeyGlm;
+      let newKeyOpenrouter = savedKeyOpenrouter;
+      if (llmApiKey && providerPrincipal === 'glm') newKeyGlm = llmApiKey;
+      if (llmApiKey && providerPrincipal === 'openrouter') newKeyOpenrouter = llmApiKey;
+      // Mesma lógica para a key de fallback
+      if (llmApiKeyFallback && providerReserva === 'glm') newKeyGlm = llmApiKeyFallback;
+      if (llmApiKeyFallback && providerReserva === 'openrouter') newKeyOpenrouter = llmApiKeyFallback;
+
       const res = await fetch('/api/configuracoes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ empresaId, llmApiKey, llmModel, llmApiKeyFallback, llmModelFallback }),
+        body: JSON.stringify({ empresaId, llmApiKey, llmModel, llmApiKeyFallback, llmModelFallback, llmApiKeyGlm: newKeyGlm, llmApiKeyOpenrouter: newKeyOpenrouter }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar configurações');
-      updateEmpresa({ llmApiKey, llmModel, llmApiKeyFallback, llmModelFallback });
+      updateEmpresa({ llmApiKey, llmModel, llmApiKeyFallback, llmModelFallback, llmApiKeyGlm: newKeyGlm, llmApiKeyOpenrouter: newKeyOpenrouter });
+      setSavedKeyGlm(newKeyGlm);
+      setSavedKeyOpenrouter(newKeyOpenrouter);
       toast.success('Configurações salvas com sucesso!');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Erro ao salvar configurações';
@@ -5100,7 +5167,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Select value={llmModel} onValueChange={setLlmModel}>
+          <Select value={llmModel} onValueChange={(v) => handleModelChange(v, 'principal')}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecione um modelo..." />
             </SelectTrigger>
@@ -5248,7 +5315,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Select value={llmModelFallback} onValueChange={setLlmModelFallback}>
+          <Select value={llmModelFallback} onValueChange={(v) => handleModelChange(v, 'fallback')}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Selecione um modelo reserva..." />
             </SelectTrigger>

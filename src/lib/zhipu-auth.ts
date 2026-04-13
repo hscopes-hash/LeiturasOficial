@@ -24,12 +24,17 @@ export function detectProvider(model: string): Provider {
  * - GLM: usa LLM_API_KEY_GLM (ou fallback para LLM_API_KEY)
  * - Gemini: usa LLM_API_KEY
  */
-export function getApiKeyForModel(model: string, empresaApiKey?: string | null, empresaApiKeyFallback?: string | null): string | null {
+export function getApiKeyForModel(model: string, empresaApiKey?: string | null, empresaApiKeyFallback?: string | null, empresaApiKeyGlm?: string | null, empresaApiKeyOpenrouter?: string | null): string | null {
   const provider = detectProvider(model);
   if (provider === 'glm') {
-    return empresaApiKeyFallback?.trim() || process.env.LLM_API_KEY_GLM?.trim() || process.env.LLM_API_KEY?.trim() || null;
+    // GLM: key do provedor > key informada > env var
+    return empresaApiKey?.trim() || empresaApiKeyGlm?.trim() || empresaApiKeyFallback?.trim() || process.env.LLM_API_KEY_GLM?.trim() || process.env.LLM_API_KEY?.trim() || null;
   }
-  // OpenRouter e Gemini usam a API Key do formulário ou env var (ambos principal e fallback)
+  if (provider === 'openrouter') {
+    // OpenRouter: key do provedor > key informada > env var
+    return empresaApiKey?.trim() || empresaApiKeyOpenrouter?.trim() || empresaApiKeyFallback?.trim() || process.env.LLM_API_KEY?.trim() || null;
+  }
+  // Gemini: key informada > key fallback > env var
   return empresaApiKey?.trim() || empresaApiKeyFallback?.trim() || process.env.LLM_API_KEY?.trim() || null;
 }
 

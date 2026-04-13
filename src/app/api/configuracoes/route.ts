@@ -27,6 +27,8 @@ export async function GET(request: NextRequest) {
         llmModel: true,
         llmApiKeyFallback: true,
         llmModelFallback: true,
+        llmApiKeyGlm: true,
+        llmApiKeyOpenrouter: true,
       },
     });
 
@@ -40,6 +42,8 @@ export async function GET(request: NextRequest) {
       llmModel: empresa.llmModel,
       llmApiKeyFallback: empresa.llmApiKeyFallback || '',
       llmModelFallback: empresa.llmModelFallback,
+      llmApiKeyGlm: empresa.llmApiKeyGlm || '',
+      llmApiKeyOpenrouter: empresa.llmApiKeyOpenrouter || '',
       llmApiKeyMasked: maskApiKey(empresa.llmApiKey),
       llmApiKeyFallbackMasked: maskApiKey(empresa.llmApiKeyFallback),
       modeloPadrao: process.env.LLM_MODEL || 'gemini-2.5-flash-lite',
@@ -54,7 +58,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { empresaId, llmApiKey, llmModel, llmApiKeyFallback, llmModelFallback } = body;
+    const { empresaId, llmApiKey, llmModel, llmApiKeyFallback, llmModelFallback, llmApiKeyGlm, llmApiKeyOpenrouter } = body;
 
     if (!empresaId) {
       return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
@@ -87,6 +91,15 @@ export async function PUT(request: NextRequest) {
       const trimmed = llmModelFallback.trim();
       dadosAtualizacao.llmModelFallback = trimmed === '' ? null : trimmed;
     }
+    // Salvar keys por provedor para preenchimento automático
+    if (llmApiKeyGlm !== undefined && llmApiKeyGlm !== null) {
+      const trimmed = llmApiKeyGlm.trim();
+      dadosAtualizacao.llmApiKeyGlm = trimmed === '' ? null : trimmed;
+    }
+    if (llmApiKeyOpenrouter !== undefined && llmApiKeyOpenrouter !== null) {
+      const trimmed = llmApiKeyOpenrouter.trim();
+      dadosAtualizacao.llmApiKeyOpenrouter = trimmed === '' ? null : trimmed;
+    }
 
     const empresaAtualizada = await prisma.empresa.update({
       where: { id: empresaId },
@@ -97,6 +110,8 @@ export async function PUT(request: NextRequest) {
         llmModel: true,
         llmApiKeyFallback: true,
         llmModelFallback: true,
+        llmApiKeyGlm: true,
+        llmApiKeyOpenrouter: true,
       },
     });
 
@@ -106,6 +121,8 @@ export async function PUT(request: NextRequest) {
       llmModel: empresaAtualizada.llmModel,
       llmApiKeyFallback: empresaAtualizada.llmApiKeyFallback || '',
       llmModelFallback: empresaAtualizada.llmModelFallback,
+      llmApiKeyGlm: empresaAtualizada.llmApiKeyGlm || '',
+      llmApiKeyOpenrouter: empresaAtualizada.llmApiKeyOpenrouter || '',
       llmApiKeyMasked: maskApiKey(empresaAtualizada.llmApiKey),
       llmApiKeyFallbackMasked: maskApiKey(empresaAtualizada.llmApiKeyFallback),
       mensagem: 'Configurações salvas com sucesso',

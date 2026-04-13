@@ -36,6 +36,9 @@ model Empresa {
   llmModel        String?   // Modelo de IA personalizado (substitui LLM_MODEL do env)
   llmApiKeyFallback  String?   // Token de IA reserva (usado automaticamente quando principal atinge limite)
   llmModelFallback   String?   // Modelo de IA reserva (fallback automático em erro 429)
+  // API Keys salvas por provedor (para preenchimento automático ao trocar modelo)
+  llmApiKeyGlm       String?   // API Key do Zhipu AI (GLM)
+  llmApiKeyOpenrouter String?   // API Key do OpenRouter
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

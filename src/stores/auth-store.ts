@@ -31,6 +31,8 @@ export interface Empresa {
   llmModel?: string;
   llmApiKeyFallback?: string;
   llmModelFallback?: string;
+  llmApiKeyGlm?: string;
+  llmApiKeyOpenrouter?: string;
 }
 
 interface AuthState {
