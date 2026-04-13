@@ -165,27 +165,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Prompt otimizado para leitura de contadores
+    const nomeE = nomeEntrada || 'E';
+    const nomeS = nomeSaida || 'S';
     const prompt = `Analise esta foto de um contador de máquina de entretenimento.
 
-A máquina tem dois displays:
-- "${nomeEntrada || 'E'}" = Contador de ENTRADA (moedas inseridas)
-- "${nomeSaida || 'S'}" = Contador de SAÍDA (moedas pagas)
+IMPORTANTE: Esta máquina tem displays com RÓTULOS ESPECÍFICOS. Você deve buscar os displays rotulados "${nomeE}" e "${nomeS}" na foto.
 
-Sua tarefa:
-1. Identifique os números exibidos nos displays
-2. O display de ENTRADA geralmente mostra um número maior
-3. O display de SAÍDA geralmente mostra um número menor
+MAPEAMENTO OBRIGATÓRIO (não confunda os nomes):
+- O display rotulado "${nomeE}" corresponde ao campo "entrada" no JSON de resposta.
+- O display rotulado "${nomeS}" corresponde ao campo "saida" no JSON de resposta.
+- NÃO procure displays rotulados "entrada" ou "saida" literalmente. Procure "${nomeE}" e "${nomeS}".
+
+PROCEDIMENTO:
+1. Localize na foto o display cujo rótulo é "${nomeE}" e leia o número exibido. Esse valor vai no campo "entrada".
+2. Localize na foto o display cujo rótulo é "${nomeS}" e leia o número exibido. Esse valor vai no campo "saida".
+3. Se não encontrar um dos displays, retorne null para o campo correspondente.
 
 REGRA IMPORTANTE PARA VALORES MONETÁRIOS:
-- Quando o número exibido no display tiver formato de moeda (com ponto ou vírgula como separador decimal, ex: "2.324,00" ou "1234.56"), retorne APENAS os algarismos numéricos, removendo todo e qualquer ponto e vírgula.
-- Exemplo 1: se o display mostra "2.324,00", retorne "232400". Se mostra "1.234,56", retorne "123456".
-- Exemplo 2: se o display mostra "12.34", retorne "1234".
-- Exemplo 3: se o display mostra "0,50", retorne "050" ou "50".
+- Quando o número exibido tiver formato de moeda (com ponto ou vírgula como separador decimal, ex: "2.324,00" ou "1234.56"), retorne APENAS os algarismos numéricos, removendo todo e qualquer ponto e vírgula.
+- Exemplo 1: se mostra "2.324,00", retorne "232400". Se mostra "1.234,56", retorne "123456".
+- Exemplo 2: se mostra "12.34", retorne "1234".
+- Exemplo 3: se mostra "0,50", retorne "050" ou "50".
 - Se o número NÃO tiver separador decimal (é um contador inteiro), retorne o número como está (ex: "1234").
 - Os valores devem ser retornados como STRING entre aspas no JSON, para preservar todos os dígitos incluindo zeros à esquerda.
 
 Responda APENAS com este JSON (sem markdown, sem explicações):
-{"entrada": "STRING_COM_APENAS_DIGITOS_OU_NULL", "saida": "STRING_COM_APENAS_DIGITOS_OU_NULL", "confianca": PERCENTUAL_0_100, "observacoes": "texto breve"}`;
+{"entrada": "VALOR_DO_DISPLAY_${nomeE}_OU_NULL", "saida": "VALOR_DO_DISPLAY_${nomeS}_OU_NULL", "confianca": PERCENTUAL_0_100, "observacoes": "descreva onde encontrou cada display"}`;
 
     let content: string;
     let usedModel = model;
