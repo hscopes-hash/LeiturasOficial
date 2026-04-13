@@ -2077,6 +2077,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           nomeSaida: maquinaFoto.tipo?.nomeSaida || 'S',
           model: empresa?.llmModel || undefined,
           modelFallback: empresa?.llmModelFallback || undefined,
+          llmApiKey: empresa?.llmApiKey || undefined,
+          llmApiKeyFallback: empresa?.llmApiKeyFallback || undefined,
+          llmApiKeyGlm: empresa?.llmApiKeyGlm || undefined,
+          llmApiKeyOpenrouter: empresa?.llmApiKeyOpenrouter || undefined,
         }),
       });
 
@@ -2221,6 +2225,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
             codigosMaquinas,
             model: empresa?.llmModel || undefined,
             modelFallback: empresa?.llmModelFallback || undefined,
+            llmApiKey: empresa?.llmApiKey || undefined,
+            llmApiKeyFallback: empresa?.llmApiKeyFallback || undefined,
+            llmApiKeyGlm: empresa?.llmApiKeyGlm || undefined,
+            llmApiKeyOpenrouter: empresa?.llmApiKeyOpenrouter || undefined,
           }),
         });
 
@@ -2253,6 +2261,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                 nomeSaida,
                 model: empresa?.llmModel || undefined,
                 modelFallback: empresa?.llmModelFallback || undefined,
+                llmApiKey: empresa?.llmApiKey || undefined,
+                llmApiKeyFallback: empresa?.llmApiKeyFallback || undefined,
+                llmApiKeyGlm: empresa?.llmApiKeyGlm || undefined,
+                llmApiKeyOpenrouter: empresa?.llmApiKeyOpenrouter || undefined,
               }),
             });
 
