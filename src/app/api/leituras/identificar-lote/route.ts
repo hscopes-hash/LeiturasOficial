@@ -260,24 +260,34 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
       let cleanContent = content
         .replace(/```json\s*/gi, '')
         .replace(/```\s*/gi, '')
-        .replace(/^[\s\S]*?(\{)/, '$1')  // remover texto antes do primeiro {
-        .replace(/(\})[\s\S]*$/, '$1')  // remover texto depois do último }
         .trim();
-      const jsonMatch = cleanContent.match(/\{[^{}]*\}/);
+
+      // Extrair JSON com suporte a aninhamento simples (1 nível)
+      const jsonMatch = cleanContent.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/);
       if (jsonMatch) {
         resultado = JSON.parse(jsonMatch[0]);
       } else {
-        // Tentar parse direto
+        // Tentar parse direto do conteúdo limpo
         resultado = JSON.parse(cleanContent);
       }
     } catch {
-      // Incluir trecho da resposta da IA para depuração
-      const trecho = content.substring(0, 120).replace(/\n/g, ' ');
-      console.error('[IDENTIFICAR] Falha ao parsear resposta da IA:', content.substring(0, 300));
-      return NextResponse.json(
-        { error: `A IA não retornou um formato válido. Resposta: ${trecho}...` },
-        { status: 500 }
-      );
+      // Segunda tentativa: extrair campos com regex se JSON falhar
+      const codigoMatch = content.match(/"codigoMaquina"\s*:\s*"([^"]+)"/i);
+      if (codigoMatch) {
+        resultado = {
+          codigoMaquina: codigoMatch[1],
+          confianca: 50,
+          observacoes: 'Extraído por regex (JSON inválido)',
+        };
+      } else {
+        // Incluir trecho maior da resposta da IA para depuração
+        const trecho = content.substring(0, 200).replace(/\n/g, ' ');
+        console.error('[IDENTIFICAR] Falha ao parsear resposta da IA:', content.substring(0, 500));
+        return NextResponse.json(
+          { error: `A IA não retornou um formato válido. Resposta: ${trecho}` },
+          { status: 500 }
+        );
+      }
     }
 
     const codigoIdentificado = (resultado.codigoMaquina || '').toString().trim().toUpperCase();
