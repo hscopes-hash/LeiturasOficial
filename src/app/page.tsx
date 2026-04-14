@@ -2523,6 +2523,144 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   };
 
   // =============================================
+  // ENVIAR LOTE DE FOTOS COM TARJA PARA WHATSAPP
+  // Fotos processadas em memoria, sem salvar no banco
+  // =============================================
+  const enviarLoteWhatsApp = async () => {
+    // Verificar pré-requisitos
+    const whatsappOriginal = (clienteSelecionado?.whatsapp || '').trim();
+    if (!whatsappOriginal) {
+      toast.error('Cliente nao possui grupo WhatsApp cadastrado.');
+      return;
+    }
+
+    const fotosConcluidas = fotosLote.filter(f => f.status === 'concluido' && f.resultado?.codigoReconhecido);
+    if (fotosConcluidas.length === 0) {
+      toast.error('Nenhuma foto processada com sucesso para enviar.');
+      return;
+    }
+
+    toast.loading('Preparando fotos com tarja...', { id: 'enviando-lote' });
+
+    try {
+      const now = new Date();
+      const dataStr = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+
+      // Montar mensagem de resumo
+      let mensagem = `LEITURAS EM LOTE\n`;
+      mensagem += `${'━'.repeat(20)}\n`;
+      mensagem += `Cliente: ${clienteSelecionado?.nome || 'N/A'}\n`;
+      mensagem += `Data: ${dataStr}\n`;
+      mensagem += `Operador: ${usuarioNome}\n`;
+      mensagem += `Fotos: ${fotosConcluidas.length} processada(s)\n`;
+      mensagem += `${'━'.repeat(20)}\n`;
+
+      // Adicionar detalhes de cada foto
+      fotosConcluidas.forEach((foto, idx) => {
+        const r = foto.resultado!;
+        const entradaStr = r.entrada !== null && r.entrada !== undefined ? String(r.entrada) : '-';
+        const saidaStr = r.saida !== null && r.saida !== undefined ? String(r.saida) : '-';
+        mensagem += `${idx + 1}. ${r.codigoMaquina} | E: ${entradaStr} | S: ${saidaStr}\n`;
+      });
+
+      // Gerar tarjas nas fotos (em memoria)
+      const files: File[] = [];
+      for (const foto of fotosConcluidas) {
+        const r = foto.resultado!;
+        try {
+          const fotoComTarja = await adicionarTarjaNaFoto(
+            foto.imagem,
+            dataStr,
+            usuarioNome,
+            r.entrada ?? null,
+            r.saida ?? null
+          );
+          // Converter para File
+          const response = await fetch(fotoComTarja);
+          const blob = await response.blob();
+          const fileName = `leitura_${r.codigoMaquina}_${now.getTime()}.jpg`;
+          files.push(new File([blob], fileName, { type: 'image/jpeg' }));
+        } catch (err) {
+          console.error(`Erro ao adicionar tarja na foto ${r.codigoMaquina}:`, err);
+        }
+      }
+
+      toast.dismiss('enviando-lote');
+
+      // Montar URL do grupo
+      const grupoUrl = whatsappOriginal.includes('chat.whatsapp.com')
+        ? whatsappOriginal
+        : `https://chat.whatsapp.com/${whatsappOriginal}`;
+
+      // =============================================
+      // 1) Web Share API - enviar multiplas fotos
+      // =============================================
+      if (navigator.share && files.length > 0) {
+        const shareData: ShareData = {
+          title: `Leituras - ${clienteSelecionado?.nome || 'Lote'}`,
+          text: mensagem,
+        };
+
+        // Tentar compartilhar com arquivos
+        const canShareFiles = navigator.canShare && navigator.canShare({ files });
+        if (canShareFiles) {
+          (shareData as ShareData & { files: File[] }).files = files;
+        }
+
+        try {
+          await navigator.share(shareData);
+          toast.success(`${files.length} foto(s) enviada(s)!`);
+          return;
+        } catch (shareError: unknown) {
+          if (shareError instanceof Error && shareError.name === 'AbortError') return;
+          console.warn('Web Share falhou, usando fallback:', shareError);
+        }
+      }
+
+      // =============================================
+      // 2) Fallback: baixar fotos + copiar mensagem + abrir grupo
+      // =============================================
+      if (files.length === 1) {
+        // 1 foto: baixar direto
+        const url = URL.createObjectURL(files[0]);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = files[0].name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+      } else {
+        // Multiplas fotos: baixar uma a uma com delay
+        for (let i = 0; i < files.length; i++) {
+          const url = URL.createObjectURL(files[i]);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = files[i].name;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          if (i < files.length - 1) await new Promise(r => setTimeout(r, 800));
+        }
+      }
+
+      try {
+        await navigator.clipboard.writeText(mensagem);
+        toast.success(`${files.length} foto(s) salva(s) e mensagem copiada! O grupo abrira...`);
+      } catch {
+        toast.info(`${files.length} foto(s) salva(s)! O grupo abrira. Envie as fotos e a mensagem.`);
+      }
+
+      setTimeout(() => window.open(grupoUrl, '_blank'), 800);
+    } catch (error) {
+      toast.dismiss('enviando-lote');
+      console.error('Erro ao enviar lote:', error);
+      toast.error('Erro ao enviar fotos. Tente novamente.');
+    }
+  };
+
+  // =============================================
   // PROCESSAMENTO EM BACKGROUND DO LOTE
   // Processa fotos automaticamente conforme sao adicionadas
   // =============================================
@@ -3450,6 +3588,18 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">Valores aplicados as maquinas correspondentes</p>
                     </div>
+
+                    {/* Botao Enviar Lote WhatsApp */}
+                    {clienteSelecionado?.whatsapp && fotosLote.some(f => f.status === 'concluido' && f.resultado?.codigoReconhecido) && (
+                      <Button
+                        onClick={enviarLoteWhatsApp}
+                        className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700"
+                      >
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        ENVIAR {fotosLote.filter(f => f.status === 'concluido' && f.resultado?.codigoReconhecido).length} FOTO(S) PARA O GRUPO
+                      </Button>
+                    )}
+
                     <Button
                       onClick={() => {
                         setLoteModalOpen(false);
