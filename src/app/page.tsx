@@ -411,25 +411,21 @@ function LoginPage() {
           </CardContent>
         </Card>
 
-        {/* Botão Instalar App */}
+        {/* Botão Instalar App - sempre visível se não for standalone */}
         {!isStandalone && (
-          canInstall ? (
-            <button
-              onClick={handleInstallApp}
-              className="w-full mt-4 flex items-center justify-center gap-2 p-3 rounded-xl bg-gradient-to-r from-[#00d4aa] to-[#00b894] hover:from-[#00c49a] hover:to-[#00a888] transition-all group shadow-lg shadow-[#00d4aa]/20"
-            >
-              <Download className="w-5 h-5 text-[#0f172a] group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-bold text-[#0f172a]">Instalar LeiturasOficial</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleInstallApp}
-              className="w-full mt-4 flex items-center justify-center gap-2 p-3 rounded-xl bg-gradient-to-r from-[#1e3a5f] to-[#0f172a] border border-[#00d4aa]/30 hover:border-[#00d4aa]/60 transition-all group"
-            >
-              <Download className="w-5 h-5 text-[#00d4aa] group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-medium text-[#00d4aa]">Instalar como App</span>
-            </button>
-          )
+          <button
+            onClick={handleInstallApp}
+            className={`w-full mt-4 flex items-center justify-center gap-2 p-3 rounded-xl transition-all group ${
+              canInstall
+                ? 'bg-gradient-to-r from-[#00d4aa] to-[#00b894] hover:from-[#00c49a] hover:to-[#00a888] shadow-lg shadow-[#00d4aa]/20'
+                : 'bg-gradient-to-r from-[#1e3a5f] to-[#0f172a] border border-[#00d4aa]/30 hover:border-[#00d4aa]/60'
+            }`}
+          >
+            <Download className={`w-5 h-5 group-hover:scale-110 transition-transform ${canInstall ? 'text-[#0f172a]' : 'text-[#00d4aa]'}`} />
+            <span className={`text-sm ${canInstall ? 'font-bold text-[#0f172a]' : 'font-medium text-[#00d4aa]'}`}>
+              Instalar como App
+            </span>
+          </button>
         )}
       </div>
     </div>
