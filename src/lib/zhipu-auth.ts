@@ -20,22 +20,20 @@ export function detectProvider(model: string): Provider {
 
 /**
  * Retorna a API Key correta baseada no provedor do modelo.
- * - OpenRouter: usa a key do usuário (mesma lógica do Gemini)
- * - GLM: usa LLM_API_KEY_GLM (ou fallback para LLM_API_KEY)
- * - Gemini: usa LLM_API_KEY
+ * - GLM: key do provedor > env var LLM_API_KEY_GLM > LLM_API_KEY
+ * - OpenRouter: key do provedor > env var LLM_API_KEY
+ * - Gemini: key informada > env var LLM_API_KEY
  */
-export function getApiKeyForModel(model: string, empresaApiKey?: string | null, empresaApiKeyFallback?: string | null, empresaApiKeyGlm?: string | null, empresaApiKeyOpenrouter?: string | null): string | null {
+export function getApiKeyForModel(model: string, empresaApiKey?: string | null, empresaApiKeyGlm?: string | null, empresaApiKeyOpenrouter?: string | null): string | null {
   const provider = detectProvider(model);
   if (provider === 'glm') {
-    // GLM: key do provedor > key informada > env var
-    return empresaApiKey?.trim() || empresaApiKeyGlm?.trim() || empresaApiKeyFallback?.trim() || process.env.LLM_API_KEY_GLM?.trim() || process.env.LLM_API_KEY?.trim() || null;
+    return empresaApiKey?.trim() || empresaApiKeyGlm?.trim() || process.env.LLM_API_KEY_GLM?.trim() || process.env.LLM_API_KEY?.trim() || null;
   }
   if (provider === 'openrouter') {
-    // OpenRouter: key do provedor > key informada > env var
-    return empresaApiKey?.trim() || empresaApiKeyOpenrouter?.trim() || empresaApiKeyFallback?.trim() || process.env.LLM_API_KEY?.trim() || null;
+    return empresaApiKey?.trim() || empresaApiKeyOpenrouter?.trim() || process.env.LLM_API_KEY?.trim() || null;
   }
-  // Gemini: key informada > key fallback > env var
-  return empresaApiKey?.trim() || empresaApiKeyFallback?.trim() || process.env.LLM_API_KEY?.trim() || null;
+  // Gemini: key informada > env var
+  return empresaApiKey?.trim() || process.env.LLM_API_KEY?.trim() || null;
 }
 
 /**
@@ -57,10 +55,8 @@ export function generateZhipuToken(apiKey: string, expSeconds: number = 3600): s
   const id = apiKey.substring(0, dotIndex);
   const secret = apiKey.substring(dotIndex + 1);
 
-  // Header com sign_type obrigatório
   const header = JSON.stringify({ alg: 'HS256', sign_type: 'SIGN' });
 
-  // Payload com timestamps em MILISSEGUNDOS (diferente do JWT padrão)
   const now = Date.now();
   const payload = JSON.stringify({
     api_key: id,
@@ -68,7 +64,6 @@ export function generateZhipuToken(apiKey: string, expSeconds: number = 3600): s
     timestamp: now,
   });
 
-  // Base64url sem padding
   function base64url(str: string): string {
     return Buffer.from(str, 'utf-8')
       .toString('base64')
@@ -81,7 +76,6 @@ export function generateZhipuToken(apiKey: string, expSeconds: number = 3600): s
   const encodedPayload = base64url(payload);
   const signingInput = `${encodedHeader}.${encodedPayload}`;
 
-  // Assinar com HMAC-SHA256 usando o secret
   const signature = crypto
     .createHmac('sha256', secret)
     .update(signingInput)

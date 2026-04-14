@@ -8,11 +8,11 @@ function getProvider(model: string): 'gemini' | 'glm' | 'openrouter' {
   return detectProvider(model);
 }
 
-// POST - Testar conexão com a API de IA (principal ou fallback)
+// POST - Testar conexão com a API de IA
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { empresaId, testarFallback, llmModelFallback: bodyModelFallback, llmModel: bodyModel, llmApiKey: bodyApiKey, llmApiKeyFallback: bodyApiKeyFallback } = body;
+    const { empresaId, llmModel: bodyModel, llmApiKey: bodyApiKey } = body;
 
     if (!empresaId) {
       return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     // Buscar modelo configurado no banco
     const empresa = await prisma.empresa.findUnique({
       where: { id: empresaId },
-      select: { llmModel: true, llmModelFallback: true, llmApiKey: true, llmApiKeyFallback: true },
+      select: { llmModel: true, llmApiKey: true, llmApiKeyGlm: true, llmApiKeyOpenrouter: true },
     });
 
     if (!empresa) {
@@ -30,18 +30,11 @@ export async function POST(request: NextRequest) {
 
     // Determinar modelo: corpo > banco > env > padrão
     const defaultModel = process.env.LLM_MODEL?.trim() || 'gemini-2.5-flash-lite';
-    let model: string;
-    if (testarFallback) {
-      model = bodyModelFallback?.trim() || empresa.llmModelFallback?.trim() || defaultModel;
-    } else {
-      model = bodyModel?.trim() || empresa.llmModel?.trim() || defaultModel;
-    }
+    const model = bodyModel?.trim() || empresa.llmModel?.trim() || defaultModel;
 
     // API Key: corpo > banco > env > padrão
-    const empresaKey = testarFallback
-      ? (bodyApiKeyFallback?.trim() || empresa.llmApiKeyFallback?.trim() || null)
-      : (bodyApiKey?.trim() || empresa.llmApiKey?.trim() || null);
-    const apiKey = getApiKeyForModel(model, testarFallback ? null : empresaKey, testarFallback ? empresaKey : null);
+    const empresaKey = bodyApiKey?.trim() || empresa.llmApiKey?.trim() || null;
+    const apiKey = getApiKeyForModel(model, empresaKey, empresa.llmApiKeyGlm, empresa.llmApiKeyOpenrouter);
     if (!apiKey) {
       const providerName = getProvider(model) === 'glm' ? 'Zhipu AI' : getProvider(model) === 'openrouter' ? 'OpenRouter' : 'Google Gemini';
       return NextResponse.json(
@@ -52,13 +45,11 @@ export async function POST(request: NextRequest) {
 
     const provider = getProvider(model);
 
-    console.log(`=== TESTE CONEXÃO (${testarFallback ? 'Reserva' : 'Principal'}) ===`);
+    console.log('=== TESTE CONEXÃO ===');
     console.log('Modelo:', model, '| Provedor:', provider, '| Key env:', apiKey.substring(0, 8) + '...');
     console.log('=======================');
 
     let response: Response;
-
-    // Timeout de 30 segundos para modelos pesados (ex: Gemini Pro)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
 
@@ -69,7 +60,7 @@ export async function POST(request: NextRequest) {
           authToken = generateZhipuToken(apiKey);
         } catch (jwtError) {
           return NextResponse.json(
-            { error: `API Key Zhipu AI inválida. O formato deve ser {id}.{secret}. Informe a API Key da Zhipu AI nas Configurações.`, detalhe: String(jwtError) },
+            { error: `API Key Zhipu AI inválida. O formato deve ser {id}.{secret}.`, detalhe: String(jwtError) },
             { status: 400 }
           );
         }
@@ -143,45 +134,27 @@ export async function POST(request: NextRequest) {
         if (provider === 'glm') {
           const glmMsg = errorJson?.error?.message || '';
           errorDetalhe = `[${errorJson?.error?.code || ''}] ${glmMsg}`;
-          if (response.status === 401 || response.status === 403) {
-            errorMsg = `API Key inválida para Zhipu AI. Verifique a API Key da Zhipu AI nas Configurações.`;
-          } else if (response.status === 400) {
-            errorMsg = `Requisição inválida: ${glmMsg || responseText.substring(0, 200)}`;
-          } else if (response.status === 429) {
-            errorMsg = `Limite de requisições da Zhipu AI atingido.`;
-          } else if (response.status === 404) {
-            errorMsg = `Modelo "${model}" não encontrado na Zhipu AI.`;
-          } else {
-            errorMsg = `Erro ${response.status}: ${glmMsg || responseText.substring(0, 200)}`;
-          }
+          if (response.status === 401 || response.status === 403) errorMsg = `API Key inválida para Zhipu AI.`;
+          else if (response.status === 400) errorMsg = `Requisição inválida: ${glmMsg || responseText.substring(0, 200)}`;
+          else if (response.status === 429) errorMsg = `Limite de requisições da Zhipu AI atingido.`;
+          else if (response.status === 404) errorMsg = `Modelo "${model}" não encontrado na Zhipu AI.`;
+          else errorMsg = `Erro ${response.status}: ${glmMsg || responseText.substring(0, 200)}`;
         } else if (provider === 'openrouter') {
           const orMsg = errorJson?.error?.message || errorJson?.message || '';
           errorDetalhe = orMsg;
-          if (response.status === 401 || response.status === 403) {
-            errorMsg = `API Key inválida para OpenRouter. Verifique a API Key do OpenRouter nas Configurações.`;
-          } else if (response.status === 400) {
-            errorMsg = `Requisição inválida: ${orMsg || responseText.substring(0, 200)}`;
-          } else if (response.status === 429) {
-            errorMsg = `Limite de requisições do OpenRouter atingido.`;
-          } else if (response.status === 404) {
-            errorMsg = `Modelo "${model}" não encontrado no OpenRouter.`;
-          } else {
-            errorMsg = `Erro ${response.status}: ${orMsg || responseText.substring(0, 200)}`;
-          }
+          if (response.status === 401 || response.status === 403) errorMsg = `API Key inválida para OpenRouter.`;
+          else if (response.status === 400) errorMsg = `Requisição inválida: ${orMsg || responseText.substring(0, 200)}`;
+          else if (response.status === 429) errorMsg = `Limite de requisições do OpenRouter atingido.`;
+          else if (response.status === 404) errorMsg = `Modelo "${model}" não encontrado no OpenRouter.`;
+          else errorMsg = `Erro ${response.status}: ${orMsg || responseText.substring(0, 200)}`;
         } else {
           const geminiMsg = errorJson?.error?.message || '';
           errorDetalhe = geminiMsg;
-          if (response.status === 401 || response.status === 403) {
-            errorMsg = `API Key inválida para Google Gemini. Verifique a API Key do Google Gemini nas Configurações.`;
-          } else if (response.status === 400) {
-            errorMsg = `Requisição inválida: ${geminiMsg || responseText.substring(0, 200)}`;
-          } else if (response.status === 429) {
-            errorMsg = `Limite de requisições do Gemini atingido (15 req/min no plano gratuito).`;
-          } else if (response.status === 404) {
-            errorMsg = `Modelo "${model}" não encontrado.`;
-          } else {
-            errorMsg = `Erro ${response.status}: ${geminiMsg || responseText.substring(0, 200)}`;
-          }
+          if (response.status === 401 || response.status === 403) errorMsg = `API Key inválida para Google Gemini.`;
+          else if (response.status === 400) errorMsg = `Requisição inválida: ${geminiMsg || responseText.substring(0, 200)}`;
+          else if (response.status === 429) errorMsg = `Limite de requisições do Gemini atingido.`;
+          else if (response.status === 404) errorMsg = `Modelo "${model}" não encontrado.`;
+          else errorMsg = `Erro ${response.status}: ${geminiMsg || responseText.substring(0, 200)}`;
         }
       } catch {
         errorMsg = `Erro ${response.status}: ${responseText.substring(0, 200)}`;
@@ -201,11 +174,10 @@ export async function POST(request: NextRequest) {
     }
 
     const provedorLabel = provider === 'glm' ? 'Zhipu AI (GLM)' : provider === 'openrouter' ? 'OpenRouter' : 'Google Gemini';
-    const origemLabel = testarFallback ? 'Reserva' : 'Principal';
 
     return NextResponse.json({
       success: true,
-      mensagem: `Conexão OK! ${origemLabel}: ${provedorLabel} - ${model}`,
+      mensagem: `Conexão OK! ${provedorLabel} - ${model}`,
       modelo: model,
       provider,
     });
