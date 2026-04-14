@@ -1,75 +1,47 @@
-const CACHE_NAME = 'leituras-oficial-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/logo.svg',
-];
+const CACHE_NAME = 'leituras-oficial-v2';
 
-// Install: cache static assets
+// Install: only cache essential assets, don't cache HTML pages
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
   self.skipWaiting();
 });
 
-// Activate: clean old caches
+// Activate: delete ALL old caches to force fresh content
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
+        cacheNames.map((name) => caches.delete(name))
       );
     })
   );
   self.clients.claim();
 });
 
-// Fetch: network-first strategy for API, cache-first for static assets
+// Fetch: network-first for EVERYTHING - always try fresh content first
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  const url = new URL(request.url);
 
-  // Skip non-GET requests
+  // Skip non-GET and chrome-extension requests
   if (request.method !== 'GET') return;
+  if (!request.url.startsWith('http')) return;
 
-  // For API calls: network first, fallback to cache
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache successful API responses for offline access
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          return caches.match(request);
-        })
-    );
-    return;
-  }
-
-  // For static assets: cache first, fallback to network
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        // Cache new static assets
-        if (response.ok && request.url.startsWith(self.location.origin)) {
+    fetch(request)
+      .then((response) => {
+        // Cache successful responses for offline fallback
+        if (response.ok) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, clone);
+          });
         }
         return response;
-      });
-    })
+      })
+      .catch(() => {
+        // Offline fallback: serve from cache
+        return caches.match(request).then((cached) => {
+          return cached || caches.match('/');
+        });
+      })
   );
 });
