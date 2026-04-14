@@ -25,7 +25,7 @@ import {
   Plus, Pencil, Trash2, Eye, Ban, CheckCircle, AlertTriangle, Building2,
   ClipboardList, Printer, Camera, X, Image as ImageIcon, Layers, MessageCircle, LogIn,
   CalendarDays, ShieldAlert, FileText, Sun, Moon, DatabaseBackup, Download, Upload, HardDrive, SlidersHorizontal,
-  Key, Wifi, EyeOff
+  Key, Wifi, EyeOff, ChevronDown
 } from 'lucide-react';
 import { VERSION_DISPLAY, VERSION_WITH_DATE } from '@/lib/version';
 
@@ -152,6 +152,7 @@ function LoginPage() {
   const [canInstall, setCanInstall] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [showIOSModal, setShowIOSModal] = useState(false);
   const login = useAuthStore((state) => state.login);
 
   // Email do super admin
@@ -191,11 +192,11 @@ function LoginPage() {
         toast.success('App instalado com sucesso!');
       }
     } else {
-      // Fallback para iOS/Safari: mostrar instruções
+      // Fallback para iOS/Safari: mostrar modal com instruções
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
       const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
       if (isIOS || isSafari) {
-        toast.info('Toque no botão de compartilhar (quadrado com seta) e depois em "Adicionar à Tela Inicial"', { duration: 6000 });
+        setShowIOSModal(true);
       } else {
         toast.info('Use o menu do navegador e selecione "Instalar app" ou "Adicionar à tela inicial"', { duration: 5000 });
       }
@@ -426,6 +427,79 @@ function LoginPage() {
               Instalar como App
             </span>
           </button>
+        )}
+
+        {/* Modal de instruções iOS */}
+        {showIOSModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setShowIOSModal(false)}>
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+            
+            {/* Modal */}
+            <div className="relative bg-[#1c1c1e] rounded-2xl max-w-sm w-full overflow-hidden shadow-2xl border border-[#00d4aa]/20" onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className="bg-gradient-to-r from-[#1e3a5f] to-[#0f172a] px-5 py-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#00d4aa]/20 flex items-center justify-center">
+                  <Download className="w-5 h-5 text-[#00d4aa]" />
+                </div>
+                <div>
+                  <p className="text-base font-bold text-white">Instalar no iPhone/iPad</p>
+                  <p className="text-xs text-gray-400">Siga os 2 passos abaixo</p>
+                </div>
+                <button onClick={() => setShowIOSModal(false)} className="ml-auto text-gray-400 hover:text-white p-1">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="px-5 py-5 space-y-5">
+                {/* Step 1 */}
+                <div className="flex flex-col items-center text-center">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-7 h-7 rounded-full bg-[#00d4aa] text-[#0f172a] flex items-center justify-center text-sm font-bold">1</span>
+                    <span className="text-sm font-semibold text-white">Toque no botão Compartilhar</span>
+                  </div>
+                  <img 
+                    src="/ios-step1.png" 
+                    alt="Passo 1: Botão compartilhar" 
+                    className="w-56 h-56 rounded-xl"
+                  />
+                  <p className="text-xs text-gray-400 mt-2">Ícone quadrado com seta para cima</p>
+                </div>
+
+                {/* Separator */}
+                <div className="flex items-center gap-2 px-4">
+                  <div className="flex-1 h-px bg-gray-700" />
+                  <ChevronDown className="w-4 h-4 text-[#00d4aa]" />
+                  <div className="flex-1 h-px bg-gray-700" />
+                </div>
+
+                {/* Step 2 */}
+                <div className="flex flex-col items-center text-center">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="w-7 h-7 rounded-full bg-[#00d4aa] text-[#0f172a] flex items-center justify-center text-sm font-bold">2</span>
+                    <span className="text-sm font-semibold text-white">Adicionar à Tela Início</span>
+                  </div>
+                  <img 
+                    src="/ios-step2.png" 
+                    alt="Passo 2: Adicionar à tela inicial" 
+                    className="w-56 h-56 rounded-xl"
+                  />
+                  <p className="text-xs text-gray-400 mt-2">Deslize e toque nesta opção</p>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 pb-5">
+                <button
+                  onClick={() => setShowIOSModal(false)}
+                  className="w-full py-3 rounded-xl bg-[#00d4aa] hover:bg-[#00b894] text-[#0f172a] font-bold text-sm transition-colors"
+                >
+                  Entendi
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
