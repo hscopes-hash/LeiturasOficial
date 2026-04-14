@@ -1805,6 +1805,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   const [processandoLote, setProcessandoLote] = useState(false);
   const [loteProgresso, setLoteProgresso] = useState(0);
   const loteIdCounter = useRef(0);
+  const processandoEmBackground = useRef(false);
   
   // Refs para os inputs de entrada e saída
   const entradaRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
@@ -2521,6 +2522,190 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     }
   };
 
+  // =============================================
+  // PROCESSAMENTO EM BACKGROUND DO LOTE
+  // Processa fotos automaticamente conforme sao adicionadas
+  // =============================================
+  const processarFotoEmBackground = async (fotoId: string) => {
+    // Encontrar a foto pelo ID
+    let fotoIndex = -1;
+    let fotoData: string | null = null;
+    setFotosLote(prev => {
+      const idx = prev.findIndex(f => f.id === fotoId);
+      if (idx === -1) return prev;
+      fotoIndex = idx;
+      fotoData = prev[idx].imagem;
+      // Marcar como processando
+      return prev.map((f, i) => i === idx ? { ...f, status: 'processando' as const } : f);
+    });
+
+    if (fotoIndex === -1 || !fotoData) return;
+
+    const codigosMaquinas = maquinas.map(m => m.codigo);
+    let maquinasSnapshot = [...maquinas];
+
+    try {
+      // PASSO 1: Identificar a máquina
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 90000);
+      let resIdentificar: Response;
+      try {
+        resIdentificar = await fetch('/api/leituras/identificar-lote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            imagem: fotoData,
+            codigosMaquinas,
+            model: empresa?.llmModel || undefined,
+            modelFallback: empresa?.llmModelFallback || undefined,
+            llmApiKey: empresa?.llmApiKey || undefined,
+            llmApiKeyFallback: empresa?.llmApiKeyFallback || undefined,
+            llmApiKeyGlm: empresa?.llmApiKeyGlm || undefined,
+            llmApiKeyOpenrouter: empresa?.llmApiKeyOpenrouter || undefined,
+          }),
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      const dataIdentificar = await resIdentificar.json();
+      if (!resIdentificar.ok) {
+        throw new Error(dataIdentificar.error || 'Erro ao identificar máquina');
+      }
+
+      if (dataIdentificar.codigoReconhecido) {
+        const maquinaIdentificada = maquinasSnapshot.find(
+          m => m.codigo.toUpperCase() === dataIdentificar.codigoMaquina.toUpperCase()
+        );
+
+        if (maquinaIdentificada) {
+          const nomeEntrada = maquinaIdentificada.tipo?.nomeEntrada || 'E';
+          const nomeSaida = maquinaIdentificada.tipo?.nomeSaida || 'S';
+
+          // PASSO 2: Extrair valores
+          const resExtrair = await fetch('/api/leituras/extrair', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imagem: fotoData,
+              nomeEntrada,
+              nomeSaida,
+              model: empresa?.llmModel || undefined,
+              modelFallback: empresa?.llmModelFallback || undefined,
+              llmApiKey: empresa?.llmApiKey || undefined,
+              llmApiKeyFallback: empresa?.llmApiKeyFallback || undefined,
+              llmApiKeyGlm: empresa?.llmApiKeyGlm || undefined,
+              llmApiKeyOpenrouter: empresa?.llmApiKeyOpenrouter || undefined,
+            }),
+          });
+
+          const dataExtrair = await resExtrair.json();
+          if (!resExtrair.ok) {
+            throw new Error(dataExtrair.error || 'Erro ao extrair valores');
+          }
+
+          // Atualizar foto como concluída
+          setFotosLote(prev => prev.map(f =>
+            f.id === fotoId ? {
+              ...f,
+              status: 'concluido' as const,
+              resultado: {
+                codigoMaquina: dataIdentificar.codigoMaquina,
+                codigoReconhecido: true,
+                entrada: dataExtrair.entrada,
+                saida: dataExtrair.saida,
+                confianca: dataIdentificar.confianca,
+                confiancaOCR: dataExtrair.confianca,
+                observacoes: dataIdentificar.observacoes || dataExtrair.observacoes || '',
+              },
+            } : f
+          ));
+
+          // Aplicar valores nos campos da máquina
+          if (dataExtrair.entrada !== null || dataExtrair.saida !== null) {
+            const indexMaquina = maquinasSnapshot.findIndex(
+              m => m.codigo.toUpperCase() === dataIdentificar.codigoMaquina.toUpperCase()
+            );
+            if (indexMaquina !== -1) {
+              const novasMaquinas = [...maquinasSnapshot];
+              if (dataExtrair.entrada !== null) {
+                novasMaquinas[indexMaquina].novaEntrada = String(dataExtrair.entrada);
+                novasMaquinas[indexMaquina].diferencaEntrada = dataExtrair.entrada - (novasMaquinas[indexMaquina].entradaAtual || 0);
+              }
+              if (dataExtrair.saida !== null) {
+                novasMaquinas[indexMaquina].novaSaida = String(dataExtrair.saida);
+                novasMaquinas[indexMaquina].diferencaSaida = dataExtrair.saida - (novasMaquinas[indexMaquina].saidaAtual || 0);
+              }
+              novasMaquinas[indexMaquina].saldoMaquina = calcularValor(
+                novasMaquinas[indexMaquina].moeda,
+                novasMaquinas[indexMaquina].diferencaEntrada - novasMaquinas[indexMaquina].diferencaSaida
+              );
+              maquinasSnapshot = novasMaquinas;
+              setMaquinas(novasMaquinas);
+              setMaquinasComFotoAplicada(prev => new Set(prev).add(maquinasSnapshot[indexMaquina].id));
+            }
+          }
+        } else {
+          // Máquina identificada mas não encontrada
+          setFotosLote(prev => prev.map(f =>
+            f.id === fotoId ? {
+              ...f,
+              status: 'concluido' as const,
+              resultado: {
+                codigoMaquina: dataIdentificar.codigoMaquina,
+                codigoReconhecido: true,
+                confianca: dataIdentificar.confianca,
+                observacoes: dataIdentificar.observacoes || '',
+              },
+            } : f
+          ));
+        }
+      } else {
+        // Máquina não reconhecida
+        setFotosLote(prev => prev.map(f =>
+          f.id === fotoId ? {
+            ...f,
+            status: 'concluido' as const,
+            resultado: {
+              codigoMaquina: dataIdentificar.codigoMaquina,
+              codigoReconhecido: false,
+              confianca: dataIdentificar.confianca,
+              observacoes: dataIdentificar.observacoes || 'Máquina não encontrada na lista do cliente',
+            },
+          } : f
+        ));
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+      setFotosLote(prev => prev.map(f =>
+        f.id === fotoId ? { ...f, status: 'erro' as const, erro: errorMsg } : f
+      ));
+    }
+
+    // Atualizar progresso
+    setFotosLote(prev => {
+      const concluidas = prev.filter(f => f.status === 'concluido' || f.status === 'erro').length;
+      setLoteProgresso(concluidas);
+      return prev; // não altera o estado, só usa para calcular
+    });
+  };
+
+  // Efeito: processar automaticamente fotos pendentes em background
+  useEffect(() => {
+    const pendentes = fotosLote.filter(f => f.status === 'pendente');
+    const processando = fotosLote.some(f => f.status === 'processando');
+
+    // Se há pendentes e nada está processando agora, iniciar
+    if (pendentes.length > 0 && !processando && !processandoEmBackground.current && maquinas.length > 0) {
+      processandoEmBackground.current = true;
+      const fotoParaProcessar = pendentes[0];
+      processarFotoEmBackground(fotoParaProcessar.id).finally(() => {
+        processandoEmBackground.current = false;
+      });
+    }
+  }, [fotosLote, maquinas]);
+
   // Funções para tela cheia e zoom
   const handleDuploCliqueFoto = () => {
     if (fotoCapturada) {
@@ -3232,19 +3417,26 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   </div>
                 )}
 
-                {/* Barra de Progresso durante processamento */}
-                {processandoLote && (
+                {/* Barra de Progresso durante processamento (automatico ou manual) */}
+                {(processandoLote || fotosLote.some(f => f.status === 'processando')) && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Processando lote...</span>
-                      <span className="font-medium text-foreground">{loteProgresso}/{fotosLote.length}</span>
+                      <span className="text-muted-foreground">
+                        {processandoLote ? 'Processando lote...' : 'Processando em background...'}
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {fotosLote.filter(f => f.status === 'concluido' || f.status === 'erro').length}/{fotosLote.length}
+                      </span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${fotosLote.length > 0 ? (loteProgresso / fotosLote.length) * 100 : 0}%` }}
+                        className={`h-full rounded-full transition-all duration-500 ease-out ${processandoLote ? 'bg-gradient-to-r from-amber-500 to-orange-600' : 'bg-gradient-to-r from-indigo-500 to-purple-600'}`}
+                        style={{ width: `${fotosLote.length > 0 ? (fotosLote.filter(f => f.status === 'concluido' || f.status === 'erro').length / fotosLote.length) * 100 : 0}%` }}
                       />
                     </div>
+                    {!processandoLote && (
+                      <p className="text-xs text-center text-muted-foreground">Voce pode continuar tirando fotos</p>
+                    )}
                   </div>
                 )}
 
@@ -3272,8 +3464,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   </div>
                 )}
 
-                {/* Botao Processar Lote */}
-                {!processandoLote && fotosLote.some(f => f.status === 'pendente') && (
+                {/* Botao Processar Lote - so aparece se ainda ha pendentes e nada esta processando */}
+                {!processandoLote && fotosLote.some(f => f.status === 'pendente') && !fotosLote.some(f => f.status === 'processando') && (
                   <Button
                     onClick={processarLote}
                     className="w-full bg-gradient-to-r from-amber-500 to-orange-600"
