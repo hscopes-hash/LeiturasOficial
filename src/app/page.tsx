@@ -6028,12 +6028,17 @@ export default function App() {
                         <DatabaseBackup className="w-5 h-5" />
                         <span>Backup / Restaurar</span>
                       </button>
+                    </>
+                  )}
+                  {isSuperAdmin && (
+                    <>
+                      <Separator className="my-2 bg-border" />
                       <button
                         onClick={() => { setActiveTab('configuracoes'); setMenuOpen(false); }}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'configuracoes' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
                       >
                         <SlidersHorizontal className="w-5 h-5" />
-                        <span>Configurações</span>
+                        <span>Config. IA</span>
                       </button>
                     </>
                   )}
@@ -6121,7 +6126,7 @@ export default function App() {
         {activeTab === 'backup-restore' && isAdmin && (
           <BackupRestorePage empresaId={empresa?.id || ''} nomeEmpresa={empresa?.nome || ''} />
         )}
-        {activeTab === 'configuracoes' && isAdmin && (
+        {activeTab === 'configuracoes' && isSuperAdmin && (
           <ConfiguracoesPage empresaId={empresa?.id || ''} />
         )}
         {activeTab === 'gestao-empresas' && usuario?.email === 'hscopes@gmail.com' && (
