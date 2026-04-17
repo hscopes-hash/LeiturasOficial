@@ -3234,7 +3234,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     return mensagem;
   };
 
-  // Enviar pelo WhatsApp - fotos com tarja (sem legenda) + texto do extrato
+  // Enviar pelo WhatsApp - fotos com tarja + texto do extrato juntos
   const enviarWhatsApp = async () => {
     // Pegar o WhatsApp do cliente (deve ser link de grupo)
     const whatsappOriginal = (clienteSelecionado?.whatsapp || '').trim();
@@ -3257,33 +3257,19 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     // Montar texto do extrato
     const mensagem = gerarMensagemWhatsApp();
 
-    // Se houver fotos E suportar Web Share com arquivos, enviar tudo junto
+    // Se houver fotos E suportar Web Share com arquivos, enviar fotos + extrato juntos
     if (fotosProcessadas.length > 0 && navigator.share) {
       const canShareFiles = navigator.canShare && navigator.canShare({ files: fotosProcessadas });
       if (canShareFiles) {
         const shareData: ShareData = {
           title: 'Leitura - Extrato',
+          text: mensagem,
         };
         (shareData as ShareData & { files: File[] }).files = fotosProcessadas;
 
         try {
           await navigator.share(shareData);
-          toast.success('Fotos enviadas!');
-          // Após enviar fotos, copiar extrato e abrir grupo para colar
-          try {
-            await navigator.clipboard.writeText(mensagem);
-            toast.success('Fotos enviadas! Extrato copiado - cole no grupo.');
-          } catch {
-            toast.info('Fotos enviadas! Agora envie o extrato manualmente.');
-          }
-
-          // Abrir grupo para colar o extrato
-          if (whatsappOriginal) {
-            const grupoUrl = whatsappOriginal.includes('chat.whatsapp.com')
-              ? whatsappOriginal
-              : `https://chat.whatsapp.com/${whatsappOriginal}`;
-            setTimeout(() => window.open(grupoUrl, '_blank'), 1500);
-          }
+          toast.success('Enviado com sucesso!');
           return;
         } catch (shareError: unknown) {
           if (shareError instanceof Error && shareError.name === 'AbortError') {
@@ -3296,7 +3282,6 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
 
     // Fallback: sem fotos ou sem suporte a share de arquivos
     if (whatsappOriginal) {
-      // Copiar mensagem e abrir grupo
       try {
         await navigator.clipboard.writeText(mensagem);
         toast.success('Extrato copiado! O grupo abrirá. Cole a mensagem.');
@@ -3309,7 +3294,6 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
         : `https://chat.whatsapp.com/${whatsappOriginal}`;
       setTimeout(() => window.open(grupoUrl, '_blank'), 500);
     } else {
-      // Sem grupo: envia por wa.me
       const mensagemCodificada = encodeURIComponent(mensagem);
       const telefone = clienteSelecionado?.telefone?.replace(/\D/g, '') || '';
       const url = telefone 
