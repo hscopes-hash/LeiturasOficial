@@ -1792,8 +1792,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   // Estado para o modal de resumo
   const [resumoModalOpen, setResumoModalOpen] = useState(false);
   const [maquinasSalvas, setMaquinasSalvas] = useState<MaquinaLeitura[]>([]);
-  // Estado para rastrear máquinas com valores aplicados da foto
-  const [maquinasComFotoAplicada, setMaquinasComFotoAplicada] = useState<Set<string>>(new Set());
+  // Estado para rastrear máquinas com valores aplicados da foto (e miniatura da foto com tarja)
+  const [maquinasComFotoAplicada, setMaquinasComFotoAplicada] = useState<Map<string, string>>(new Map());
+  // Estado para rastrear origem da foto (CÂMERA ou GALERIA)
+  const [fotoOrigem, setFotoOrigem] = useState<'CÂMERA' | 'GALERIA' | null>(null);
   // Estados para despesa extra
   const [despesa, setDespesa] = useState('');
   const [valorDespesa, setValorDespesa] = useState('');
@@ -1916,7 +1918,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     setRecebido('');
     setSaldoAnterior(0);
     // Limpar estado de máquinas com foto aplicada ao trocar de cliente
-    setMaquinasComFotoAplicada(new Set());
+    setMaquinasComFotoAplicada(new Map());
     // Limpar campos de despesa ao trocar de cliente
     setDespesa('');
     setValorDespesa('');
@@ -2026,12 +2028,14 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   const abrirModalFoto = (maquina: MaquinaLeitura) => {
     setMaquinaFoto(maquina);
     setFotoCapturada(null);
+    setFotoOrigem(null);
     setFotoModalOpen(true);
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, origem: 'CÂMERA' | 'GALERIA') => {
     const file = event.target.files?.[0];
     if (file) {
+      setFotoOrigem(origem);
       const reader = new FileReader();
       reader.onloadend = () => {
         // Redimensionar imagem para evitar problemas de memória
@@ -2239,7 +2243,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           dataFormatada,
           usuarioNome,
           data.entrada,
-          data.saida
+          data.saida,
+          fotoOrigem
         );
         setFotoCapturada(fotoComTarja);
         console.log('Tarja adicionada com sucesso');
@@ -2312,8 +2317,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
 
     setMaquinas(novasMaquinas);
     
-    // Marcar máquina como tendo valores aplicados da foto
-    setMaquinasComFotoAplicada(prev => new Set(prev).add(maquinaFoto.id));
+    // Marcar máquina como tendo valores aplicados da foto e armazenar miniatura
+    if (fotoCapturada) {
+      setMaquinasComFotoAplicada(prev => new Map(prev).set(maquinaFoto.id, fotoCapturada));
+    }
     
     toast.success('Valores aplicados com sucesso!');
     
@@ -2322,6 +2329,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     setFotoCapturada(null);
     setMaquinaFoto(null);
     setLeituraExtraida(null);
+    setFotoOrigem(null);
   };
 
   // ============================================
@@ -2469,8 +2477,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                 maquinasSnapshot = novasMaquinas;
                 setMaquinas(novasMaquinas);
 
-                // Marcar como foto aplicada
-                setMaquinasComFotoAplicada(prev => new Set(prev).add(maquinasSnapshot[indexMaquina].id));
+                // Marcar como foto aplicada (sem miniatura no lote - ícone padrão)
+                setMaquinasComFotoAplicada(prev => new Map(prev).set(maquinasSnapshot[indexMaquina].id, ''));
               }
             }
           } else {
@@ -2950,7 +2958,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     data: string,
     operador: string,
     entrada: number | null,
-    saida: number | null
+    saida: number | null,
+    origem: 'CÂMERA' | 'GALERIA' | null = null
   ): Promise<string> => {
     return new Promise((resolve, reject) => {
       // Timeout de segurança (10 segundos)
@@ -3023,7 +3032,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           ctx.font = `bold ${tamanhoFonte}px Arial, sans-serif`;
           
           // Cabeçalhos com separadores |
-          const cabecalho = `Data Hora    | User   | ENTR | SAÍDA`;
+          const cabecalho = `Data Hora    | User   | ENTR | SAÍDA | Origem`;
           ctx.fillText(cabecalho, padding, linha1Y);
 
           // === LINHA 2: VALORES ===
@@ -3033,9 +3042,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           const usuarioLimitado = operador.substring(0, 6).padEnd(6);
           const entradaStr = String(entrada ?? '-').padStart(5);
           const saidaStr = String(saida ?? '-').padStart(5);
+          const origemStr = (origem || '-').padEnd(7);
           
           // Construir linha de valores com separadores |
-          const valores = `${data} | ${usuarioLimitado} | ${entradaStr} | ${saidaStr}`;
+          const valores = `${data} | ${usuarioLimitado} | ${entradaStr} | ${saidaStr} | ${origemStr}`;
           ctx.fillText(valores, padding, linha2Y);
 
           // Converter para base64 com qualidade reduzida
@@ -3305,10 +3315,16 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                     <Button
                       variant="ghost"
                       size="icon"
-                      className={`h-9 w-9 ${maquinasComFotoAplicada.has(maquina.id) ? 'text-success hover:text-success/80 hover:bg-success-bg' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                      className={`h-9 w-9 overflow-hidden rounded-md ${maquinasComFotoAplicada.has(maquina.id) && maquinasComFotoAplicada.get(maquina.id) ? 'p-0 hover:opacity-80' : maquinasComFotoAplicada.has(maquina.id) ? 'text-success hover:text-success/80 hover:bg-success-bg' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
                       onClick={() => abrirModalFoto(maquina)}
                     >
-                      {maquinasComFotoAplicada.has(maquina.id) ? (
+                      {maquinasComFotoAplicada.has(maquina.id) && maquinasComFotoAplicada.get(maquina.id) ? (
+                        <img
+                          src={maquinasComFotoAplicada.get(maquina.id)!}
+                          alt="Foto com tarja"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : maquinasComFotoAplicada.has(maquina.id) ? (
                         <CheckCircle className="w-5 h-5" />
                       ) : (
                         <Camera className="w-5 h-5" />
@@ -3776,7 +3792,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                         type="file"
                         accept="image/*"
                         capture="environment"
-                        onChange={handleFileChange}
+                        onChange={(e) => handleFileChange(e, 'CÂMERA')}
                         className="hidden"
                       />
                       <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-500/30 transition-colors">
@@ -3790,7 +3806,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       <input
                         type="file"
                         accept="image/*"
-                        onChange={handleFileChange}
+                        onChange={(e) => handleFileChange(e, 'GALERIA')}
                         className="hidden"
                       />
                       <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-muted border-border hover:bg-accent transition-colors">
