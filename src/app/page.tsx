@@ -1795,7 +1795,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   // Estado para rastrear máquinas com valores aplicados da foto (e miniatura da foto com tarja)
   const [maquinasComFotoAplicada, setMaquinasComFotoAplicada] = useState<Map<string, string>>(new Map());
   // Estado para rastrear origem da foto (CÂMERA ou GALERIA)
-  const [fotoOrigem, setFotoOrigem] = useState<'CÂMERA' | 'GALERIA' | null>(null);
+  const [fotoOrigem, setFotoOrigem] = useState<'CÂMERA' | 'GALERIA' | 'LOTE' | null>(null);
   // Estados para despesa extra
   const [despesa, setDespesa] = useState('');
   const [valorDespesa, setValorDespesa] = useState('');
@@ -1803,7 +1803,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   const [valorDespesaSalva, setValorDespesaSalva] = useState<number>(0);
   // Estados para Lançamento de Lote
   const [loteModalOpen, setLoteModalOpen] = useState(false);
-  const [fotosLote, setFotosLote] = useState<{ id: string; imagem: string; status: 'pendente' | 'processando' | 'concluido' | 'erro'; origem?: 'CÂMERA' | 'GALERIA'; resultado?: { codigoMaquina: string; codigoReconhecido: boolean; entrada?: number | null; saida?: number | null; confianca: number; observacoes: string; confiancaOCR?: number }; erro?: string }[]>([]);
+  const [fotosLote, setFotosLote] = useState<{ id: string; imagem: string; status: 'pendente' | 'processando' | 'concluido' | 'erro'; origem?: 'CÂMERA' | 'GALERIA' | 'LOTE'; resultado?: { codigoMaquina: string; codigoReconhecido: boolean; entrada?: number | null; saida?: number | null; confianca: number; observacoes: string; confiancaOCR?: number }; erro?: string }[]>([]);
   const [processandoLote, setProcessandoLote] = useState(false);
   const [loteProgresso, setLoteProgresso] = useState(0);
   const loteIdCounter = useRef(0);
@@ -2595,7 +2595,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
             usuarioNome,
             r.entrada ?? null,
             r.saida ?? null,
-            foto.origem || 'CÂMERA'
+            foto.origem || 'LOTE'
           );
           // Converter para File
           const response = await fetch(fotoComTarja);
@@ -2960,7 +2960,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     operador: string,
     entrada: number | null,
     saida: number | null,
-    origem: 'CÂMERA' | 'GALERIA' | null = null
+    origem: 'CÂMERA' | 'GALERIA' | 'LOTE' | null = null
   ): Promise<string> => {
     return new Promise((resolve, reject) => {
       // Timeout de segurança (10 segundos)
@@ -3543,7 +3543,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                                 id: `lote_${++loteIdCounter.current}_${Date.now()}`,
                                 imagem: base64,
                                 status: 'pendente',
-                                origem: 'CÂMERA',
+                                origem: 'LOTE',
                               }]);
                             }
                           };
