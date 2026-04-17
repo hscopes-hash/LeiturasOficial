@@ -3234,7 +3234,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     return mensagem;
   };
 
-  // Enviar pelo WhatsApp - fotos com tarja (sem legenda) + separador + extrato para o grupo
+  // Enviar pelo WhatsApp - fotos com tarja (sem legenda) + texto do extrato
   const enviarWhatsApp = async () => {
     // Pegar o WhatsApp do cliente (deve ser link de grupo)
     const whatsappOriginal = (clienteSelecionado?.whatsapp || '').trim();
@@ -3254,37 +3254,49 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       }
     }
 
-    // Se houver fotos, enviar primeiro via Web Share API (fotos sem legenda)
+    // Montar texto do extrato
+    const mensagem = gerarMensagemWhatsApp();
+
+    // Se houver fotos E suportar Web Share com arquivos, enviar tudo junto
     if (fotosProcessadas.length > 0 && navigator.share) {
-      try {
+      const canShareFiles = navigator.canShare && navigator.canShare({ files: fotosProcessadas });
+      if (canShareFiles) {
         const shareData: ShareData = {
-          title: 'Fotos da Leitura',
+          title: 'Leitura - Extrato',
         };
-        const canShareFiles = navigator.canShare && navigator.canShare({ files: fotosProcessadas });
-        if (canShareFiles) {
-          (shareData as ShareData & { files: File[] }).files = fotosProcessadas;
+        (shareData as ShareData & { files: File[] }).files = fotosProcessadas;
+
+        try {
           await navigator.share(shareData);
-          toast.success('Fotos enviadas! Agora envie o extrato.');
-        }
-      } catch (shareError: unknown) {
-        if (shareError instanceof Error && shareError.name === 'AbortError') {
+          toast.success('Fotos enviadas!');
+          // Após enviar fotos, copiar extrato e abrir grupo para colar
+          try {
+            await navigator.clipboard.writeText(mensagem);
+            toast.success('Fotos enviadas! Extrato copiado - cole no grupo.');
+          } catch {
+            toast.info('Fotos enviadas! Agora envie o extrato manualmente.');
+          }
+
+          // Abrir grupo para colar o extrato
+          if (whatsappOriginal) {
+            const grupoUrl = whatsappOriginal.includes('chat.whatsapp.com')
+              ? whatsappOriginal
+              : `https://chat.whatsapp.com/${whatsappOriginal}`;
+            setTimeout(() => window.open(grupoUrl, '_blank'), 1500);
+          }
           return;
+        } catch (shareError: unknown) {
+          if (shareError instanceof Error && shareError.name === 'AbortError') {
+            return;
+          }
+          console.warn('Web Share falhou:', shareError);
         }
-        console.warn('Web Share de fotos falhou:', shareError);
       }
     }
 
-    // Depois enviar o extrato para o grupo
-    const mensagem = gerarMensagemWhatsApp();
-
-    // Se tiver grupo WhatsApp cadastrado, abrir o grupo com o texto
+    // Fallback: sem fotos ou sem suporte a share de arquivos
     if (whatsappOriginal) {
-      // Montar URL do grupo
-      const grupoUrl = whatsappOriginal.includes('chat.whatsapp.com')
-        ? whatsappOriginal
-        : `https://chat.whatsapp.com/${whatsappOriginal}`;
-
-      // Copiar mensagem para a área de transferência e abrir o grupo
+      // Copiar mensagem e abrir grupo
       try {
         await navigator.clipboard.writeText(mensagem);
         toast.success('Extrato copiado! O grupo abrirá. Cole a mensagem.');
@@ -3292,12 +3304,12 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
         toast.info('O grupo abrirá. Envie o extrato manualmente.');
       }
 
-      // Abrir o grupo do WhatsApp com delay
-      setTimeout(() => {
-        window.open(grupoUrl, '_blank');
-      }, fotosProcessadas.length > 0 ? 1500 : 500);
+      const grupoUrl = whatsappOriginal.includes('chat.whatsapp.com')
+        ? whatsappOriginal
+        : `https://chat.whatsapp.com/${whatsappOriginal}`;
+      setTimeout(() => window.open(grupoUrl, '_blank'), 500);
     } else {
-      // Fallback: se não tiver grupo, envia por wa.me (telefone individual)
+      // Sem grupo: envia por wa.me
       const mensagemCodificada = encodeURIComponent(mensagem);
       const telefone = clienteSelecionado?.telefone?.replace(/\D/g, '') || '';
       const url = telefone 
