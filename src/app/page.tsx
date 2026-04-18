@@ -2990,10 +2990,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
             alturaOriginal = Math.round(alturaOriginal * ratio);
           }
           
-          // Fonte grande e legível: mínimo 26px, máximo 52px
-          // Para 720px → 29px | Para 1200px → 48px | Para 1920px → 52px(cap)
-          const tamanhoFonteBase = Math.max(26, Math.min(52, Math.round(larguraOriginal / 25)));
-          const alturaTarja = Math.round(tamanhoFonteBase * 3.2);
+          // Fonte adaptativa: mínimo 20px, máximo 44px
+          // Para 720px → 22px | Para 1200px → 37px | Para 1920px → 44px(cap)
+          const tamanhoFonteBase = Math.max(20, Math.min(44, Math.round(larguraOriginal / 30)));
+          const alturaTarja = Math.round(tamanhoFonteBase * 3.0);
           
           // Nova altura total = imagem + tarja
           canvas.width = larguraOriginal;
