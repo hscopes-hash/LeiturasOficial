@@ -3024,26 +3024,75 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           const linha1Y = inicioTarja - espacamentoEntreLinhas / 2;
           const linha2Y = inicioTarja + espacamentoEntreLinhas / 2;
 
-          // === LINHA 1: CABEÇALHOS ===
+          // === DESENHO POR COLUNAS (alinhamento perfeito) ===
           ctx.fillStyle = '#ffffff'; // branco
           ctx.font = `bold ${tamanhoFonte}px Arial, sans-serif`;
-          
-          // Cabeçalhos com separadores |
-          const cabecalho = `Data Hora    | User   | ENTR | SAÍDA | Origem`;
-          ctx.fillText(cabecalho, padding, linha1Y);
 
-          // === LINHA 2: VALORES ===
-          ctx.font = `bold ${tamanhoFonte}px Arial, sans-serif`;
-          
           // Formatar valores
-          const usuarioLimitado = operador.substring(0, 6).padEnd(6);
-          const entradaStr = String(entrada ?? '-').padStart(5);
-          const saidaStr = String(saida ?? '-').padStart(5);
-          const origemStr = (origem || '-').padEnd(7);
-          
-          // Construir linha de valores com separadores |
-          const valores = `${data} | ${usuarioLimitado} | ${entradaStr} | ${saidaStr} | ${origemStr}`;
-          ctx.fillText(valores, padding, linha2Y);
+          const usuarioLimitado = operador.substring(0, 8);
+          const entradaStr = String(entrada ?? '-');
+          const saidaStr = String(saida ?? '-');
+          const origemStr = origem || '-';
+
+          // Medir largura de cada texto para posicionar colunas
+          const cabecalhos = ['Data Hora', 'User', 'ENTR', 'SAÍDA', 'Origem'];
+          const valores = [data, usuarioLimitado, entradaStr, saidaStr, origemStr];
+
+          // Medir a largura de cada cabeçalho e valor
+          const largurasCab = cabecalhos.map(t => ctx.measureText(t).width);
+          const largurasVal = valores.map(t => ctx.measureText(t).width);
+
+          // Largura da barra separadora " | " (medida uma vez)
+          const sepLargura = ctx.measureText(' | ').width;
+          const espacoEntreColunas = tamanhoFonte * 0.8; // espaço extra após o separador
+
+          // Calcular largura total ocupada
+          let larguraTotal = 0;
+          const colunas = cabecalhos.map((cab, i) => {
+            const larguraColuna = Math.max(largurasCab[i], largurasVal[i]) + sepLargura;
+            const x = padding + larguraTotal;
+            larguraTotal += larguraColuna + espacoEntreColunas;
+            return { cabecalho: cab, valor: valores[i], x };
+          });
+
+          // Se couber na imagem, desenhar com colunas alinhadas
+          if (larguraTotal <= larguraOriginal - padding) {
+            // Linha 1: Cabeçalhos
+            colunas.forEach(col => {
+              ctx.fillText(col.cabecalho, col.x, linha1Y);
+            });
+
+            // Linha 2: Valores (mesma posição X dos cabeçalhos)
+            colunas.forEach(col => {
+              ctx.fillText(col.valor, col.x, linha2Y);
+            });
+          } else {
+            // Fallback: se não couber, escala a fonte para caber
+            const fatorReducao = (larguraOriginal - 2 * padding) / larguraTotal;
+            const tamanhoReduzido = Math.max(12, Math.round(tamanhoFonte * fatorReducao));
+            ctx.font = `bold ${tamanhoReduzido}px Arial, sans-serif`;
+
+            // Recalcular com fonte menor
+            const largurasCabR = cabecalhos.map(t => ctx.measureText(t).width);
+            const largurasValR = valores.map(t => ctx.measureText(t).width);
+            const sepLarguraR = ctx.measureText(' | ').width;
+            const espacoR = tamanhoReduzido * 0.6;
+
+            let larguraTotalR = 0;
+            const colunasR = cabecalhos.map((cab, i) => {
+              const larguraColuna = Math.max(largurasCabR[i], largurasValR[i]) + sepLarguraR;
+              const x = padding + larguraTotalR;
+              larguraTotalR += larguraColuna + espacoR;
+              return { cabecalho: cab, valor: valores[i], x };
+            });
+
+            colunasR.forEach(col => {
+              ctx.fillText(col.cabecalho, col.x, linha1Y);
+            });
+            colunasR.forEach(col => {
+              ctx.fillText(col.valor, col.x, linha2Y);
+            });
+          }
 
           // Converter para base64 com qualidade reduzida
           resolve(canvas.toDataURL('image/jpeg', 0.8));
