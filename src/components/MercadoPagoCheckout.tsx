@@ -13,17 +13,17 @@ import {
 import { toast } from 'sonner';
 import {
   Loader2, CreditCard, QrCode, Smartphone, ArrowLeft, CheckCircle2, XCircle, Clock,
-  Check, AlertTriangle, ExternalLink, RefreshCw,
+  Check, AlertTriangle, ExternalLink, RefreshCw, Globe, Server, Wifi, Shield,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
 
 // ============================================
-// SDK Loader
+// SDK Loader (with timeout)
 // ============================================
 const MP_SDK_URL = 'https://sdk.mercadopago.com/js/v2';
 let sdkLoadPromise: Promise<any> | null = null;
 
-function loadMercadoPagoSDK(onProgress?: (msg: string) => void): Promise<any> {
+function loadMercadoPagoSDK(): Promise<any> {
   if (sdkLoadPromise) return sdkLoadPromise;
 
   if (typeof window !== 'undefined' && (window as any).MercadoPago) {
@@ -31,20 +31,17 @@ function loadMercadoPagoSDK(onProgress?: (msg: string) => void): Promise<any> {
   }
 
   sdkLoadPromise = new Promise<any>((resolve, reject) => {
-    // Timeout de 15 segundos
     const timeout = setTimeout(() => {
       sdkLoadPromise = null;
-      reject(new Error('TIMEOUT'));
-    }, 15000);
+      reject(new Error('TIMEOUT_SDK'));
+    }, 20000);
 
     try {
-      onProgress?.('Baixando SDK do MercadoPago...');
       const script = document.createElement('script');
       script.src = MP_SDK_URL;
       script.async = true;
 
       script.onload = () => {
-        onProgress?.('SDK carregado, inicializando...');
         const MPClass = (window as any).MercadoPago;
         if (MPClass) {
           clearTimeout(timeout);
@@ -85,12 +82,44 @@ interface CheckoutParams {
   onSuccess: () => void;
 }
 
-type Step = 'idle' | 'loading' | 'sdk_loading' | 'payment' | 'processing' | 'done' | 'error' | 'mp_not_configured' | 'sdk_failed';
+type Step =
+  | 'idle'
+  | 'connecting'      // Fetching checkout API
+  | 'creating_pref'   // MercadoPago API creating preference
+  | 'loading_sdk'     // Loading MP SDK
+  | 'rendering'       // Rendering Brick
+  | 'payment'         // Brick ready
+  | 'processing'      // Payment submitted
+  | 'done'
+  | 'error'
+  | 'mp_not_configured'
+  | 'sdk_failed';
 
 interface StatusLog {
   time: string;
   message: string;
   done: boolean;
+}
+
+// ============================================
+// Progress steps definition
+// ============================================
+const PROGRESS_STEPS: { key: Step; label: string; icon: typeof Server }[] = [
+  { key: 'connecting', label: 'Conectando', icon: Wifi },
+  { key: 'creating_pref', label: 'Preferencia', icon: Server },
+  { key: 'loading_sdk', label: 'SDK', icon: Globe },
+  { key: 'rendering', label: 'Formulario', icon: CreditCard },
+];
+
+const LOADING_STEPS = new Set(['connecting', 'creating_pref', 'loading_sdk', 'rendering']);
+
+function getStepIndex(step: Step): number {
+  if (step === 'idle') return -1;
+  if (step === 'connecting') return 0;
+  if (step === 'creating_pref') return 1;
+  if (step === 'loading_sdk' || step === 'sdk_loading') return 2;
+  if (step === 'rendering' || step === 'payment') return 3;
+  return 4; // done/error/processing
 }
 
 // ============================================
@@ -108,12 +137,15 @@ export default function MercadoPagoCheckout({
   const [statusLog, setStatusLog] = useState<StatusLog[]>([]);
   const [preferenceId, setPreferenceId] = useState<string | null>(null);
   const [mpPublicKey, setMpPublicKey] = useState<string | null>(null);
-  const [initPoint, setInitPoint] = useState<string | null>(null);
   const [paymentResult, setPaymentResult] = useState<{ status: string; paymentId?: string } | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const brickContainerRef = useRef<HTMLDivElement>(null);
   const brickInstanceRef = useRef<any>(null);
   const mountedRef = useRef(true);
+  const abortRef = useRef<AbortController | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const elapsedRef = useRef<NodeJS.Timeout | null>(null);
   const token = useAuthStore((s) => s.token);
   const onSuccessRef = useRef(onSuccess);
   onSuccessRef.current = onSuccess;
@@ -124,6 +156,21 @@ export default function MercadoPagoCheckout({
     const now = new Date();
     const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
     setStatusLog((prev) => [...prev, { time, message, done }]);
+  }, []);
+
+  // Elapsed timer
+  const startElapsed = useCallback(() => {
+    setElapsedSeconds(0);
+    elapsedRef.current = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+  }, []);
+
+  const stopElapsed = useCallback(() => {
+    if (elapsedRef.current) {
+      clearInterval(elapsedRef.current);
+      elapsedRef.current = null;
+    }
   }, []);
 
   const unmountBrick = () => {
@@ -137,11 +184,25 @@ export default function MercadoPagoCheckout({
     }
   };
 
-  // Step 1: Create preference
+  // Step 1: Create preference (with timeout)
   const createPreference = useCallback(async () => {
+    const abort = new AbortController();
+    abortRef.current = abort;
+    startElapsed();
+
+    // Timeout de 15 segundos para o fetch
+    const fetchTimeout = setTimeout(() => {
+      abort.abort();
+    }, 15000);
+
     try {
+      // Etapa 1: Conectando
+      setStep('connecting');
       log('Conectando ao servidor...');
-      setStep('loading');
+
+      // Etapa 2: Criando preferencia
+      setStep('creating_pref');
+      log('Criando preferencia de pagamento no MercadoPago...');
 
       const res = await fetch('/api/assinatura-saas/checkout', {
         method: 'POST',
@@ -150,14 +211,16 @@ export default function MercadoPagoCheckout({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ planoSaaSId, planoTipo, embed: true }),
+        signal: abort.signal,
       });
 
-      log('Servidor respondeu', true);
+      clearTimeout(fetchTimeout);
 
       if (!res.ok) {
-        const errorData = await res.json();
+        const errorData = await res.json().catch(() => ({ error: 'Erro desconhecido' }));
         if (errorData.code === 'MP_NOT_CONFIGURED') {
           log('MercadoPago nao configurado no servidor');
+          stopElapsed();
           setStep('mp_not_configured');
           return;
         }
@@ -166,20 +229,30 @@ export default function MercadoPagoCheckout({
 
       const data = await res.json();
       if (!mountedRef.current) return;
+
+      log('Preferencia criada com sucesso (ID: ' + data.id.substring(0, 8) + '...)', true);
       setPreferenceId(data.id);
       setMpPublicKey(data.publicKey);
-      // Guardar init_point como fallback
-      if (data.init_point) setInitPoint(data.init_point);
-      log('Preferencia de pagamento criada (ID: ' + data.id.substring(0, 8) + '...)', true);
-      setStep('sdk_loading');
+
+      // Etapa 3: Carregando SDK
+      setStep('loading_sdk');
+      log('Baixando SDK do MercadoPago...');
     } catch (error: unknown) {
+      clearTimeout(fetchTimeout);
       if (!mountedRef.current) return;
-      const message = error instanceof Error ? error.message : 'Erro ao iniciar pagamento';
-      log('Erro: ' + message);
-      setErrorMessage(message);
+      stopElapsed();
+
+      if (error instanceof Error && error.name === 'AbortError') {
+        log('Tempo esgotado: o servidor demorou mais de 15 segundos');
+        setErrorMessage('O servidor demorou demais para responder. Verifique sua conexao e tente novamente.');
+      } else {
+        const message = error instanceof Error ? error.message : 'Erro ao iniciar pagamento';
+        log('Falha: ' + message);
+        setErrorMessage(message);
+      }
       setStep('error');
     }
-  }, [planoSaaSId, planoTipo, token, log]);
+  }, [planoSaaSId, planoTipo, token, log, startElapsed, stopElapsed]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -187,37 +260,41 @@ export default function MercadoPagoCheckout({
     return () => {
       mountedRef.current = false;
       unmountBrick();
+      stopElapsed();
+      if (abortRef.current) abortRef.current.abort();
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (elapsedRef.current) clearInterval(elapsedRef.current);
     };
-  }, [createPreference]);
+  }, [createPreference, stopElapsed]);
 
   // Step 2: Load SDK + create Brick
   useEffect(() => {
-    if (step !== 'sdk_loading' || !preferenceId || !mpPublicKey) return;
+    if (step !== 'loading_sdk' || !preferenceId || !mpPublicKey) return;
 
     const container = brickContainerRef.current;
 
     const init = async () => {
       try {
-        log('Carregando SDK do MercadoPago...');
+        log('Aguardando resposta do SDK do MercadoPago...');
 
-        const MPClass = await loadMercadoPagoSDK((msg) => log(msg));
+        const MPClass = await loadMercadoPagoSDK();
         if (!mountedRef.current) return;
 
         log('SDK carregado com sucesso', true);
-        log('Inicializando formulario de pagamento...');
 
         // Create MP instance
+        log('Inicializando formulario de pagamento...');
         const mp = new MPClass(mpPublicKey, { locale: 'pt-BR' });
         const bricksBuilder = mp.bricks();
 
         const valorNumerico = parseFloat(valor.replace(/[^\d,]/g, '').replace(',', '.'));
 
         if (!mountedRef.current) return;
-        setStep('payment');
-        log('Formulario de pagamento pronto', true);
+        setStep('rendering');
+        log('Renderizando formulario...', true);
 
         // Small delay for DOM
-        await new Promise((r) => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 200));
         if (!mountedRef.current || !container) return;
 
         brickInstanceRef.current = bricksBuilder.create(
@@ -254,9 +331,15 @@ export default function MercadoPagoCheckout({
               },
             },
             callbacks: {
-              onReady: () => log('Formulario renderizado e pronto para uso', true),
+              onReady: () => {
+                if (!mountedRef.current) return;
+                log('Formulario pronto para uso!', true);
+                stopElapsed();
+                setStep('payment');
+              },
               onSubmit: async (formData: any) => {
                 if (!mountedRef.current) return;
+                startElapsed();
                 setStep('processing');
                 log('Enviando pagamento ao MercadoPago...');
 
@@ -291,6 +374,7 @@ export default function MercadoPagoCheckout({
 
                   const result = await res.json();
                   if (!mountedRef.current) return;
+                  stopElapsed();
                   log('Resposta do MercadoPago: ' + result.status, true);
                   setPaymentResult({ status: result.status, paymentId: result.id });
                   setStep('done');
@@ -302,6 +386,7 @@ export default function MercadoPagoCheckout({
                   }
                 } catch (error: unknown) {
                   if (!mountedRef.current) return;
+                  stopElapsed();
                   const message = error instanceof Error ? error.message : 'Erro ao processar pagamento';
                   log('Falha no pagamento: ' + message);
                   toast.error(message);
@@ -316,15 +401,25 @@ export default function MercadoPagoCheckout({
             },
           },
         );
+
+        // Timeout: if onReady doesn't fire in 20 seconds, offer fallback
+        timerRef.current = setTimeout(() => {
+          if (!mountedRef.current) return;
+          if (step === 'rendering') {
+            // Brick was created but didn't become ready - might still be working
+            log('Aguardando formulario responder...');
+          }
+        }, 20000);
       } catch (error: unknown) {
         console.error('[MP Brick Init Error]', error);
         if (!mountedRef.current) return;
+        stopElapsed();
 
         const message = error instanceof Error ? error.message : 'Erro desconhecido';
 
-        if (message === 'TIMEOUT') {
-          log('Timeout: SDK nao carregou em 15 segundos');
-          setErrorMessage('O formulario de pagamento demorou demais para carregar. Tente o checkout externo ou recarregue a pagina.');
+        if (message === 'TIMEOUT_SDK') {
+          log('Timeout: SDK nao carregou em 20 segundos');
+          setErrorMessage('O formulario de pagamento demorou demais para carregar. Use o checkout externo como alternativa.');
           setStep('sdk_failed');
         } else {
           log('Falha ao carregar: ' + message);
@@ -336,28 +431,37 @@ export default function MercadoPagoCheckout({
 
     init();
 
-    return () => { unmountBrick(); };
-  }, [step, preferenceId, mpPublicKey, valor, planoNome, planoTipo, token, planoSaaSId, log]);
+    return () => {
+      unmountBrick();
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [step, preferenceId, mpPublicKey, valor, planoNome, planoTipo, token, planoSaaSId, log, startElapsed, stopElapsed]);
 
-  const handleClose = useCallback(() => { unmountBrick(); onClose(); }, [onClose]);
+  const handleClose = useCallback(() => {
+    stopElapsed();
+    unmountBrick();
+    onClose();
+  }, [onClose, stopElapsed]);
 
   const handleRetry = useCallback(() => {
     unmountBrick();
+    stopElapsed();
     setStep('idle');
     setErrorMessage('');
     setPaymentResult(null);
     setPreferenceId(null);
     setMpPublicKey(null);
-    setInitPoint(null);
     setStatusLog([]);
+    setElapsedSeconds(0);
+    // Reset SDK cache for retry
+    sdkLoadPromise = null;
     createPreference();
-  }, [createPreference]);
+  }, [createPreference, stopElapsed]);
 
   // Fallback: open external checkout in new tab
   const handleExternalCheckout = useCallback(async () => {
     log('Abrindo checkout externo...');
     try {
-      // Try to create a new preference with embed=false to get init_point
       const res = await fetch('/api/assinatura-saas/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -375,25 +479,103 @@ export default function MercadoPagoCheckout({
     } catch {
       toast.error('Erro ao gerar checkout externo');
     }
-  }, [planoSaaSId, planoTipo, token, onClose]);
+  }, [planoSaaSId, planoTipo, token, onClose, log]);
 
-  // Status log component
-  const StatusLogView = () => (
-    <div className="bg-muted/30 rounded-lg p-3 space-y-1.5 max-h-[140px] overflow-y-auto font-mono text-[11px]">
+  // ============================================
+  // SUB-COMPONENTS
+  // ============================================
+
+  // Progress bar showing which step we're on
+  const ProgressBar = () => {
+    const currentIdx = getStepIndex(step);
+    const isFailed = step === 'error' || step === 'sdk_failed';
+
+    return (
+      <div className="flex items-center gap-1 px-2 py-3">
+        {PROGRESS_STEPS.map((s, idx) => {
+          const isCompleted = idx < currentIdx;
+          const isCurrent = idx === currentIdx && !isFailed;
+          const StepIcon = s.icon;
+
+          return (
+            <div key={s.key} className="flex items-center gap-1 flex-1">
+              <div className="flex flex-col items-center gap-1 flex-1">
+                <div className={`
+                  w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300
+                  ${isCompleted ? 'bg-emerald-500/20 text-emerald-400' : ''}
+                  ${isCurrent ? 'bg-amber-500/20 text-amber-400 ring-2 ring-amber-500/30' : ''}
+                  ${!isCompleted && !isCurrent ? 'bg-muted/30 text-muted-foreground/40' : ''}
+                `}>
+                  {isCompleted ? (
+                    <Check className="w-4 h-4" />
+                  ) : isCurrent ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <StepIcon className="w-3.5 h-3.5" />
+                  )}
+                </div>
+                <span className={`
+                  text-[10px] leading-tight text-center transition-colors
+                  ${isCompleted ? 'text-emerald-400' : ''}
+                  ${isCurrent ? 'text-amber-400 font-medium' : ''}
+                  ${!isCompleted && !isCurrent ? 'text-muted-foreground/40' : ''}
+                `}>
+                  {s.label}
+                </span>
+              </div>
+              {idx < PROGRESS_STEPS.length - 1 && (
+                <div className={`
+                  h-[2px] flex-1 mt-[-12px] transition-colors duration-300
+                  ${idx < currentIdx ? 'bg-emerald-500/40' : 'bg-muted/30'}
+                `} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Elapsed timer display
+  const ElapsedTimer = () => {
+    if (elapsedSeconds === 0) return null;
+    const mins = Math.floor(elapsedSeconds / 60);
+    const secs = elapsedSeconds % 60;
+    const display = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    const isSlow = elapsedSeconds > 15;
+
+    return (
+      <div className={`text-xs flex items-center justify-center gap-1 ${isSlow ? 'text-amber-400' : 'text-muted-foreground'}`}>
+        <Clock className="w-3 h-3" />
+        <span>{display}</span>
+        {isSlow && elapsedSeconds > 25 && (
+          <span className="text-amber-400"> - pode levar mais alguns instantes</span>
+        )}
+      </div>
+    );
+  };
+
+  // Status log component (always visible during loading)
+  const StatusLogView = ({ compact = false }: { compact?: boolean }) => (
+    <div className={`bg-muted/30 rounded-lg border border-border p-3 space-y-2 ${compact ? 'max-h-[120px]' : 'max-h-[160px]'} overflow-y-auto`}>
+      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Log do processo</p>
       {statusLog.map((entry, i) => (
         <div key={i} className="flex items-start gap-2">
-          <span className="text-muted-foreground shrink-0">{entry.time}</span>
+          <span className="text-[10px] text-muted-foreground shrink-0 font-mono">{entry.time}</span>
           {entry.done ? (
-            <Check className="w-3 h-3 text-emerald-400 shrink-0 mt-0.5" />
+            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
           ) : (
-            <Loader2 className="w-3 h-3 text-amber-400 shrink-0 mt-0.5 animate-spin" />
+            <Loader2 className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5 animate-spin" />
           )}
-          <span className={entry.done ? 'text-emerald-300/80' : 'text-foreground'}>{entry.message}</span>
+          <span className={`text-xs leading-relaxed ${entry.done ? 'text-emerald-300/80' : 'text-foreground'}`}>{entry.message}</span>
         </div>
       ))}
     </div>
   );
 
+  // ============================================
+  // RENDER
+  // ============================================
   return (
     <Dialog open onOpenChange={(open) => { if (!open) handleClose(); }}>
       <DialogContent className="bg-card border-border text-foreground max-w-lg max-h-[90vh] overflow-y-auto">
@@ -401,40 +583,66 @@ export default function MercadoPagoCheckout({
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-amber-400" />
             Pagamento
+            {LOADING_STEPS.has(step) && (
+              <Badge variant="outline" className="ml-auto text-[10px] text-amber-400 border-amber-500/30 bg-amber-500/10">
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                Processando
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
-        {/* Loading — creating preference */}
-        {(step === 'idle' || step === 'loading') && (
-          <div className="py-8 text-center space-y-4">
-            <div className="relative w-14 h-14 mx-auto">
-              <Loader2 className="w-14 h-14 animate-spin text-amber-400" />
-              <CreditCard className="w-5 h-5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-400" />
+        {/* ===== LOADING PHASES ===== */}
+        {LOADING_STEPS.has(step) && (
+          <div className="space-y-4">
+            {/* Progress Steps */}
+            <ProgressBar />
+
+            {/* Separator */}
+            <Separator className="bg-border" />
+
+            {/* Current status - big and clear */}
+            <div className="text-center py-2 space-y-2">
+              <div className="relative w-12 h-12 mx-auto">
+                <Loader2 className="w-12 h-12 animate-spin text-amber-400" />
+                <CreditCard className="w-4 h-4 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-400" />
+              </div>
+
+              {/* Dynamic message based on step */}
+              {step === 'connecting' && (
+                <>
+                  <p className="text-base font-semibold text-foreground">Conectando ao servidor</p>
+                  <p className="text-sm text-muted-foreground">Enviando dados do plano para o servidor...</p>
+                </>
+              )}
+              {step === 'creating_pref' && (
+                <>
+                  <p className="text-base font-semibold text-foreground">Criando preferencia de pagamento</p>
+                  <p className="text-sm text-muted-foreground">O MercadoPago esta gerando seu link de pagamento seguro...</p>
+                </>
+              )}
+              {step === 'loading_sdk' && (
+                <>
+                  <p className="text-base font-semibold text-foreground">Baixando formulario de pagamento</p>
+                  <p className="text-sm text-muted-foreground">Carregando o SDK do MercadoPago (pode levar alguns segundos)...</p>
+                </>
+              )}
+              {step === 'rendering' && (
+                <>
+                  <p className="text-base font-semibold text-foreground">Renderizando formulario</p>
+                  <p className="text-sm text-muted-foreground">O formulario de pagamento esta sendo desenhado na tela...</p>
+                </>
+              )}
+
+              <ElapsedTimer />
             </div>
-            <div>
-              <p className="font-semibold text-foreground">Preparando pagamento...</p>
-              <p className="text-sm text-muted-foreground mt-1">Criando preferencia no MercadoPago</p>
-            </div>
-            <StatusLogView />
+
+            {/* Status Log - always visible during loading */}
+            {statusLog.length > 0 && <StatusLogView />}
           </div>
         )}
 
-        {/* Loading — SDK */}
-        {step === 'sdk_loading' && (
-          <div className="py-8 text-center space-y-4">
-            <div className="relative w-14 h-14 mx-auto">
-              <Loader2 className="w-14 h-14 animate-spin text-amber-400" />
-              <CreditCard className="w-5 h-5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-400" />
-            </div>
-            <div>
-              <p className="font-semibold text-foreground">Carregando formulario de pagamento</p>
-              <p className="text-sm text-muted-foreground mt-1">Baixando SDK do MercadoPago (pode levar alguns segundos)</p>
-            </div>
-            <StatusLogView />
-          </div>
-        )}
-
-        {/* Payment Brick */}
+        {/* ===== PAYMENT BRICK ===== */}
         {step === 'payment' && (
           <div>
             <div className="p-4 rounded-lg bg-muted/50 border border-border mb-3">
@@ -468,7 +676,7 @@ export default function MercadoPagoCheckout({
                 <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors">
                   Detalhes do carregamento ({statusLog.length} etapas)
                 </summary>
-                <div className="mt-2"><StatusLogView /></div>
+                <div className="mt-2"><StatusLogView compact /></div>
               </details>
             )}
 
@@ -481,22 +689,27 @@ export default function MercadoPagoCheckout({
           </div>
         )}
 
-        {/* Processing */}
+        {/* ===== PROCESSING ===== */}
         {step === 'processing' && (
-          <div className="py-8 text-center space-y-4">
-            <div className="relative w-14 h-14 mx-auto">
-              <Loader2 className="w-14 h-14 animate-spin text-amber-400" />
-              <CreditCard className="w-5 h-5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-400" />
+          <div className="space-y-4">
+            <ProgressBar />
+            <Separator className="bg-border" />
+            <div className="text-center py-4 space-y-3">
+              <div className="relative w-14 h-14 mx-auto">
+                <Loader2 className="w-14 h-14 animate-spin text-amber-400" />
+                <Shield className="w-5 h-5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-base font-semibold text-foreground">Processando pagamento</p>
+                <p className="text-sm text-muted-foreground mt-1">Aguardando confirmacao do MercadoPago...</p>
+              </div>
+              <ElapsedTimer />
             </div>
-            <div>
-              <p className="font-semibold text-foreground">Processando pagamento...</p>
-              <p className="text-sm text-muted-foreground mt-1">Aguarde a confirmacao do MercadoPago</p>
-            </div>
-            <StatusLogView />
+            {statusLog.length > 0 && <StatusLogView />}
           </div>
         )}
 
-        {/* Done */}
+        {/* ===== DONE ===== */}
         {step === 'done' && paymentResult && (
           <div className="py-6">
             {paymentResult.status === 'approved' ? (
@@ -550,7 +763,7 @@ export default function MercadoPagoCheckout({
           </div>
         )}
 
-        {/* SDK Failed — with fallback */}
+        {/* ===== SDK FAILED — with fallback ===== */}
         {step === 'sdk_failed' && (
           <div className="py-6 space-y-4">
             <div className="text-center">
@@ -561,15 +774,13 @@ export default function MercadoPagoCheckout({
               <p className="text-sm text-muted-foreground mb-4">{errorMessage}</p>
             </div>
 
-            {/* Show status log */}
             {statusLog.length > 0 && (
               <div className="p-3 rounded-lg bg-muted/30 border border-border">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Log do processo:</p>
-                <StatusLogView />
+                <StatusLogView compact />
               </div>
             )}
 
-            {/* Action buttons */}
             <div className="space-y-2">
               <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-600" onClick={handleExternalCheckout}>
                 <ExternalLink className="w-4 h-4 mr-2" />
@@ -590,7 +801,7 @@ export default function MercadoPagoCheckout({
           </div>
         )}
 
-        {/* MP Not Configured */}
+        {/* ===== MP NOT CONFIGURED ===== */}
         {step === 'mp_not_configured' && (
           <div className="py-6">
             <div className="text-center">
@@ -615,9 +826,9 @@ export default function MercadoPagoCheckout({
           </div>
         )}
 
-        {/* Generic Error */}
+        {/* ===== GENERIC ERROR ===== */}
         {step === 'error' && (
-          <div className="py-8 space-y-4">
+          <div className="py-6 space-y-4">
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
                 <XCircle className="w-10 h-10 text-red-400" />
@@ -628,7 +839,7 @@ export default function MercadoPagoCheckout({
             {statusLog.length > 0 && (
               <div className="p-3 rounded-lg bg-muted/30 border border-border">
                 <p className="text-xs font-medium text-muted-foreground mb-2">Log:</p>
-                <StatusLogView />
+                <StatusLogView compact />
               </div>
             )}
             <div className="flex gap-2 justify-center">
