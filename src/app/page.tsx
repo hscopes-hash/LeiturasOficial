@@ -6197,12 +6197,16 @@ function AssinaturaTab() {
           'Authorization': `Bearer ${token}`,
         },
       });
-      if (!res.ok) throw new Error('Erro ao carregar status');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => null);
+        throw new Error(errorData?.error || `Erro HTTP ${res.status}`);
+      }
       const data = await res.json();
       setStatusData(data);
     } catch (error) {
       console.error('Erro ao carregar status da assinatura:', error);
-      toast.error('Erro ao carregar informações da assinatura');
+      const message = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error(`Erro ao carregar informações da assinatura: ${message}`);
     } finally {
       setLoading(false);
     }

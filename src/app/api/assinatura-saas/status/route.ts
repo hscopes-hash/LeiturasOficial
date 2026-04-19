@@ -24,6 +24,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
+    // Buscar empresa
+    const empresa = await prisma.empresa.findUnique({
+      where: { id: user.empresaId },
+      select: { id: true, nome: true, plano: true, dataVencimento: true, isDemo: true, bloqueada: true, diasDemo: true, createdAt: true },
+    });
+
     // Buscar assinatura ativa
     const assinatura = await prisma.assinaturaSaaS.findFirst({
       where: {
@@ -40,12 +46,6 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Buscar empresa
-    const empresa = await prisma.empresa.findUnique({
-      where: { id: user.empresaId },
-      select: { id: true, nome: true, plano: true, dataVencimento: true, isDemo: true, bloqueada: true, diasDemo: true, createdAt: true },
-    });
-
     // Buscar todos os planos disponíveis
     const planosDisponiveis = await prisma.planoSaaS.findMany({
       where: { ativo: true },
@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[ASSINATURA-STATUS] Erro:', error);
-    return NextResponse.json({ error: 'Erro ao buscar status' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Erro desconhecido';
+    return NextResponse.json({ error: `Erro ao buscar status: ${message}` }, { status: 500 });
   }
 }
