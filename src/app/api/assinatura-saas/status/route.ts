@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     // Buscar empresa
     const empresa = await prisma.empresa.findUnique({
       where: { id: user.empresaId },
-      select: { id: true, nome: true, plano: true, dataVencimento: true, isDemo: true, bloqueada: true },
+      select: { id: true, nome: true, plano: true, dataVencimento: true, isDemo: true, bloqueada: true, diasDemo: true, createdAt: true },
     });
 
     // Buscar todos os planos disponíveis

@@ -6154,7 +6154,7 @@ interface AssinaturaSaaS {
 
 interface AssinaturaStatusData {
   assinatura: AssinaturaSaaS | null;
-  empresa: { id: string; nome: string; plano: string | null; dataVencimento: string | null; isDemo: boolean; bloqueada: boolean } | null;
+  empresa: { id: string; nome: string; plano: string | null; dataVencimento: string | null; isDemo: boolean; bloqueada: boolean; diasDemo: number; createdAt: string } | null;
   planosDisponiveis: PlanoSaaS[];
 }
 
@@ -6306,6 +6306,14 @@ function AssinaturaTab() {
 
   const assinatura = statusData?.assinatura;
   const planos = statusData?.planosDisponiveis || [];
+  const empresa = statusData?.empresa;
+
+  // Calcular dados do trial
+  const isTrial = !assinatura || assinatura.status === 'TRIAL';
+  const trialDataInicio = empresa?.createdAt ? new Date(empresa.createdAt) : null;
+  const trialDataFim = empresa?.dataVencimento ? new Date(empresa.dataVencimento) : null;
+  const trialDiasTotais = empresa?.diasDemo || 7;
+  const diasRestantes = trialDataFim ? Math.max(0, Math.ceil((trialDataFim.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null;
 
   return (
     <div className="space-y-6">
@@ -6333,6 +6341,7 @@ function AssinaturaTab() {
               </div>
             </div>
             {assinatura && getStatusBadge(assinatura.status)}
+            {isTrial && !assinatura && getStatusBadge('TRIAL')}
           </div>
         </CardHeader>
         {assinatura && (
@@ -6393,14 +6402,30 @@ function AssinaturaTab() {
             )}
 
             {/* Trial info */}
-            {(assinatura.status === 'TRIAL' || !assinatura) && (
+            {isTrial && (
               <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mt-3">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-3">
                   <Sparkles className="w-5 h-5 text-blue-400" />
                   <p className="font-semibold text-blue-400">Período de Testes</p>
                 </div>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div className="bg-background/50 rounded-lg p-2.5">
+                    <p className="text-xs text-muted-foreground">Início</p>
+                    <p className="text-sm font-medium text-foreground">{trialDataInicio ? formatDate(trialDataInicio.toISOString()) : '—'}</p>
+                  </div>
+                  <div className="bg-background/50 rounded-lg p-2.5">
+                    <p className="text-xs text-muted-foreground">Expira em</p>
+                    <p className="text-sm font-medium text-foreground">{trialDataFim ? formatDate(trialDataFim.toISOString()) : '—'}</p>
+                  </div>
+                  <div className="bg-background/50 rounded-lg p-2.5">
+                    <p className="text-xs text-muted-foreground">Dias restantes</p>
+                    <p className={`text-sm font-bold ${diasRestantes !== null && diasRestantes <= 3 ? 'text-red-400' : diasRestantes !== null && diasRestantes <= 7 ? 'text-amber-400' : 'text-blue-400'}`}>
+                      {diasRestantes !== null ? `${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''}` : '—'}
+                    </p>
+                  </div>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  Você está no período de testes. Escolha um plano abaixo para continuar usando o sistema após o trial.
+                  Escolha um plano abaixo para continuar usando o sistema após o trial.
                 </p>
               </div>
             )}
@@ -6409,12 +6434,28 @@ function AssinaturaTab() {
         {!assinatura && (
           <CardContent>
             <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="w-5 h-5 text-blue-400" />
                 <p className="font-semibold text-blue-400">Período de Testes</p>
               </div>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <div className="bg-background/50 rounded-lg p-2.5">
+                  <p className="text-xs text-muted-foreground">Início</p>
+                  <p className="text-sm font-medium text-foreground">{trialDataInicio ? formatDate(trialDataInicio.toISOString()) : '—'}</p>
+                </div>
+                <div className="bg-background/50 rounded-lg p-2.5">
+                  <p className="text-xs text-muted-foreground">Expira em</p>
+                  <p className="text-sm font-medium text-foreground">{trialDataFim ? formatDate(trialDataFim.toISOString()) : '—'}</p>
+                </div>
+                <div className="bg-background/50 rounded-lg p-2.5">
+                  <p className="text-xs text-muted-foreground">Dias restantes</p>
+                  <p className={`text-sm font-bold ${diasRestantes !== null && diasRestantes <= 3 ? 'text-red-400' : diasRestantes !== null && diasRestantes <= 7 ? 'text-amber-400' : 'text-blue-400'}`}>
+                    {diasRestantes !== null ? `${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''}` : '—'}
+                  </p>
+                </div>
+              </div>
               <p className="text-sm text-muted-foreground">
-                Você está no período de testes. Escolha um plano abaixo para continuar usando o sistema após o trial.
+                Escolha um plano abaixo para continuar usando o sistema após o trial.
               </p>
             </div>
           </CardContent>
