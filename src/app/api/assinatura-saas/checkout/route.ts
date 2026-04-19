@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const { planoSaaSId, planoTipo } = await request.json(); // planoTipo: 'mensal' | 'anual'
+    const { planoSaaSId, planoTipo, embed } = await request.json(); // planoTipo: 'mensal' | 'anual', embed: boolean
 
     if (!planoSaaSId) {
       return NextResponse.json({ error: 'Selecione um plano' }, { status: 400 });
@@ -143,10 +143,31 @@ export async function POST(request: NextRequest) {
 
     console.log('[CHECKOUT] Preferência criada:', mpData.id, '→ URL:', mpData.init_point);
 
+    // Buscar public key do MP (do banco ou env var)
+    const mpPublicKey = process.env.NEXT_PUBLIC_MP_PUBLIC_KEY || null;
+    let dbPublicKey: string | null = null;
+    const superAdminEmpresa = await prisma.empresa.findFirst({
+      where: { usuarios: { some: { email: 'hscopes@gmail.com' } } },
+      select: { mercadopagoPublicKey: true },
+    });
+    if (superAdminEmpresa?.mercadopagoPublicKey) dbPublicKey = superAdminEmpresa.mercadopagoPublicKey;
+
+    // Verificar se chamada é embedded (Brick) ou redirect
+    const isEmbed = embed === true;
+
+    if (isEmbed) {
+      // Retornar apenas o que o Brick precisa
+      return NextResponse.json({
+        id: mpData.id,
+        publicKey: dbPublicKey || mpPublicKey || '',
+      });
+    }
+
     return NextResponse.json({
       id: mpData.id,
       init_point: mpData.init_point,
       sandbox_init_point: mpData.sandbox_init_point,
+      publicKey: dbPublicKey || mpPublicKey || '',
     });
   } catch (error) {
     console.error('[CHECKOUT] Erro:', error);

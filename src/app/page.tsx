@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { VERSION_DISPLAY, VERSION_WITH_DATE } from '@/lib/version';
 import GestaoPlanosSaaS from '@/components/GestaoPlanosSaaS';
+import MercadoPagoCheckout from '@/components/MercadoPagoCheckout';
 
 // ============================================
 // TYPES
@@ -6173,6 +6174,7 @@ function AssinaturaTab() {
   const [tipoDialogOpen, setTipoDialogOpen] = useState(false);
   const [planoSelecionado, setPlanoSelecionado] = useState<PlanoSaaS | null>(null);
   const [planoTipo, setPlanoTipo] = useState<'mensal' | 'anual'>('mensal');
+  const [showMPCheckout, setShowMPCheckout] = useState(false);
 
   useEffect(() => {
     loadStatus();
@@ -6253,38 +6255,9 @@ function AssinaturaTab() {
   const handleCheckout = async () => {
     if (!planoSelecionado) return;
 
-    setCheckoutLoading(planoSelecionado.id);
-    try {
-      const res = await fetch('/api/assinatura-saas/checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          planoSaaSId: planoSelecionado.id,
-          planoTipo: planoTipo,
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Erro ao criar checkout');
-      }
-
-      const data = await res.json();
-      if (data.init_point) {
-        window.location.href = data.init_point;
-      } else {
-        throw new Error('URL de checkout não disponível');
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Erro ao iniciar checkout';
-      toast.error(message);
-    } finally {
-      setCheckoutLoading(null);
-      setTipoDialogOpen(false);
-    }
+    // Fechar dialog de tipo e abrir checkout embutido
+    setTipoDialogOpen(false);
+    setShowMPCheckout(true);
   };
 
   const getSuporteLabel = (tipo: string) => {
@@ -6770,6 +6743,21 @@ function AssinaturaTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Embedded MercadoPago Checkout (Brick) */}
+      {showMPCheckout && planoSelecionado && (
+        <MercadoPagoCheckout
+          planoNome={planoSelecionado.nome}
+          planoTipo={planoTipo}
+          valor={formatCurrency(planoTipo === 'anual' && planoSelecionado.valorAnual ? planoSelecionado.valorAnual : planoSelecionado.valorMensal)}
+          planoSaaSId={planoSelecionado.id}
+          onClose={() => setShowMPCheckout(false)}
+          onSuccess={() => {
+            setShowMPCheckout(false);
+            loadStatus();
+          }}
+        />
+      )}
     </div>
   );
 }
