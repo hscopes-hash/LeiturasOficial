@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { getUserFromRequest } from '@/lib/auth';
 
 const prisma = new PrismaClient();
-
-// Obter dados do usuário a partir do token JWT
-async function getUserFromToken(request: NextRequest) {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) return null;
-    const token = authHeader.substring(7);
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    return { empresaId: payload.empresaId, email: payload.email };
-  } catch {
-    return null;
-  }
-}
 
 // Buscar Access Token do MercadoPago (banco → env var)
 async function getMPAccessToken(): Promise<string | null> {
@@ -32,7 +20,7 @@ async function getMPAccessToken(): Promise<string | null> {
 // POST /api/assinatura-saas/checkout - Criar preferência de pagamento no MercadoPago
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromToken(request);
+    const user = await getUserFromRequest(request);
     if (!user?.empresaId) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }

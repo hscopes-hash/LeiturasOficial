@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { isSuperAdmin } from '@/lib/auth';
 
 const prisma = new PrismaClient();
-
-// Verificar se é super admin
-async function isSuperAdmin(request: NextRequest): Promise<boolean> {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) return false;
-    const token = authHeader.substring(7);
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    return payload.email === 'hscopes@gmail.com';
-  } catch {
-    return false;
-  }
-}
 
 // PUT /api/planos-saas/[id] - Atualizar plano
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
