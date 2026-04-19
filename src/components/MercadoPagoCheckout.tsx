@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Script from 'next/script';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -16,6 +15,52 @@ import {
   Loader2, CreditCard, QrCode, Smartphone, ArrowLeft, CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth-store';
+
+// ============================================
+// SDK Loader — injects script tag manually
+// ============================================
+const MP_SDK_URL = 'https://sdk.mercadopago.com/js/v2';
+let sdkLoadPromise: Promise<any> | null = null;
+
+function loadMercadoPagoSDK(): Promise<any> {
+  // If already loading or loaded, reuse the same promise
+  if (sdkLoadPromise) return sdkLoadPromise;
+
+  // If already available in window (loaded by previous session/page)
+  if (typeof window !== 'undefined' && (window as any).MercadoPago) {
+    return Promise.resolve((window as any).MercadoPago);
+  }
+
+  sdkLoadPromise = new Promise<any>((resolve, reject) => {
+    try {
+      const script = document.createElement('script');
+      script.src = MP_SDK_URL;
+      script.async = true;
+
+      script.onload = () => {
+        const MPClass = (window as any).MercadoPago;
+        if (MPClass) {
+          resolve(MPClass);
+        } else {
+          sdkLoadPromise = null;
+          reject(new Error('MercadoPago SDK carregou mas window.MercadoPago nao esta disponivel'));
+        }
+      };
+
+      script.onerror = () => {
+        sdkLoadPromise = null;
+        reject(new Error('Falha ao carregar o script do MercadoPago'));
+      };
+
+      document.head.appendChild(script);
+    } catch (error) {
+      sdkLoadPromise = null;
+      reject(error);
+    }
+  });
+
+  return sdkLoadPromise;
+}
 
 // ============================================
 // TYPES
@@ -40,7 +85,7 @@ export default function MercadoPagoCheckout({
   onClose,
   onSuccess,
 }: CheckoutParams) {
-  const [step, setStep] = useState<'loading' | 'payment' | 'processing' | 'done' | 'error' | 'mp_not_configured'>('loading');
+  const [step, setStep] = useState<'loading' | 'sdk_loading' | 'payment' | 'processing' | 'done' | 'error' | 'mp_not_configured'>('loading');
   const [preferenceId, setPreferenceId] = useState<string | null>(null);
   const [mpPublicKey, setMpPublicKey] = useState<string | null>(null);
   const [paymentResult, setPaymentResult] = useState<{ status: string; paymentId?: string } | null>(null);
@@ -51,6 +96,18 @@ export default function MercadoPagoCheckout({
   const token = useAuthStore((s) => s.token);
   const onSuccessRef = useRef(onSuccess);
   onSuccessRef.current = onSuccess;
+
+  // Unmount helper — safe call, never throws
+  const unmountBrick = () => {
+    try {
+      if (brickInstanceRef.current) {
+        brickInstanceRef.current.unmount();
+        brickInstanceRef.current = null;
+      }
+    } catch {
+      brickInstanceRef.current = null;
+    }
+  };
 
   // Step 1: Create preference and get public key
   const createPreference = useCallback(async () => {
@@ -79,9 +136,10 @@ export default function MercadoPagoCheckout({
       }
 
       const data = await res.json();
+      if (!mountedRef.current) return;
       setPreferenceId(data.id);
       setMpPublicKey(data.publicKey);
-      setStep('payment');
+      setStep('sdk_loading');
     } catch (error: unknown) {
       if (!mountedRef.current) return;
       const message = error instanceof Error ? error.message : 'Erro ao iniciar pagamento';
@@ -99,35 +157,17 @@ export default function MercadoPagoCheckout({
     };
   }, [createPreference]);
 
-  // Unmount helper — safe call, never throws
-  const unmountBrick = () => {
-    try {
-      if (brickInstanceRef.current) {
-        brickInstanceRef.current.unmount();
-        brickInstanceRef.current = null;
-      }
-    } catch (e) {
-      // Silently ignore unmount errors (container may already be gone)
-      brickInstanceRef.current = null;
-    }
-  };
-
-  // Step 2: Initialize Payment Brick using window.MercadoPago (loaded via <Script>)
+  // Step 2: Load SDK and initialize Payment Brick
   useEffect(() => {
-    if (step !== 'payment' || !preferenceId || !mpPublicKey || !brickContainerRef.current) return;
+    if (step !== 'sdk_loading' || !preferenceId || !mpPublicKey || !brickContainerRef.current) return;
 
     const container = brickContainerRef.current;
 
-    const initBrick = () => {
+    const init = async () => {
       try {
-        const MPClass = (window as any).MercadoPago;
-        if (!MPClass) {
-          console.error('[MP Brick] window.MercadoPago nao encontrado apos carregamento do script');
-          if (!mountedRef.current) return;
-          setErrorMessage('SDK do MercadoPago nao carregou. Recarregue a pagina e tente novamente.');
-          setStep('error');
-          return;
-        }
+        // Load SDK — this returns window.MercadoPago class
+        const MPClass = await loadMercadoPagoSDK();
+        if (!mountedRef.current) return;
 
         // Create instance with public key
         const mp = new MPClass(mpPublicKey, { locale: 'pt-BR' });
@@ -135,6 +175,13 @@ export default function MercadoPagoCheckout({
 
         // Parse valor from "R$ 99,90" to 99.9
         const valorNumerico = parseFloat(valor.replace(/[^\d,]/g, '').replace(',', '.'));
+
+        if (!mountedRef.current) return;
+        setStep('payment');
+
+        // Small delay to ensure the container is mounted in DOM
+        await new Promise((r) => setTimeout(r, 100));
+        if (!mountedRef.current) return;
 
         brickInstanceRef.current = bricksBuilder.create(
           'payment',
@@ -232,38 +279,18 @@ export default function MercadoPagoCheckout({
             },
           },
         );
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('[MP Brick Init Error]', error);
         if (!mountedRef.current) return;
-        setErrorMessage('Erro ao carregar o formulario de pagamento. Tente novamente.');
+        const message = error instanceof Error
+          ? error.message
+          : 'Nao foi possivel carregar o formulario de pagamento. Verifique sua conexao e tente novamente.';
+        setErrorMessage(message);
         setStep('error');
       }
     };
 
-    // Wait for window.MercadoPago to be available (Script may already be loaded or still loading)
-    const waitForSDK = () => {
-      if ((window as any).MercadoPago) {
-        initBrick();
-      } else {
-        // Retry every 300ms, max 20 attempts (6 seconds)
-        let attempts = 0;
-        const interval = setInterval(() => {
-          attempts++;
-          if ((window as any).MercadoPago) {
-            clearInterval(interval);
-            initBrick();
-          } else if (attempts >= 20) {
-            clearInterval(interval);
-            if (!mountedRef.current) return;
-            console.error('[MP Brick] SDK nao carregou apos 6 segundos');
-            setErrorMessage('SDK do MercadoPago nao carregou. Recarregue a pagina e tente novamente.');
-            setStep('error');
-          }
-        }, 300);
-      }
-    };
-
-    waitForSDK();
+    init();
 
     return () => {
       unmountBrick();
@@ -288,245 +315,247 @@ export default function MercadoPagoCheckout({
   }, [createPreference]);
 
   return (
-    <>
-      {/* Load MercadoPago SDK v2 via Next.js Script — avoids client-side crashes */}
-      <Script
-        src="https://sdk.mercadopago.com/js/v2"
-        strategy="beforeInteractive"
-        id="mercadopago-sdk"
-      />
+    <Dialog open onOpenChange={(open) => { if (!open) handleClose(); }}>
+      <DialogContent className="bg-card border-border text-foreground max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-amber-400" />
+            Pagamento
+          </DialogTitle>
+        </DialogHeader>
 
-      <Dialog open onOpenChange={(open) => { if (!open) handleClose(); }}>
-        <DialogContent className="bg-card border-border text-foreground max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-amber-400" />
-              Pagamento
-            </DialogTitle>
-          </DialogHeader>
+        {/* Loading — creating preference */}
+        {step === 'loading' && (
+          <div className="py-12 text-center">
+            <Loader2 className="w-10 h-10 mx-auto mb-4 animate-spin text-amber-400" />
+            <p className="text-muted-foreground">Preparando pagamento...</p>
+          </div>
+        )}
 
-          {/* Loading */}
-          {step === 'loading' && (
-            <div className="py-12 text-center">
-              <Loader2 className="w-10 h-10 mx-auto mb-4 animate-spin text-amber-400" />
-              <p className="text-muted-foreground">Preparando pagamento...</p>
-            </div>
-          )}
+        {/* Loading — loading SDK */}
+        {step === 'sdk_loading' && (
+          <div className="py-12 text-center">
+            <Loader2 className="w-10 h-10 mx-auto mb-4 animate-spin text-amber-400" />
+            <p className="text-muted-foreground">Carregando formulario de pagamento...</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Conectando ao MercadoPago
+            </p>
+          </div>
+        )}
 
-          {/* Payment Brick */}
-          {step === 'payment' && (
-            <div>
-              {/* Order summary */}
-              <div className="p-4 rounded-lg bg-muted/50 border border-border mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <p className="font-semibold text-foreground">{planoNome}</p>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      Plano {planoTipo === 'mensal' ? 'Mensal' : 'Anual'}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-bold text-foreground">{valor}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {planoTipo === 'mensal' ? '/mes' : '/ano'}
-                    </p>
-                  </div>
+        {/* Payment Brick */}
+        {step === 'payment' && (
+          <div>
+            {/* Order summary */}
+            <div className="p-4 rounded-lg bg-muted/50 border border-border mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="font-semibold text-foreground">{planoNome}</p>
+                  <p className="text-xs text-muted-foreground capitalize">
+                    Plano {planoTipo === 'mensal' ? 'Mensal' : 'Anual'}
+                  </p>
                 </div>
-                <Separator className="bg-border my-2" />
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <CreditCard className="w-3.5 h-3.5" />
-                    <span>Cartao</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <QrCode className="w-3.5 h-3.5" />
-                    <span>PIX</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Smartphone className="w-3.5 h-3.5" />
-                    <span>Outros</span>
-                  </div>
+                <div className="text-right">
+                  <p className="text-xl font-bold text-foreground">{valor}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {planoTipo === 'mensal' ? '/mes' : '/ano'}
+                  </p>
                 </div>
               </div>
-
-              {/* MP Brick container */}
-              <div id="paymentBrick_container" ref={brickContainerRef} className="min-h-[300px]" />
-
-              <p className="text-xs text-muted-foreground text-center mt-3 flex items-center justify-center gap-1">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M6 1L7.5 4.5L11 5L8.5 7.5L9 11L6 9.5L3 11L3.5 7.5L1 5L4.5 4.5L6 1Z" fill="#f59e0b"/>
-                </svg>
-                Pagamento seguro processado pelo MercadoPago
-              </p>
-            </div>
-          )}
-
-          {/* Processing */}
-          {step === 'processing' && (
-            <div className="py-12 text-center">
-              <div className="relative w-16 h-16 mx-auto mb-4">
-                <Loader2 className="w-16 h-16 animate-spin text-amber-400" />
-                <CreditCard className="w-6 h-6 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-400" />
-              </div>
-              <p className="font-semibold text-foreground mb-1">Processando pagamento...</p>
-              <p className="text-sm text-muted-foreground">
-                Aguarde enquanto confirmamos seu pagamento
-              </p>
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                  Validando dados
+              <Separator className="bg-border my-2" />
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Cartao</span>
                 </div>
-                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '0.5s' }} />
-                  Processando transacao
+                <div className="flex items-center gap-1">
+                  <QrCode className="w-3.5 h-3.5" />
+                  <span>PIX</span>
                 </div>
-                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                  <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '1s' }} />
-                  Confirmando pagamento
+                <div className="flex items-center gap-1">
+                  <Smartphone className="w-3.5 h-3.5" />
+                  <span>Outros</span>
                 </div>
               </div>
             </div>
-          )}
 
-          {/* Done */}
-          {step === 'done' && paymentResult && (
-            <div className="py-6">
-              {paymentResult.status === 'approved' ? (
-                <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle2 className="w-10 h-10 text-emerald-400" />
-                  </div>
-                  <p className="text-lg font-bold text-foreground mb-1">Pagamento Aprovado!</p>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Sua assinatura do plano <strong className="text-foreground">{planoNome}</strong> foi ativada com sucesso.
-                  </p>
-                  {paymentResult.paymentId && (
-                    <p className="text-xs text-muted-foreground">
-                      ID do pagamento: {paymentResult.paymentId}
-                    </p>
-                  )}
-                  <Button
-                    className="mt-6 bg-gradient-to-r from-emerald-500 to-teal-600"
-                    onClick={() => { unmountBrick(); onSuccessRef.current(); }}
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    Continuar
-                  </Button>
+            {/* MP Brick container */}
+            <div id="paymentBrick_container" ref={brickContainerRef} className="min-h-[300px]" />
+
+            <p className="text-xs text-muted-foreground text-center mt-3 flex items-center justify-center gap-1">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M6 1L7.5 4.5L11 5L8.5 7.5L9 11L6 9.5L3 11L3.5 7.5L1 5L4.5 4.5L6 1Z" fill="#f59e0b"/>
+              </svg>
+              Pagamento seguro processado pelo MercadoPago
+            </p>
+          </div>
+        )}
+
+        {/* Processing */}
+        {step === 'processing' && (
+          <div className="py-12 text-center">
+            <div className="relative w-16 h-16 mx-auto mb-4">
+              <Loader2 className="w-16 h-16 animate-spin text-amber-400" />
+              <CreditCard className="w-6 h-6 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-amber-400" />
+            </div>
+            <p className="font-semibold text-foreground mb-1">Processando pagamento...</p>
+            <p className="text-sm text-muted-foreground">
+              Aguarde enquanto confirmamos seu pagamento
+            </p>
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                Validando dados
+              </div>
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '0.5s' }} />
+                Processando transacao
+              </div>
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" style={{ animationDelay: '1s' }} />
+                Confirmando pagamento
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Done */}
+        {step === 'done' && paymentResult && (
+          <div className="py-6">
+            {paymentResult.status === 'approved' ? (
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-400" />
                 </div>
-              ) : paymentResult.status === 'pending' ? (
-                <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
-                    <Clock className="w-10 h-10 text-amber-400" />
-                  </div>
-                  <p className="text-lg font-bold text-foreground mb-1">Pagamento Pendente</p>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Seu pagamento esta sendo processado. A assinatura sera ativada automaticamente apos a confirmacao.
+                <p className="text-lg font-bold text-foreground mb-1">Pagamento Aprovado!</p>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Sua assinatura do plano <strong className="text-foreground">{planoNome}</strong> foi ativada com sucesso.
+                </p>
+                {paymentResult.paymentId && (
+                  <p className="text-xs text-muted-foreground">
+                    ID do pagamento: {paymentResult.paymentId}
                   </p>
-                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 mb-4">
-                    Aguardando confirmacao
-                  </Badge>
-                  <div className="mt-4">
-                    <Button variant="outline" onClick={handleClose}>
-                      <ArrowLeft className="w-4 h-4 mr-2" />
-                      Voltar
-                    </Button>
-                  </div>
+                )}
+                <Button
+                  className="mt-6 bg-gradient-to-r from-emerald-500 to-teal-600"
+                  onClick={() => { unmountBrick(); onSuccessRef.current(); }}
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Continuar
+                </Button>
+              </div>
+            ) : paymentResult.status === 'pending' ? (
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-10 h-10 text-amber-400" />
                 </div>
-              ) : paymentResult.status === 'rejected' ? (
-                <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-                    <XCircle className="w-10 h-10 text-red-400" />
-                  </div>
-                  <p className="text-lg font-bold text-foreground mb-1">Pagamento Recusado</p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    O pagamento nao foi aprovado. Verifique os dados do cartao ou tente outro metodo de pagamento.
-                  </p>
-                  <div className="flex gap-2 justify-center">
-                    <Button variant="outline" onClick={handleClose}>
-                      <ArrowLeft className="w-4 h-4 mr-2" />
-                      Voltar
-                    </Button>
-                    <Button className="bg-gradient-to-r from-amber-500 to-orange-600" onClick={handleRetry}>
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      Tentar Novamente
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
-                    <Clock className="w-10 h-10 text-amber-400" />
-                  </div>
-                  <p className="text-lg font-bold text-foreground mb-1">Pagamento em Analise</p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Seu pagamento esta em analise. Voce recebera uma atualizacao em breve.
-                  </p>
+                <p className="text-lg font-bold text-foreground mb-1">Pagamento Pendente</p>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Seu pagamento esta sendo processado. A assinatura sera ativada automaticamente apos a confirmacao.
+                </p>
+                <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 mb-4">
+                  Aguardando confirmacao
+                </Badge>
+                <div className="mt-4">
                   <Button variant="outline" onClick={handleClose}>
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     Voltar
                   </Button>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* MP Not Configured */}
-          {step === 'mp_not_configured' && (
-            <div className="py-6">
+              </div>
+            ) : paymentResult.status === 'rejected' ? (
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+                  <XCircle className="w-10 h-10 text-red-400" />
+                </div>
+                <p className="text-lg font-bold text-foreground mb-1">Pagamento Recusado</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  O pagamento nao foi aprovado. Verifique os dados do cartao ou tente outro metodo de pagamento.
+                </p>
+                <div className="flex gap-2 justify-center">
+                  <Button variant="outline" onClick={handleClose}>
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Voltar
+                  </Button>
+                  <Button className="bg-gradient-to-r from-amber-500 to-orange-600" onClick={handleRetry}>
+                    <CreditCard className="w-4 h-4 mr-2" />
+                    Tentar Novamente
+                  </Button>
+                </div>
+              </div>
+            ) : (
               <div className="text-center">
                 <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
-                  <CreditCard className="w-10 h-10 text-amber-400" />
+                  <Clock className="w-10 h-10 text-amber-400" />
                 </div>
-                <p className="text-lg font-bold text-foreground mb-2">MercadoPago nao configurado</p>
+                <p className="text-lg font-bold text-foreground mb-1">Pagamento em Analise</p>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Para processar pagamentos, o administrador precisa configurar as credenciais do MercadoPago.
+                  Seu pagamento esta em analise. Voce recebera uma atualizacao em breve.
                 </p>
-                <div className="p-4 rounded-lg bg-muted/50 border border-border mb-4 text-left">
-                  <p className="text-sm font-medium text-foreground mb-2">Como configurar:</p>
-                  <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
-                    <li>Acesse a aba <strong className="text-foreground">CONFIG SAAS</strong> no menu lateral</li>
-                    <li>Role ate a secao <strong className="text-foreground">Mercado Pago</strong></li>
-                    <li>Preencha o <strong className="text-foreground">Access Token</strong> (producao ou sandbox)</li>
-                    <li>Preencha a <strong className="text-foreground">Public Key</strong></li>
-                    <li>Clique em <strong className="text-foreground">Salvar Configuracoes</strong></li>
-                  </ol>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Obtenha as credenciais em:{' '}
-                    <span className="text-amber-400 break-all">
-                      mercadopago.com.br/developers/panel/credentials
-                    </span>
-                  </p>
-                </div>
                 <Button variant="outline" onClick={handleClose}>
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Voltar
                 </Button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
-          {/* Error */}
-          {step === 'error' && (
-            <div className="py-8 text-center">
-              <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-                <XCircle className="w-10 h-10 text-red-400" />
+        {/* MP Not Configured */}
+        {step === 'mp_not_configured' && (
+          <div className="py-6">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+                <CreditCard className="w-10 h-10 text-amber-400" />
               </div>
-              <p className="text-lg font-bold text-foreground mb-2">Erro no Pagamento</p>
-              <p className="text-sm text-muted-foreground mb-6">{errorMessage}</p>
-              <div className="flex gap-2 justify-center">
-                <Button variant="outline" onClick={handleClose}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Voltar
-                </Button>
-                <Button className="bg-gradient-to-r from-amber-500 to-orange-600" onClick={handleRetry}>
-                  Tentar Novamente
-                </Button>
+              <p className="text-lg font-bold text-foreground mb-2">MercadoPago nao configurado</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Para processar pagamentos, o administrador precisa configurar as credenciais do MercadoPago.
+              </p>
+              <div className="p-4 rounded-lg bg-muted/50 border border-border mb-4 text-left">
+                <p className="text-sm font-medium text-foreground mb-2">Como configurar:</p>
+                <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
+                  <li>Acesse a aba <strong className="text-foreground">CONFIG SAAS</strong> no menu lateral</li>
+                  <li>Role ate a secao <strong className="text-foreground">Mercado Pago</strong></li>
+                  <li>Preencha o <strong className="text-foreground">Access Token</strong> (producao ou sandbox)</li>
+                  <li>Preencha a <strong className="text-foreground">Public Key</strong></li>
+                  <li>Clique em <strong className="text-foreground">Salvar Configuracoes</strong></li>
+                </ol>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Obtenha as credenciais em:{' '}
+                  <span className="text-amber-400 break-all">
+                    mercadopago.com.br/developers/panel/credentials
+                  </span>
+                </p>
               </div>
+              <Button variant="outline" onClick={handleClose}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar
+              </Button>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </>
+          </div>
+        )}
+
+        {/* Error */}
+        {step === 'error' && (
+          <div className="py-8 text-center">
+            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
+              <XCircle className="w-10 h-10 text-red-400" />
+            </div>
+            <p className="text-lg font-bold text-foreground mb-2">Erro no Pagamento</p>
+            <p className="text-sm text-muted-foreground mb-6">{errorMessage}</p>
+            <div className="flex gap-2 justify-center">
+              <Button variant="outline" onClick={handleClose}>
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar
+              </Button>
+              <Button className="bg-gradient-to-r from-amber-500 to-orange-600" onClick={handleRetry}>
+                Tentar Novamente
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
