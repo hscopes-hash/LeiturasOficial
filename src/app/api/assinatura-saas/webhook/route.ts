@@ -132,6 +132,19 @@ export async function POST(request: NextRequest) {
       // Se pagamento aprovado, ativar assinatura e empresa
       if (mpStatus === 'approved') {
         const plano = await prisma.planoSaaS.findUnique({ where: { id: planoSaaSId } });
+
+        // VERIFICACAO DE SEGURANCA: valor pago deve bater com o plano
+        if (plano) {
+          const valorEsperado = planoTipo === 'anual' && plano.valorAnual
+            ? parseFloat(plano.valorAnual.toFixed(2))
+            : parseFloat(plano.valorMensal.toFixed(2));
+          const valorPago = parseFloat((payment.transaction_amount || 0).toFixed(2));
+          if (Math.abs(valorPago - valorEsperado) > 0.10) {
+            console.error('[WEBHOOK MP] VALOR INCOMPATIVEL! Esperado:', valorEsperado, 'Pago:', valorPago, 'paymentId:', paymentId);
+            return NextResponse.json({ error: 'Valor incompativel', received: true });
+          }
+        }
+
         const meses = planoTipo === 'anual' ? 12 : 1;
         const dataFim = new Date();
         dataFim.setMonth(dataFim.getMonth() + meses);

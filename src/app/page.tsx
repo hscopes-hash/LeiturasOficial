@@ -6178,25 +6178,16 @@ function AssinaturaTab() {
 
   useEffect(() => {
     loadStatus();
-    checkPaymentReturn();
-  }, []);
-
-  const checkPaymentReturn = () => {
+    // NAO usar checkPaymentReturn — ele mostrava toast de confirmacao
+    // sem verificar o status real no servidor. O fluxo de pagamento
+    // agora e 100% embutido (Payment Brick), sem redirect de URL.
+    // Limpar params antigos de URL se existirem
     const params = new URLSearchParams(window.location.search);
-    const paymentStatus = params.get('payment');
-
-    if (paymentStatus === 'success') {
-      toast.success('Pagamento confirmado! Sua assinatura está ativa.');
-      // Clean URL
-      window.history.replaceState({}, '', window.location.pathname);
-    } else if (paymentStatus === 'failure') {
-      toast.error('Pagamento não aprovado. Tente novamente ou entre em contato com o suporte.');
-      window.history.replaceState({}, '', window.location.pathname);
-    } else if (paymentStatus === 'pending') {
-      toast.info('Pagamento pendente. Aguarde a confirmação.');
+    if (params.get('payment')) {
       window.history.replaceState({}, '', window.location.pathname);
     }
-  };
+  }, []);
+
 
   const loadStatus = async () => {
     setLoading(true);

@@ -128,6 +128,21 @@ export async function POST(request: NextRequest) {
 
     // So criar/ativar assinatura quando pagamento for aprovado
     if (mpData.status === 'approved') {
+      // VERIFICACAO DE SEGURANCA: o valor pago deve bater com o valor do plano
+      const valorEsperado = planoTipo === 'anual' && plano.valorAnual
+        ? parseFloat(plano.valorAnual.toFixed(2))
+        : parseFloat(plano.valorMensal.toFixed(2));
+      const valorPago = parseFloat((mpData.transaction_amount || 0).toFixed(2));
+
+      // Tolerancia de R$ 0.10 para diferenca de arredondamento
+      if (Math.abs(valorPago - valorEsperado) > 0.10) {
+        console.error('[PROCESS-PAYMENT] VALOR INCOMPATIVEL! Esperado:', valorEsperado, 'Pago:', valorPago);
+        return NextResponse.json(
+          { error: `Valor do pagamento (R$ ${valorPago}) nao confere com o plano (R$ ${valorEsperado}). Contate o suporte.`, code: 'AMOUNT_MISMATCH' },
+          { status: 400 }
+        );
+      }
+
       const dataFim = new Date();
       if (planoTipo === 'anual') {
         dataFim.setFullYear(dataFim.getFullYear() + 1);
