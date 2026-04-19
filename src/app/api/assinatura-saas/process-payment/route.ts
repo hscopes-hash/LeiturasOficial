@@ -124,46 +124,9 @@ export async function POST(request: NextRequest) {
 
     console.log('[PROCESS-PAYMENT] Pagamento criado:', mpData.id, 'status:', mpData.status);
 
-    // Garantir que existe assinatura antes de criar pagamento
-    const assinaturaExistente = await prisma.assinaturaSaaS.findFirst({
-      where: { empresaId: user.empresaId, status: { in: ['ATIVA', 'TRIAL', 'VENCIDA', 'CANCELADA'] } },
-    });
-
-    let assinaturaId: string;
-    if (assinaturaExistente) {
-      assinaturaId = assinaturaExistente.id;
-    } else {
-      const novaAssinatura = await prisma.assinaturaSaaS.create({
-        data: {
-          empresaId: user.empresaId,
-          planoSaaSId: plano.id,
-          status: 'TRIAL',
-          dataInicio: new Date(),
-        },
-      });
-      assinaturaId = novaAssinatura.id;
-    }
-
-    // Criar registro de pagamento no banco
     const formaPag = mapFormaPagamento(paymentMethodId);
-    await prisma.pagamentoSaaS.create({
-      data: {
-        assinaturaSaaSId: assinaturaId,
-        empresaId: user.empresaId,
-        valor: mpData.transaction_amount || parseFloat(transactionAmount),
-        status: mpData.status === 'approved' ? 'PAGO' : mpData.status === 'pending' ? 'PENDENTE' : 'CANCELADO',
-        formaPagamento: formaPag as any,
-        dataVencimento: new Date(),
-        dataPagamento: mpData.date_approved ? new Date(mpData.date_approved) : null,
-        mercadoPagoPaymentId: String(mpData.id),
-        mercadoPagoStatus: mpData.status,
-        mercadoPagoApprovedAt: mpData.date_approved ? new Date(mpData.date_approved) : null,
-        mercadoPagoFee: mpData.fee_details ? mpData.fee_details.reduce((sum: number, f: any) => sum + (f.amount || 0), 0) : null,
-        descricao: `Plano ${plano.nome} - ${planoTipo === 'anual' ? 'Anual' : 'Mensal'}`,
-      },
-    });
 
-    // Se aprovado, ativar assinatura
+    // So criar/ativar assinatura quando pagamento for aprovado
     if (mpData.status === 'approved') {
       const dataFim = new Date();
       if (planoTipo === 'anual') {
@@ -172,17 +135,61 @@ export async function POST(request: NextRequest) {
         dataFim.setMonth(dataFim.getMonth() + 1);
       }
 
-      await prisma.assinaturaSaaS.update({
-        where: { id: assinaturaId },
+      // Buscar assinatura existente ou criar nova
+      const assinaturaExistente = await prisma.assinaturaSaaS.findFirst({
+        where: { empresaId: user.empresaId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      let assinaturaId: string;
+      if (assinaturaExistente) {
+        assinaturaId = assinaturaExistente.id;
+        await prisma.assinaturaSaaS.update({
+          where: { id: assinaturaExistente.id },
+          data: {
+            planoSaaSId: plano.id,
+            status: 'ATIVA',
+            dataInicio: new Date(),
+            dataFim,
+            dataCancelamento: null,
+            valorPago: mpData.transaction_amount || parseFloat(transactionAmount),
+            formaPagamento: formaPag as any,
+            mercadoPagoPagamentoId: String(mpData.id),
+            mercadoPagoStatus: mpData.status,
+          },
+        });
+      } else {
+        const novaAssinatura = await prisma.assinaturaSaaS.create({
+          data: {
+            empresaId: user.empresaId,
+            planoSaaSId: plano.id,
+            status: 'ATIVA',
+            dataInicio: new Date(),
+            dataFim,
+            valorPago: mpData.transaction_amount || parseFloat(transactionAmount),
+            formaPagamento: formaPag as any,
+            mercadoPagoPagamentoId: String(mpData.id),
+            mercadoPagoStatus: mpData.status,
+          },
+        });
+        assinaturaId = novaAssinatura.id;
+      }
+
+      // Criar registro de pagamento
+      await prisma.pagamentoSaaS.create({
         data: {
-          planoSaaSId: plano.id,
-          status: 'ATIVA',
-          dataFim,
-          dataCancelamento: null,
-          valorPago: mpData.transaction_amount || parseFloat(transactionAmount),
+          assinaturaSaaSId: assinaturaId,
+          empresaId: user.empresaId,
+          valor: mpData.transaction_amount || parseFloat(transactionAmount),
+          status: 'PAGO',
           formaPagamento: formaPag as any,
-          mercadoPagoPagamentoId: String(mpData.id),
+          dataVencimento: new Date(),
+          dataPagamento: mpData.date_approved ? new Date(mpData.date_approved) : null,
+          mercadoPagoPaymentId: String(mpData.id),
           mercadoPagoStatus: mpData.status,
+          mercadoPagoApprovedAt: mpData.date_approved ? new Date(mpData.date_approved) : null,
+          mercadoPagoFee: mpData.fee_details ? mpData.fee_details.reduce((sum: number, f: any) => sum + (f.amount || 0), 0) : null,
+          descricao: `Plano ${plano.nome} - ${planoTipo === 'anual' ? 'Anual' : 'Mensal'}`,
         },
       });
 
@@ -198,7 +205,37 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      console.log('[PROCESS-PAYMENT] Assinatura ativada:', user.empresaId, 'ate:', dataFim.toISOString());
+      console.log('[PROCESS-PAYMENT] Assinatura ATIVADA:', user.empresaId, 'ate:', dataFim.toISOString());
+    } else {
+      // Pagamento nao aprovado — registrar apenas o pagamento sem ativar assinatura
+      console.log('[PROCESS-PAYMENT] Pagamento NAO aprovado (status:', mpData.status, '). Assinatura NAO ativada.');
+
+      // Buscar assinatura existente para registrar o pagamento (se houver)
+      const assinaturaExistente = await prisma.assinaturaSaaS.findFirst({
+        where: { empresaId: user.empresaId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (assinaturaExistente) {
+        await prisma.pagamentoSaaS.create({
+          data: {
+            assinaturaSaaSId: assinaturaExistente.id,
+            empresaId: user.empresaId,
+            valor: mpData.transaction_amount || parseFloat(transactionAmount),
+            status: mpData.status === 'pending' ? 'PENDENTE' : 'CANCELADO',
+            formaPagamento: formaPag as any,
+            dataVencimento: new Date(),
+            dataPagamento: mpData.date_approved ? new Date(mpData.date_approved) : null,
+            mercadoPagoPaymentId: String(mpData.id),
+            mercadoPagoStatus: mpData.status,
+            mercadoPagoApprovedAt: mpData.date_approved ? new Date(mpData.date_approved) : null,
+            descricao: `Plano ${plano.nome} - ${planoTipo === 'anual' ? 'Anual' : 'Mensal'} (${mpData.status})`,
+          },
+        });
+      } else {
+        // Sem assinatura existente, nao criar nada — pagamento reprovado sem assinatura previa
+        console.log('[PROCESS-PAYMENT] Nenhuma assinatura existente. Pagamento recusado nao registrado.');
+      }
     }
 
     // Retornar resultado

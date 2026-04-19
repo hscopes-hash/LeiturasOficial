@@ -18,11 +18,11 @@ export async function GET(request: NextRequest) {
       select: { id: true, nome: true, plano: true, dataVencimento: true, isDemo: true, bloqueada: true, diasDemo: true, createdAt: true },
     });
 
-    // Buscar assinatura ativa
+    // Buscar assinatura ativa (somente ATIVA e VENCIDA — TRIAL nao e mais tratado como ativa)
     const assinatura = await prisma.assinaturaSaaS.findFirst({
       where: {
         empresaId: user.empresaId,
-        status: { in: ['ATIVA', 'TRIAL', 'VENCIDA'] },
+        status: { in: ['ATIVA', 'VENCIDA'] },
       },
       include: {
         planoSaaS: true,

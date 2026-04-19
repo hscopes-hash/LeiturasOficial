@@ -103,32 +103,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Salvar preferência na assinatura
-    const assinaturaExistente = await prisma.assinaturaSaaS.findFirst({
-      where: { empresaId: user.empresaId, status: { in: ['ATIVA', 'TRIAL', 'VENCIDA'] } },
-    });
+    // NAO criar assinatura aqui — a assinatura so sera criada quando
+    // o pagamento for aprovado (em process-payment ou webhook).
+    // Antes disso, salvamos apenas o preferenceId na empresa para rastreabilidade.
 
-    if (assinaturaExistente) {
-      await prisma.assinaturaSaaS.update({
-        where: { id: assinaturaExistente.id },
-        data: {
-          mercadoPagoPreferenciaId: mpData.id,
-          planoSaaSId: plano.id,
-        },
-      });
-    } else {
-      await prisma.assinaturaSaaS.create({
-        data: {
-          empresaId: user.empresaId,
-          planoSaaSId: plano.id,
-          status: 'TRIAL',
-          mercadoPagoPreferenciaId: mpData.id,
-          dataInicio: new Date(),
-        },
-      });
-    }
-
-    console.log('[CHECKOUT] Preferência criada:', mpData.id, '→ URL:', mpData.init_point);
+    console.log('[CHECKOUT] Preferencia criada:', mpData.id, '→ empresa:', user.empresaId);
 
     // Buscar public key do MP
     const mpPublicKey = await getMPPublicKey();
