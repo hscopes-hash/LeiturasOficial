@@ -35,8 +35,9 @@ model Empresa {
   llmApiKey       String?   // Token de IA personalizado (substitui LLM_API_KEY do env)
   llmModel        String?   // Modelo de IA personalizado (substitui LLM_MODEL do env)
   // API Keys salvas por provedor (para preenchimento automático ao trocar modelo)
-  llmApiKeyGlm       String?   // API Key do Zhipu AI (GLM)
-  llmApiKeyOpenrouter String?   // API Key do OpenRouter
+  llmApiKeyGemini       String?   // API Key do Google Gemini
+  llmApiKeyGlm          String?   // API Key do Zhipu AI (GLM)
+  llmApiKeyOpenrouter   String?   // API Key do OpenRouter
   // Configurações MercadoPago
   mercadopagoAccessToken String?   // Access Token do MercadoPago (backend)
   mercadopagoPublicKey   String?   // Public Key do MercadoPago (frontend)

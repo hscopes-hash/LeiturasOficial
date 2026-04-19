@@ -22,7 +22,7 @@ export function detectProvider(model: string): Provider {
  * Retorna a API Key do banco de dados (Config. IA).
  * Sem variáveis de ambiente - a key deve ser configurada pelo super admin no app.
  */
-export function getApiKeyForModel(model: string, empresaApiKey?: string | null, empresaApiKeyGlm?: string | null, empresaApiKeyOpenrouter?: string | null): string | null {
+export function getApiKeyForModel(model: string, empresaApiKey?: string | null, empresaApiKeyGemini?: string | null, empresaApiKeyGlm?: string | null, empresaApiKeyOpenrouter?: string | null): string | null {
   const provider = detectProvider(model);
   if (provider === 'glm') {
     return empresaApiKey?.trim() || empresaApiKeyGlm?.trim() || null;
@@ -30,7 +30,7 @@ export function getApiKeyForModel(model: string, empresaApiKey?: string | null, 
   if (provider === 'openrouter') {
     return empresaApiKey?.trim() || empresaApiKeyOpenrouter?.trim() || null;
   }
-  return empresaApiKey?.trim() || null;
+  return empresaApiKey?.trim() || empresaApiKeyGemini?.trim() || null;
 }
 
 /**

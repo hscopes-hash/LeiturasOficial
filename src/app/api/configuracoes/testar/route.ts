@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     // Buscar modelo configurado no banco
     const empresa = await prisma.empresa.findUnique({
       where: { id: empresaId },
-      select: { llmModel: true, llmApiKey: true, llmApiKeyGlm: true, llmApiKeyOpenrouter: true },
+      select: { llmModel: true, llmApiKey: true, llmApiKeyGemini: true, llmApiKeyGlm: true, llmApiKeyOpenrouter: true },
     });
 
     if (!empresa) {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // API Key: do banco de dados (Config. IA)
     const empresaKey = bodyApiKey?.trim() || empresa.llmApiKey?.trim() || null;
-    const apiKey = getApiKeyForModel(model, empresaKey, empresa.llmApiKeyGlm, empresa.llmApiKeyOpenrouter);
+    const apiKey = getApiKeyForModel(model, empresaKey, empresa.llmApiKeyGemini, empresa.llmApiKeyGlm, empresa.llmApiKeyOpenrouter);
     if (!apiKey) {
       const providerName = getProvider(model) === 'glm' ? 'Zhipu AI' : getProvider(model) === 'openrouter' ? 'OpenRouter' : 'Google Gemini';
       return NextResponse.json(

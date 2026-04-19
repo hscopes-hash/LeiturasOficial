@@ -29,6 +29,7 @@ export interface Empresa {
   bloqueada: boolean;
   llmApiKey?: string;
   llmModel?: string;
+  llmApiKeyGemini?: string;
   llmApiKeyGlm?: string;
   llmApiKeyOpenrouter?: string;
 }

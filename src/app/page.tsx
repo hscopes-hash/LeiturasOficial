@@ -2216,6 +2216,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           nomeSaida: maquinaFoto.tipo?.nomeSaida || 'S',
           model: empresa?.llmModel || undefined,
           llmApiKey: empresa?.llmApiKey || undefined,
+          llmApiKeyGemini: empresa?.llmApiKeyGemini || undefined,
           llmApiKeyGlm: empresa?.llmApiKeyGlm || undefined,
           llmApiKeyOpenrouter: empresa?.llmApiKeyOpenrouter || undefined,
         }),
@@ -2370,6 +2371,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
               codigosMaquinas,
               model: empresa?.llmModel || undefined,
               llmApiKey: empresa?.llmApiKey || undefined,
+              llmApiKeyGemini: empresa?.llmApiKeyGemini || undefined,
               llmApiKeyGlm: empresa?.llmApiKeyGlm || undefined,
               llmApiKeyOpenrouter: empresa?.llmApiKeyOpenrouter || undefined,
             }),
@@ -2412,6 +2414,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   nomeSaida,
                   model: empresa?.llmModel || undefined,
                   llmApiKey: empresa?.llmApiKey || undefined,
+                  llmApiKeyGemini: empresa?.llmApiKeyGemini || undefined,
                   llmApiKeyGlm: empresa?.llmApiKeyGlm || undefined,
                   llmApiKeyOpenrouter: empresa?.llmApiKeyOpenrouter || undefined,
                 }),
@@ -2734,6 +2737,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
             codigosMaquinas,
             model: currentEmpresa?.llmModel || undefined,
             llmApiKey: currentEmpresa?.llmApiKey || undefined,
+            llmApiKeyGemini: currentEmpresa?.llmApiKeyGemini || undefined,
             llmApiKeyGlm: currentEmpresa?.llmApiKeyGlm || undefined,
             llmApiKeyOpenrouter: currentEmpresa?.llmApiKeyOpenrouter || undefined,
           }),
@@ -2781,6 +2785,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                 nomeSaida,
                 model: currentEmpresa?.llmModel || undefined,
                 llmApiKey: currentEmpresa?.llmApiKey || undefined,
+                llmApiKeyGemini: currentEmpresa?.llmApiKeyGemini || undefined,
                 llmApiKeyGlm: currentEmpresa?.llmApiKeyGlm || undefined,
                 llmApiKeyOpenrouter: currentEmpresa?.llmApiKeyOpenrouter || undefined,
               }),
@@ -5704,6 +5709,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
   const { updateEmpresa } = useAuthStore();
   const [llmApiKey, setLlmApiKey] = useState('');
   const [llmModel, setLlmModel] = useState('');
+  const [savedKeyGemini, setSavedKeyGemini] = useState('');
   const [savedKeyGlm, setSavedKeyGlm] = useState('');
   const [savedKeyOpenrouter, setSavedKeyOpenrouter] = useState('');
   const [mpAccessToken, setMpAccessToken] = useState('');
@@ -5727,7 +5733,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
 
     setLlmModel(novoModelo);
     if (providerMudou) {
-      const keySalva = providerNovo === 'glm' ? savedKeyGlm : providerNovo === 'openrouter' ? savedKeyOpenrouter : '';
+      const keySalva = providerNovo === 'gemini' ? savedKeyGemini : providerNovo === 'glm' ? savedKeyGlm : providerNovo === 'openrouter' ? savedKeyOpenrouter : '';
       setLlmApiKey(keySalva);
       if (keySalva) {
         toast.success('API Key do provedor restaurada automaticamente.');
@@ -5770,6 +5776,7 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
       .then((data) => {
         setLlmApiKey(data.llmApiKey || '');
         setLlmModel(data.llmModel || '');
+        setSavedKeyGemini(data.llmApiKeyGemini || '');
         setSavedKeyGlm(data.llmApiKeyGlm || '');
         setSavedKeyOpenrouter(data.llmApiKeyOpenrouter || '');
         setMpAccessToken(data.mercadopagoAccessToken || '');
@@ -5787,19 +5794,22 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
     try {
       const providerPrincipal = llmModel ? getProviderLocal(llmModel) : null;
 
+      let newKeyGemini = savedKeyGemini;
       let newKeyGlm = savedKeyGlm;
       let newKeyOpenrouter = savedKeyOpenrouter;
+      if (llmApiKey && providerPrincipal === 'gemini') newKeyGemini = llmApiKey;
       if (llmApiKey && providerPrincipal === 'glm') newKeyGlm = llmApiKey;
       if (llmApiKey && providerPrincipal === 'openrouter') newKeyOpenrouter = llmApiKey;
 
       const res = await fetch('/api/configuracoes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ empresaId, llmApiKey, llmModel, llmApiKeyGlm: newKeyGlm, llmApiKeyOpenrouter: newKeyOpenrouter, mercadopagoAccessToken: mpAccessToken, mercadopagoPublicKey: mpPublicKey }),
+        body: JSON.stringify({ empresaId, llmApiKey, llmModel, llmApiKeyGemini: newKeyGemini, llmApiKeyGlm: newKeyGlm, llmApiKeyOpenrouter: newKeyOpenrouter, mercadopagoAccessToken: mpAccessToken, mercadopagoPublicKey: mpPublicKey }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro ao salvar configurações');
-      updateEmpresa({ llmApiKey, llmModel, llmApiKeyGlm: newKeyGlm, llmApiKeyOpenrouter: newKeyOpenrouter });
+      updateEmpresa({ llmApiKey, llmModel, llmApiKeyGemini: newKeyGemini, llmApiKeyGlm: newKeyGlm, llmApiKeyOpenrouter: newKeyOpenrouter });
+      setSavedKeyGemini(newKeyGemini);
       setSavedKeyGlm(newKeyGlm);
       setSavedKeyOpenrouter(newKeyOpenrouter);
       toast.success('Configurações salvas com sucesso!');

@@ -172,7 +172,7 @@ async function callAI(prompt: string, imagem: string, apiKey: string, model: str
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imagem, nomeEntrada, nomeSaida, model: bodyModel, llmApiKey, llmApiKeyGlm, llmApiKeyOpenrouter } = body;
+    const { imagem, nomeEntrada, nomeSaida, model: bodyModel, llmApiKey, llmApiKeyGemini, llmApiKeyGlm, llmApiKeyOpenrouter } = body;
 
     if (!imagem) {
       return NextResponse.json({ error: 'Imagem é obrigatória' }, { status: 400 });
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
     const model = bodyModel?.trim() || 'gemini-2.5-flash-lite';
 
     // API Key: do banco de dados (Config. IA)
-    const apiKey = getApiKeyForModel(model, llmApiKey, llmApiKeyGlm, llmApiKeyOpenrouter);
+    const apiKey = getApiKeyForModel(model, llmApiKey, llmApiKeyGemini, llmApiKeyGlm, llmApiKeyOpenrouter);
     if (!apiKey) {
       return NextResponse.json(
         { error: 'API Key não configurada. O super admin deve configurar nas Config. de IA.' },

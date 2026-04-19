@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
         nome: true,
         llmApiKey: true,
         llmModel: true,
+        llmApiKeyGemini: true,
         llmApiKeyGlm: true,
         llmApiKeyOpenrouter: true,
         mercadopagoAccessToken: true,
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
       success: true,
       llmApiKey: empresa.llmApiKey || '',
       llmModel: empresa.llmModel,
+      llmApiKeyGemini: empresa.llmApiKeyGemini || '',
       llmApiKeyGlm: empresa.llmApiKeyGlm || '',
       llmApiKeyOpenrouter: empresa.llmApiKeyOpenrouter || '',
       llmApiKeyMasked: maskApiKey(empresa.llmApiKey),
@@ -57,7 +59,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { empresaId, llmApiKey, llmModel, llmApiKeyGlm, llmApiKeyOpenrouter, mercadopagoAccessToken, mercadopagoPublicKey } = body;
+    const { empresaId, llmApiKey, llmModel, llmApiKeyGemini, llmApiKeyGlm, llmApiKeyOpenrouter, mercadopagoAccessToken, mercadopagoPublicKey } = body;
 
     if (!empresaId) {
       return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
@@ -83,6 +85,10 @@ export async function PUT(request: NextRequest) {
       dadosAtualizacao.llmModel = trimmed === '' ? null : trimmed;
     }
     // Salvar keys por provedor para preenchimento automático
+    if (llmApiKeyGemini !== undefined && llmApiKeyGemini !== null) {
+      const trimmed = llmApiKeyGemini.trim();
+      dadosAtualizacao.llmApiKeyGemini = trimmed === '' ? null : trimmed;
+    }
     if (llmApiKeyGlm !== undefined && llmApiKeyGlm !== null) {
       const trimmed = llmApiKeyGlm.trim();
       dadosAtualizacao.llmApiKeyGlm = trimmed === '' ? null : trimmed;
@@ -108,6 +114,7 @@ export async function PUT(request: NextRequest) {
         id: true,
         llmApiKey: true,
         llmModel: true,
+        llmApiKeyGemini: true,
         llmApiKeyGlm: true,
         llmApiKeyOpenrouter: true,
         mercadopagoAccessToken: true,
@@ -119,6 +126,7 @@ export async function PUT(request: NextRequest) {
       success: true,
       llmApiKey: empresaAtualizada.llmApiKey || '',
       llmModel: empresaAtualizada.llmModel,
+      llmApiKeyGemini: empresaAtualizada.llmApiKeyGemini || '',
       llmApiKeyGlm: empresaAtualizada.llmApiKeyGlm || '',
       llmApiKeyOpenrouter: empresaAtualizada.llmApiKeyOpenrouter || '',
       llmApiKeyMasked: maskApiKey(empresaAtualizada.llmApiKey),
