@@ -101,19 +101,33 @@ export default function MercadoPagoCheckout({
 
     const container = brickContainerRef.current;
 
-    // Load MercadoPago JS SDK
+    // Load MercadoPago JS SDK via loadMercadoPago()
     const loadBrick = async () => {
       try {
-        const mp = await import('@mercadopago/sdk-js');
-        await mp.load();
+        // loadMercadoPago injects the SDK script and returns the MercadoPago class
+        const { loadMercadoPago } = await import('@mercadopago/sdk-js');
+        const MercadoPagoClass: any = await loadMercadoPago();
+
+        if (!MercadoPagoClass) {
+          throw new Error('MercadoPago SDK não foi carregado. Verifique sua conexão.');
+        }
+
+        // Create MercadoPago instance with PUBLIC KEY (required for Brick initialization)
+        const mp = new MercadoPagoClass(mpPublicKey, {
+          locale: 'pt-BR',
+        });
 
         const bricksBuilder = mp.bricks();
+
+        // Parse valor from "R$ 99,90" to 99.9
+        const valorNumerico = parseFloat(valor.replace(/[^\d,]/g, '').replace(',', '.'));
+
         brickInstanceRef.current = bricksBuilder.create(
           'payment',
           container,
           {
             initialization: {
-              amount: parseFloat(valor.replace(/[^\d,]/g, '').replace(',', '.')),
+              amount: valorNumerico,
               preferenceId,
               payer: {
                 email: '',
@@ -145,7 +159,7 @@ export default function MercadoPagoCheckout({
             },
             callbacks: {
               onReady: () => {
-                // Brick ready
+                console.log('[MP Brick] Payment Brick pronto.');
               },
               onSubmit: async (formData: any) => {
                 setStep('processing');
@@ -219,11 +233,6 @@ export default function MercadoPagoCheckout({
       }
     };
   }, [step, preferenceId, mpPublicKey, valor, planoNome, planoTipo, token, planoSaaSId, onSuccess]);
-
-  // Install mercadopago SDK if not installed
-  useEffect(() => {
-    // We'll handle this via dynamic import in the brick initialization
-  }, []);
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
