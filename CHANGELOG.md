@@ -4,6 +4,223 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.25.10.0] - 2026-04-20
+
+v2.25.10.0 - Site comercial: landing page completa em /site (dark theme, amber/gold)
+v2.25.10.0 - Landing page com Hero, Features, Planos, Depoimentos, FAQ e Footer
+v2.25.10.0 - Layout dedicado para a landing page (meta tags SEO, OpenGraph)
+v2.25.10.0 - Diretorio public/marketing/ criado para assets de divulgação
+v2.25.10.0 - Merge da branch master para main (app completo + site comercial)
+
+## [v2.25.8.2] - 2026-04-19
+
+v2.25.8.2 - Fix: fetch travando no checkout (timeout Vercel + fallback externo)
+
+## [v2.25.8.1] - 2026-04-19
+
+v2.25.8.1 - Fix critico: container do Brick nao existia no DOM
+
+## [v2.25.8.0] - 2026-04-19
+
+v2.25.8.0 - Fix: tela de pagamento presa - mensagens de status detalhadas
+v2.25.8.0 - Fix: status em tempo real + fallback para checkout externo
+
+## [v2.25.7.0] - 2026-04-19
+
+v2.25.7.0 - Fix: SDK do MercadoPago nao carregava - reescrito com script tag manual
+
+## [v2.25.6.0] - 2026-04-19
+
+v2.25.6.0 - Fix: app sempre inicia pela tela de login
+
+## [v2.25.5.0] - 2026-04-19
+
+v2.25.5.0 - Feat: API para limpar assinaturas de teste ativadas indevidamente
+v2.25.5.0 - Fix: protecao extra - verificacao de valor e remocao de toast enganoso
+v2.25.5.0 - Fix: impedir ativacao de plano sem pagamento aprovado (v2.25.4.0)
+
+## [v2.25.3.0] - 2026-04-19
+
+v2.25.3.0 - Fix: reescrever Payment Brick com next/script para evitar crash
+
+## [v2.25.2.0] - 2026-04-19
+
+v2.25.2.0 - Fix: corrigir inicialização do Payment Brick MercadoPago
+
+## [v2.25.1.0] - 2026-04-19
+
+v2.25.1.0 - Fix: centraliza credenciais MP e melhora erro de configuracao
+
+## [v2.25.0.0] - 2026-04-19
+
+v2.25.0.0 - Feat: checkout embutido com MercadoPago Payment Brick
+
+## [v2.24.1.0] - 2026-04-19
+
+v2.24.1.0 - Fix: corrige autenticacao por token em todas as rotas de API
+
+## [v2.24.0.0] - 2026-04-19
+
+v2.24.0.0 - Feat: sugestoes de planos BR para micro SaaS gestao financeira
+
+## [v2.23.0.0] - 2026-04-19
+
+v2.23.0.0 - Feat: gestao de planos SaaS incluida no CONFIG SAAS
+
+## [v2.22.0.1] - 2026-04-19
+
+v2.22.0.1 - Fix: melhorar tratamento de erro na API de status da assinatura
+
+## [v2.22.0.0] - 2026-04-19
+
+v2.22.0.0 - Feat: card do trial com data de inicio e dias restantes
+
+## [v2.21.0.0] - 2026-04-19
+
+v2.21.0.0 - Feat: armazenar API Key do Gemini separadamente por provedor
+
+## [v2.19.0.2] - 2026-04-19
+
+v2.19.0.2 - Build: card MercadoPago + CONFIG SAAS
+
+## [v2.19.0.1] - 2026-04-19
+
+v2.19.0.1 - Card MercadoPago na tela de Configuracoes (access token salvo no banco)
+
+## [v2.19.0.0] - 2026-04-19
+
+v2.19.0.0 - Sistema de faturamento SaaS com MercadoPago: planos, checkout, webhook, assinaturas
+v2.19.0.0 - Merge: integração completa do sistema de pagamentos recorrentes
+
+## [v2.18.3.9] - 2026-04-18
+
+v2.18.3.9 - Mensagens de erro amigaveis para erros do Zhipu GLM (1305, 1301, 1004)
+
+## [v2.18.3.8] - 2026-04-18
+
+v2.18.3.8 - Espacos no titulo Data Hora para alinhar com valor
+
+## [v2.18.3.7] - 2026-04-18
+
+v2.18.3.7 - Alinhamento perfeito dos titulos acima dos valores na tarja vermelha usando measureText
+
+## [v2.18.3.6] - 2026-04-18
+
+v2.18.3.6 - Reduz tamanho da fonte da tarja vermelha para caber na largura da foto
+
+## [v2.18.3.5] - 2026-04-18
+
+v2.18.3.5 - Extrato enviado como imagem junto com as fotos em unico share
+
+## [v2.18.3.4] - 2026-04-18
+
+v2.18.3.4 - Correcao de versao (estava em 2.18.3.0 ha 3 deploys)
+
+## [v2.18.3.0] - 2026-04-18
+
+v2.18.3.0 - Fix: duas etapas automaticas - fotos + texto do extrato
+v2.18.3.0 - Fix: fluxo corrigido para enviar fotos + extrato
+v2.18.3.0 - Fix: fotos + extrato enviados juntos em unico share
+v2.18.3.0 - Fix: extrato agora enviado apos as fotos (com retorno do share)
+v2.18.3.0 - Foto processada armazenada diretamente no card da maquina
+
+## [v2.18.2.0] - 2026-04-17
+
+v2.18.2.0 - Extrato enviado ao grupo WhatsApp: fotos com tarja primeiro + separador + texto
+v2.18.2.0 - Envio extrato WhatsApp: fotos com tarja primeiro + separador + texto
+v2.18.2.0 - Origem no lote alterada para LOTE
+v2.18.2.0 - Campo Origem tambem aplicado no lote (CAMERA)
+v2.18.2.0 - Miniatura da foto com tarja no lugar do icone + campo Origem na tarja
+v2.18.2.0 - Removida dependencia de variaveis de ambiente para IA
+
+## [v2.18.1.0] - 2026-04-14
+
+v2.18.1.0 - Configuracao de IA visivel somente ao Super Admin
+
+## [v2.18.0.0] - 2026-04-14
+
+v2.18.0.0 - Simplificacao para plano pago: remove fallback, delay reduzido
+
+## [v2.17.1.0] - 2026-04-14
+
+v2.17.1.0 - Fix: auto-retry em erros de rate limit e formato invalido + timeout na extracao manual
+
+## [v2.12.5.0] - 2026-04-13
+
+v2.12.5.0 - Style: tarja vermelha menor e fonte reduzida
+
+## [v2.12.4.0] - 2026-04-13
+
+v2.12.4.0 - Fix: prompt IA simplificado - busca valores apos os rotulos
+
+## [v2.12.3.0] - 2026-04-13
+
+v2.12.3.0 - Fix: prompt IA mais robusto para ler displays com rotulos customizados
+
+## [v2.12.2.0] - 2026-04-13
+
+v2.12.2.0 - Fix: prompt da IA agora respeita nomes customizados dos displays
+
+## [v2.12.1.0] - 2026-04-13
+
+v2.12.1.0 - Fix: API Keys da empresa enviadas e usadas nos endpoints de IA
+
+## [v2.12.0.0] - 2026-04-13
+
+v2.12.0.0 - Feat: API Keys salvas por provedor no cadastro da empresa
+
+## [v2.11.1.3] - 2026-04-12
+
+v2.11.1.3 - Chore: atualiza versao
+
+## [v2.11.1.2] - 2026-04-12
+
+v2.11.1.2 - Chore: atualiza versao
+
+## [v2.11.1.1] - 2026-04-12
+
+v2.11.1.1 - Chore: atualiza versao
+
+## [v2.11.1.0] - 2026-04-12
+
+v2.11.1.0 - Chore: atualiza versao
+
+## [v2.11.0.5] - 2026-04-12
+
+v2.11.0.5 - Feat: mostrar tempo de resposta no teste de conexao (principal e reserva)
+
+## [v2.11.0.4] - 2026-04-12
+
+v2.11.0.4 - Refactor: simplificar tela de config - botao de teste dentro dos cards principal e reserva
+
+## [v2.11.0.3] - 2026-04-12
+
+v2.11.0.3 - Fix: API Key de reserva nao era usada para OpenRouter/Gemini no teste de conexao
+
+## [v2.11.0.2] - 2026-04-12
+
+v2.11.0.2 - Chore: bump version
+
+## [v2.11.0.1] - 2026-04-12
+
+v2.11.0.1 - Fix: corrigir nomes dos modelos OpenRouter para os disponiveis (gemma-4-31b, gemma-3-27b, nemotron-12b-vl)
+
+## [v2.11.0.0] - 2026-04-12
+
+v2.11.0.0 - Feat: adicionar OpenRouter como provedor de IA com modelos gratuitos (Gemini Flash, Qwen VL, Llama 4)
+
+## [v2.10.0.10] - 2026-04-12
+
+v2.10.0.10 - Fix: remover glm-4v-flash (descontinuado), manter glm-4.6v-flash como unico gratuito da Zhipu AI
+
+## [v2.10.0.9] - 2026-04-12
+
+v2.10.0.9 - Fix: adicionar modelos visuais corretos da Zhipu AI (glm-4.6v, glm-4.6v-flash) + glm-5v-turbo
+
+## [v2.10.0.8] - 2026-04-12
+
+v2.10.0.8 - Fix: atualizar modelos Zhipu AI - remover obsoletos (glm-4v-plus/4v/4v-long) e adicionar glm-5v-turbo
+
 ## [v2.10.0.7] - 2026-04-12
 
 v2.10.0.7 - Revertido: usuario cadastra suas proprias API Keys nas Configuracoes
