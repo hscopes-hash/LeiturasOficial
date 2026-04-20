@@ -4,6 +4,14 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.25.10.2] - 2026-04-20
+
+v2.25.10.2 - Fix critico: Service Worker interceptava e cacheava recursos do MercadoPago (iframes, JS, CSS) travando o Brick
+v2.25.10.2 - Fix: SW agora ignora mercadopago.com, mercadolivre.com, mlstatic.com (passa direto pro navegador)
+v2.25.10.2 - Fix: SDK do MP carrega com cache-bust (?v=timestamp) e crossOrigin=anonymous
+v2.25.10.2 - Fix: container do Brick detectado via requestAnimationFrame em vez de setTimeout(300ms)
+v2.25.10.2 - Fix: SDK reload automatico apos 5 minutos para evitar estado obsoleto
+
 ## [v2.25.10.1] - 2026-04-20
 
 v2.25.10.1 - Build: versao exibida automaticamente em cada build (prebuild + build ID com versao)

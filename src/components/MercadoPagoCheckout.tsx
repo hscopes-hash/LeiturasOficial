@@ -22,33 +22,47 @@ import { useAuthStore } from '@/stores/auth-store';
 // ============================================
 const MP_SDK_URL = 'https://sdk.mercadopago.com/js/v2';
 let sdkLoadPromise: Promise<any> | null = null;
+let sdkLoadTimestamp = 0;
 
 function loadMercadoPagoSDK(): Promise<any> {
-  if (sdkLoadPromise) return sdkLoadPromise;
+  // Check cache age — if SDK was loaded >5min ago, force reload
+  const now = Date.now();
+  if (sdkLoadPromise && (now - sdkLoadTimestamp) < 300_000) return sdkLoadPromise;
+  sdkLoadPromise = null;
 
   if (typeof window !== 'undefined' && (window as any).MercadoPago) {
-    return Promise.resolve((window as any).MercadoPago);
+    // SDK already in window — but clear any old script tags and reload fresh
+    // to avoid stale SDK state from Service Worker cache
+    const oldScripts = document.querySelectorAll(`script[src*="sdk.mercadopago.com"]`);
+    oldScripts.forEach((s) => s.remove());
+    (window as any).MercadoPago = undefined;
   }
 
+  sdkLoadTimestamp = now;
   sdkLoadPromise = new Promise<any>((resolve, reject) => {
     const timeout = setTimeout(() => {
       sdkLoadPromise = null;
+      sdkLoadTimestamp = 0;
       reject(new Error('TIMEOUT_SDK'));
     }, 20000);
 
     try {
       const script = document.createElement('script');
-      script.src = MP_SDK_URL;
+      // Cache-bust to prevent stale/corrupted SDK from Service Worker or browser cache
+      script.src = MP_SDK_URL + '?v=' + Date.now();
       script.async = true;
+      script.crossOrigin = 'anonymous';
 
       script.onload = () => {
         const MPClass = (window as any).MercadoPago;
         if (MPClass) {
           clearTimeout(timeout);
+          console.log('[MPCheckout] SDK loaded successfully, version:', Date.now());
           resolve(MPClass);
         } else {
           clearTimeout(timeout);
           sdkLoadPromise = null;
+          sdkLoadTimestamp = 0;
           reject(new Error('SDK carregou mas MercadoPago nao esta disponivel'));
         }
       };
@@ -56,6 +70,7 @@ function loadMercadoPagoSDK(): Promise<any> {
       script.onerror = () => {
         clearTimeout(timeout);
         sdkLoadPromise = null;
+        sdkLoadTimestamp = 0;
         reject(new Error('Falha de rede ao baixar o SDK'));
       };
 
@@ -63,6 +78,7 @@ function loadMercadoPagoSDK(): Promise<any> {
     } catch (error) {
       clearTimeout(timeout);
       sdkLoadPromise = null;
+      sdkLoadTimestamp = 0;
       reject(error);
     }
   });
@@ -303,8 +319,20 @@ export default function MercadoPagoCheckout({
         log('Renderizando formulario...');
         setStep('payment');
 
-        // Wait for React to render the container div
-        await new Promise((r) => setTimeout(r, 300));
+        // Wait for React to render the container div using rAF (more reliable than setTimeout)
+        await new Promise<void>((resolve) => {
+          const check = () => {
+            const el = document.getElementById('paymentBrick_container');
+            if (el && el.isConnected) {
+              resolve();
+            } else {
+              requestAnimationFrame(check);
+            }
+          };
+          // Also set a safety timeout
+          const safety = setTimeout(resolve, 2000);
+          check().then(() => clearTimeout(safety));
+        });
         if (!mountedRef.current) return;
 
         // NOW get the container ref — it should exist because step is 'payment'
