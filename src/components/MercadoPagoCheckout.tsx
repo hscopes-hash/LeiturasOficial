@@ -321,17 +321,25 @@ export default function MercadoPagoCheckout({
 
         // Wait for React to render the container div using rAF (more reliable than setTimeout)
         await new Promise<void>((resolve) => {
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            clearTimeout(safety);
+            resolve();
+          };
           const check = () => {
+            if (done) return;
             const el = document.getElementById('paymentBrick_container');
             if (el && el.isConnected) {
-              resolve();
+              finish();
             } else {
               requestAnimationFrame(check);
             }
           };
-          // Also set a safety timeout
-          const safety = setTimeout(resolve, 2000);
-          check().then(() => clearTimeout(safety));
+          // Safety timeout: proceed after 2s even if container not found
+          const safety = setTimeout(finish, 2000);
+          requestAnimationFrame(check);
         });
         if (!mountedRef.current) return;
 

@@ -4,6 +4,10 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.25.10.3] - 2026-04-20
+
+v2.25.10.3 - Fix: crash "Cannot read properties of undefined (reading 'then')" no rAF do container
+
 ## [v2.25.10.2] - 2026-04-20
 
 v2.25.10.2 - Fix critico: Service Worker interceptava e cacheava recursos do MercadoPago (iframes, JS, CSS) travando o Brick
