@@ -73,6 +73,17 @@ function loadMercadoPagoSDK(): Promise<any> {
 }
 
 // ============================================
+// Brave Browser Detection
+// ============================================
+function isBraveBrowser(): boolean {
+  try {
+    return (navigator as any).brave?.isBrave?.() === true;
+  } catch {
+    return false;
+  }
+}
+
+// ============================================
 // TYPES
 // ============================================
 interface CheckoutParams {
@@ -94,7 +105,8 @@ type Step =
   | 'done'
   | 'error'
   | 'mp_not_configured'
-  | 'sdk_failed';
+  | 'sdk_failed'
+  | 'brave_detected';
 
 interface StatusLog {
   time: string;
@@ -151,6 +163,14 @@ export default function MercadoPagoCheckout({
   const token = useAuthStore((s) => s.token);
   const onSuccessRef = useRef(onSuccess);
   onSuccessRef.current = onSuccess;
+
+  // Brave detection: redirect to external checkout automatically
+  useEffect(() => {
+    if (isBraveBrowser()) {
+      console.log('[MPCheckout] Brave browser detected — redirecting to external checkout');
+      setStep('brave_detected');
+    }
+  }, []);
 
   // Helper: add status log entry
   const log = useCallback((message: string, done = false) => {
@@ -268,7 +288,10 @@ export default function MercadoPagoCheckout({
 
   useEffect(() => {
     mountedRef.current = true;
-    createPreference();
+    // Skip Brick loading on Brave — external checkout is shown instead
+    if (!isBraveBrowser()) {
+      createPreference();
+    }
     return () => {
       mountedRef.current = false;
       unmountBrick();
@@ -918,6 +941,84 @@ export default function MercadoPagoCheckout({
                 </ol>
               </div>
               <Button variant="outline" onClick={handleClose}><ArrowLeft className="w-4 h-4 mr-2" /> Voltar</Button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== BRAVE DETECTED — direct to external checkout ===== */}
+        {step === 'brave_detected' && (
+          <div className="py-6 space-y-4">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+                <Shield className="w-10 h-10 text-amber-400" />
+              </div>
+              <p className="text-lg font-bold text-foreground mb-1">Navegador Brave detectado</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                O Brave bloqueia iframes e scripts de terceiros que o formulario do MercadoPago precisa para funcionar.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-lg bg-muted/50 border border-border text-left">
+              <p className="text-sm font-medium text-foreground mb-2">Por que nao funciona no Brave?</p>
+              <ul className="text-xs text-muted-foreground space-y-1.5">
+                <li className="flex items-start gap-2">
+                  <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                  <span>Shields bloqueia cookies de terceiros do MercadoPago</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                  <span>Brave bloqueia fingerprinting (usado pelo MP para seguranca)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <XCircle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                  <span>Iframes cruzados do MP sao interceptados pelo navegador</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-4 rounded-lg bg-muted/50 border border-border text-left">
+              <p className="text-sm font-medium text-foreground mb-2">Opcoes:</p>
+              <ol className="text-xs text-muted-foreground space-y-2">
+                <li className="flex items-start gap-2">
+                  <span className="bg-amber-500/20 text-amber-400 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
+                  <div>
+                    <strong className="text-foreground">Pagar no site do MercadoPago</strong>
+                    <p className="text-muted-foreground mt-0.5">Abre em uma nova aba — funciona perfeitamente no Brave</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="bg-amber-500/20 text-amber-400 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
+                  <div>
+                    <strong className="text-foreground">Desativar Shields para este site</strong>
+                    <p className="text-muted-foreground mt-0.5">Clique no icone do leao ao lado da barra de endereco e desative os Shields</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="bg-amber-500/20 text-amber-400 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold shrink-0">3</span>
+                  <div>
+                    <strong className="text-foreground">Usar outro navegador</strong>
+                    <p className="text-muted-foreground mt-0.5">Chrome, Firefox ou Edge funcionam normalmente com o formulario embutido</p>
+                  </div>
+                </li>
+              </ol>
+            </div>
+
+            <div className="space-y-2">
+              <Button className="w-full bg-gradient-to-r from-amber-500 to-orange-600" onClick={handleExternalCheckout}>
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Pagar no site do MercadoPago
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                Abre o checkout oficial do MercadoPago em uma nova aba
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={handleRetry}>
+                  <RefreshCw className="w-4 h-4 mr-2" /> Tentar Brick (Shield OFF)
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={handleClose}>
+                  <ArrowLeft className="w-4 h-4 mr-2" /> Voltar
+                </Button>
+              </div>
             </div>
           </div>
         )}

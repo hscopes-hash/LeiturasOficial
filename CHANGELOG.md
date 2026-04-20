@@ -4,6 +4,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.25.10.5] - 2026-04-20
+
+v2.25.10.5 - Fix: Brave browser detectado — redireciona direto pro checkout externo
+v2.25.10.5 - Tela explicativa com 3 opcoes: checkout externo, desativar Shields, trocar navegador
+v2.25.10.5 - Botao "Tentar Brick (Shield OFF)" para quem desativou as protecoes do Brave
+
 ## [v2.25.10.4] - 2026-04-20
 
 v2.25.10.4 - Fix: SDK do MP volta a URL limpa (sem cache-bust/crossOrigin que bloqueavam cookies)
