@@ -4,6 +4,11 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.25.10.4] - 2026-04-20
+
+v2.25.10.4 - Fix: SDK do MP volta a URL limpa (sem cache-bust/crossOrigin que bloqueavam cookies)
+v2.25.10.4 - Fix: timeout do Brick aumentado de 15s para 30s (mobile pode ser mais lento)
+
 ## [v2.25.10.3] - 2026-04-20
 
 v2.25.10.3 - Fix: crash "Cannot read properties of undefined (reading 'then')" no rAF do container

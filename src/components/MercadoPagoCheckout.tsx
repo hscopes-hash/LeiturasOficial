@@ -22,47 +22,35 @@ import { useAuthStore } from '@/stores/auth-store';
 // ============================================
 const MP_SDK_URL = 'https://sdk.mercadopago.com/js/v2';
 let sdkLoadPromise: Promise<any> | null = null;
-let sdkLoadTimestamp = 0;
 
 function loadMercadoPagoSDK(): Promise<any> {
-  // Check cache age — if SDK was loaded >5min ago, force reload
-  const now = Date.now();
-  if (sdkLoadPromise && (now - sdkLoadTimestamp) < 300_000) return sdkLoadPromise;
-  sdkLoadPromise = null;
+  if (sdkLoadPromise) return sdkLoadPromise;
 
   if (typeof window !== 'undefined' && (window as any).MercadoPago) {
-    // SDK already in window — but clear any old script tags and reload fresh
-    // to avoid stale SDK state from Service Worker cache
-    const oldScripts = document.querySelectorAll(`script[src*="sdk.mercadopago.com"]`);
-    oldScripts.forEach((s) => s.remove());
-    (window as any).MercadoPago = undefined;
+    return Promise.resolve((window as any).MercadoPago);
   }
 
-  sdkLoadTimestamp = now;
   sdkLoadPromise = new Promise<any>((resolve, reject) => {
     const timeout = setTimeout(() => {
       sdkLoadPromise = null;
-      sdkLoadTimestamp = 0;
       reject(new Error('TIMEOUT_SDK'));
     }, 20000);
 
     try {
       const script = document.createElement('script');
-      // Cache-bust to prevent stale/corrupted SDK from Service Worker or browser cache
-      script.src = MP_SDK_URL + '?v=' + Date.now();
+      // URL limpa sem cache-bust: crossOrigin e query params podem bloquear cookies do MP
+      script.src = MP_SDK_URL;
       script.async = true;
-      script.crossOrigin = 'anonymous';
 
       script.onload = () => {
         const MPClass = (window as any).MercadoPago;
         if (MPClass) {
           clearTimeout(timeout);
-          console.log('[MPCheckout] SDK loaded successfully, version:', Date.now());
+          console.log('[MPCheckout] SDK loaded successfully');
           resolve(MPClass);
         } else {
           clearTimeout(timeout);
           sdkLoadPromise = null;
-          sdkLoadTimestamp = 0;
           reject(new Error('SDK carregou mas MercadoPago nao esta disponivel'));
         }
       };
@@ -70,7 +58,6 @@ function loadMercadoPagoSDK(): Promise<any> {
       script.onerror = () => {
         clearTimeout(timeout);
         sdkLoadPromise = null;
-        sdkLoadTimestamp = 0;
         reject(new Error('Falha de rede ao baixar o SDK'));
       };
 
@@ -78,7 +65,6 @@ function loadMercadoPagoSDK(): Promise<any> {
     } catch (error) {
       clearTimeout(timeout);
       sdkLoadPromise = null;
-      sdkLoadTimestamp = 0;
       reject(error);
     }
   });
@@ -469,17 +455,17 @@ export default function MercadoPagoCheckout({
           },
         );
 
-        // Safety timeout: if onReady doesn't fire in 15 seconds, show fallback
+        // Safety timeout: if onReady doesn't fire in 30 seconds, show fallback
         timerRef.current = setTimeout(() => {
           if (!mountedRef.current) return;
           if (!brickReady) {
-            log('O formulario nao carregou em 15s. Use o checkout externo.', true);
+            log('O formulario nao carregou em 30s. Use o checkout externo.', true);
             setStep('sdk_failed');
             setErrorMessage('O formulario embutido demorou demais para carregar. Use o checkout externo como alternativa.');
             stopElapsed();
             unmountBrick();
           }
-        }, 15000);
+        }, 30000);
       } catch (error: unknown) {
         console.error('[MP Brick Init Error]', error);
         if (!mountedRef.current) return;
