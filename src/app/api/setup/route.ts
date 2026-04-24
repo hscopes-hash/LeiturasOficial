@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 
 // Endpoint para criar as tabelas e enums do Prisma no banco de dados
-// Deve ser chamado uma vez após configurar o banco de dados no Vercel
+// Versão 2: faz DROP + CREATE para garantir que as colunas tenham o tipo correto
 export async function POST() {
   try {
     const prisma = new PrismaClient({
@@ -38,16 +38,45 @@ export async function POST() {
           EXCEPTION WHEN duplicate_object THEN NULL;
           END $$;
         `);
-        results.push(`Enum "${enumDef.name}" criado com sucesso`);
+        results.push(`Enum "${enumDef.name}" OK`);
       } catch (e: any) {
         results.push(`Enum "${enumDef.name}": ${e.message?.substring(0, 100)}`);
       }
     }
 
-    // 2. Criar as tabelas se não existirem
+    // 2. Drop all tables in correct order (reverse dependency) then recreate
+    const dropTables = [
+      'DROP TABLE IF EXISTS "pagamentos_saas" CASCADE',
+      'DROP TABLE IF EXISTS "assinaturas_saas" CASCADE',
+      'DROP TABLE IF EXISTS "planos_saas" CASCADE',
+      'DROP TABLE IF EXISTS "debitos" CASCADE',
+      'DROP TABLE IF EXISTS "webhook_logs" CASCADE',
+      'DROP TABLE IF EXISTS "logs_acesso" CASCADE',
+      'DROP TABLE IF EXISTS "leituras" CASCADE',
+      'DROP TABLE IF EXISTS "faturamentos" CASCADE',
+      'DROP TABLE IF EXISTS "pagamentos" CASCADE',
+      'DROP TABLE IF EXISTS "assinaturas" CASCADE',
+      'DROP TABLE IF EXISTS "maquinas" CASCADE',
+      'DROP TABLE IF EXISTS "tipos_maquina" CASCADE',
+      'DROP TABLE IF EXISTS "clientes" CASCADE',
+      'DROP TABLE IF EXISTS "usuarios" CASCADE',
+      'DROP TABLE IF EXISTS "empresas" CASCADE',
+      'DROP TABLE IF EXISTS "_prisma_migrations" CASCADE',
+    ];
+
+    for (const sql of dropTables) {
+      try {
+        await prisma.$executeRawUnsafe(sql);
+        results.push(`Drop OK`);
+      } catch (e: any) {
+        results.push(`Drop: ${e.message?.substring(0, 80)}`);
+      }
+    }
+
+    // 3. Criar as tabelas com os tipos corretos
     const tablesSQL = [
       // empresas
-      `CREATE TABLE IF NOT EXISTS "empresas" (
+      `CREATE TABLE "empresas" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "nome" TEXT NOT NULL,
         "cnpj" TEXT UNIQUE,
@@ -76,7 +105,7 @@ export async function POST() {
       )`,
 
       // usuarios
-      `CREATE TABLE IF NOT EXISTS "usuarios" (
+      `CREATE TABLE "usuarios" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "nome" TEXT NOT NULL,
         "email" TEXT NOT NULL,
@@ -91,10 +120,10 @@ export async function POST() {
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT "usuarios_email_empresaId_key" UNIQUE ("email", "empresaId")
       )`,
-      `DO $$ BEGIN ALTER TABLE "usuarios" ADD CONSTRAINT "usuarios_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "usuarios" ADD CONSTRAINT "usuarios_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
 
       // clientes
-      `CREATE TABLE IF NOT EXISTS "clientes" (
+      `CREATE TABLE "clientes" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "nome" TEXT NOT NULL,
         "cpfCnpj" TEXT,
@@ -115,37 +144,37 @@ export async function POST() {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
-      `DO $$ BEGIN ALTER TABLE "clientes" ADD CONSTRAINT "clientes_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "clientes" ADD CONSTRAINT "clientes_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
 
       // tipos_maquina
-      `CREATE TABLE IF NOT EXISTS "tipos_maquina" (
+      `CREATE TABLE "tipos_maquina" (
         "id" TEXT NOT NULL PRIMARY KEY,
-        "descricao" TEXT NOT NULL,
+        "descripcion" TEXT NOT NULL,
         "nomeEntrada" TEXT NOT NULL DEFAULT 'E',
         "nomeSaida" TEXT NOT NULL DEFAULT 'S',
         "ativo" BOOLEAN NOT NULL DEFAULT true,
         "empresaId" TEXT NOT NULL,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "tipos_maquina_descricao_empresaId_key" UNIQUE ("descricao", "empresaId")
+        CONSTRAINT "tipos_maquina_descripcion_empresaId_key" UNIQUE ("descripcion", "empresaId")
       )`,
-      `DO $$ BEGIN ALTER TABLE "tipos_maquina" ADD CONSTRAINT "tipos_maquina_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "tipos_maquina" ADD CONSTRAINT "tipos_maquina_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
 
       // maquinas
-      `CREATE TABLE IF NOT EXISTS "maquinas" (
+      `CREATE TABLE "maquinas" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "codigo" TEXT NOT NULL,
         "tipoId" TEXT NOT NULL,
-        "descricao" TEXT,
+        "descripcion" TEXT,
         "marca" TEXT,
         "modelo" TEXT,
         "numeroSerie" TEXT,
-        "dataAquisicao" TIMESTAMP(3),
-        "valorAquisicao" DOUBLE PRECISION,
-        "valorMensal" DOUBLE PRECISION,
-        "localizacao" TEXT,
+        "dataAquisicion" TIMESTAMP(3),
+        "valorAquisicion" DOUBLE PRECISION,
+        "valorMensual" DOUBLE PRECISION,
+        "localizacion" TEXT,
         "status" "StatusMaquina" NOT NULL DEFAULT 'ATIVA',
-        "observacoes" TEXT,
+        "observaciones" TEXT,
         "moeda" "TipoMoeda" NOT NULL DEFAULT 'M001',
         "entradaAtual" DOUBLE PRECISION NOT NULL DEFAULT 0,
         "saidaAtual" DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -154,15 +183,15 @@ export async function POST() {
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT "maquinas_codigo_clienteId_key" UNIQUE ("codigo", "clienteId")
       )`,
-      `DO $$ BEGIN ALTER TABLE "maquinas" ADD CONSTRAINT "maquinas_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
-      `DO $$ BEGIN ALTER TABLE "maquinas" ADD CONSTRAINT "maquinas_tipoId_fkey" FOREIGN KEY ("tipoId") REFERENCES "tipos_maquina"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "maquinas" ADD CONSTRAINT "maquinas_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "maquinas" ADD CONSTRAINT "maquinas_tipoId_fkey" FOREIGN KEY ("tipoId") REFERENCES "tipos_maquina"("id") ON DELETE RESTRICT ON UPDATE CASCADE`,
 
       // assinaturas
-      `CREATE TABLE IF NOT EXISTS "assinaturas" (
+      `CREATE TABLE "assinaturas" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "plano" TEXT NOT NULL,
-        "descricao" TEXT,
-        "valorMensal" DOUBLE PRECISION NOT NULL,
+        "descripcion" TEXT,
+        "valorMensual" DOUBLE PRECISION NOT NULL,
         "diaVencimento" INTEGER NOT NULL DEFAULT 10,
         "dataInicio" TIMESTAMP(3) NOT NULL,
         "dataFim" TIMESTAMP(3),
@@ -171,40 +200,40 @@ export async function POST() {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
-      `DO $$ BEGIN ALTER TABLE "assinaturas" ADD CONSTRAINT "assinaturas_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "assinaturas" ADD CONSTRAINT "assinaturas_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
 
       // pagamentos
-      `CREATE TABLE IF NOT EXISTS "pagamentos" (
+      `CREATE TABLE "pagamentos" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "valor" DOUBLE PRECISION NOT NULL,
-        "dataVencimento" TIMESTAMP(3) NOT NULL,
+        "dataVencimiento" TIMESTAMP(3) NOT NULL,
         "dataPagamento" TIMESTAMP(3),
         "status" "StatusPagamento" NOT NULL DEFAULT 'PENDENTE',
         "formaPagamento" "FormaPagamento",
-        "observacoes" TEXT,
+        "observaciones" TEXT,
         "clienteId" TEXT NOT NULL,
         "assinaturaId" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
-      `DO $$ BEGIN ALTER TABLE "pagamentos" ADD CONSTRAINT "pagamentos_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
-      `DO $$ BEGIN ALTER TABLE "pagamentos" ADD CONSTRAINT "pagamentos_assinaturaId_fkey" FOREIGN KEY ("assinaturaId") REFERENCES "assinaturas"("id") ON DELETE SET NULL ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "pagamentos" ADD CONSTRAINT "pagamentos_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "pagamentos" ADD CONSTRAINT "pagamentos_assinaturaId_fkey" FOREIGN KEY ("assinaturaId") REFERENCES "assinaturas"("id") ON DELETE SET NULL ON UPDATE CASCADE`,
 
       // faturamentos
-      `CREATE TABLE IF NOT EXISTS "faturamentos" (
+      `CREATE TABLE "faturamentos" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "maquinaId" TEXT NOT NULL,
         "dataReferencia" TIMESTAMP(3) NOT NULL,
         "valorTotal" DOUBLE PRECISION NOT NULL,
-        "quantidade" INTEGER,
-        "observacoes" TEXT,
+        "cantidad" INTEGER,
+        "observaciones" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
-      `DO $$ BEGIN ALTER TABLE "faturamentos" ADD CONSTRAINT "faturamentos_maquinaId_fkey" FOREIGN KEY ("maquinaId") REFERENCES "maquinas"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "faturamentos" ADD CONSTRAINT "faturamentos_maquinaId_fkey" FOREIGN KEY ("maquinaId") REFERENCES "maquinas"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
 
       // leituras
-      `CREATE TABLE IF NOT EXISTS "leituras" (
+      `CREATE TABLE "leituras" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "maquinaId" TEXT NOT NULL,
         "clienteId" TEXT NOT NULL,
@@ -218,30 +247,30 @@ export async function POST() {
         "diferencaSaida" DOUBLE PRECISION NOT NULL DEFAULT 0,
         "saldo" DOUBLE PRECISION NOT NULL DEFAULT 0,
         "moeda" "TipoMoeda" NOT NULL DEFAULT 'M010',
-        "observacoes" TEXT,
+        "observaciones" TEXT,
         "despesa" TEXT,
         "valorDespesa" DOUBLE PRECISION,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
-      `DO $$ BEGIN ALTER TABLE "leituras" ADD CONSTRAINT "leituras_maquinaId_fkey" FOREIGN KEY ("maquinaId") REFERENCES "maquinas"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
-      `DO $$ BEGIN ALTER TABLE "leituras" ADD CONSTRAINT "leituras_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
-      `DO $$ BEGIN ALTER TABLE "leituras" ADD CONSTRAINT "leituras_usuarioId_fkey" FOREIGN KEY ("usuarioId") REFERENCES "usuarios"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "leituras" ADD CONSTRAINT "leituras_maquinaId_fkey" FOREIGN KEY ("maquinaId") REFERENCES "maquinas"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "leituras" ADD CONSTRAINT "leituras_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "leituras" ADD CONSTRAINT "leituras_usuarioId_fkey" FOREIGN KEY ("usuarioId") REFERENCES "usuarios"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
       `CREATE INDEX IF NOT EXISTS "leituras_clienteId_dataLeitura_idx" ON "leituras"("clienteId", "dataLeitura")`,
       `CREATE INDEX IF NOT EXISTS "leituras_maquinaId_dataLeitura_idx" ON "leituras"("maquinaId", "dataLeitura")`,
 
       // logs_acesso
-      `CREATE TABLE IF NOT EXISTS "logs_acesso" (
+      `CREATE TABLE "logs_acesso" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "acao" TEXT NOT NULL,
-        "descricao" TEXT,
+        "descripcion" TEXT,
         "ip" TEXT,
         "usuarioId" TEXT NOT NULL,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
-      `DO $$ BEGIN ALTER TABLE "logs_acesso" ADD CONSTRAINT "logs_acesso_usuarioId_fkey" FOREIGN KEY ("usuarioId") REFERENCES "usuarios"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "logs_acesso" ADD CONSTRAINT "logs_acesso_usuarioId_fkey" FOREIGN KEY ("usuarioId") REFERENCES "usuarios"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
 
       // webhook_logs
-      `CREATE TABLE IF NOT EXISTS "webhook_logs" (
+      `CREATE TABLE "webhook_logs" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "metodo" TEXT NOT NULL,
         "url" TEXT NOT NULL,
@@ -254,28 +283,28 @@ export async function POST() {
       )`,
 
       // debitos
-      `CREATE TABLE IF NOT EXISTS "debitos" (
+      `CREATE TABLE "debitos" (
         "id" TEXT NOT NULL PRIMARY KEY,
-        "descricao" TEXT NOT NULL,
+        "descripcion" TEXT NOT NULL,
         "valor" DOUBLE PRECISION NOT NULL,
         "data" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "paga" BOOLEAN NOT NULL DEFAULT false,
         "dataPagamento" TIMESTAMP(3),
-        "observacoes" TEXT,
+        "observaciones" TEXT,
         "empresaId" TEXT NOT NULL,
         "clienteId" TEXT NOT NULL,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
-      `DO $$ BEGIN ALTER TABLE "debitos" ADD CONSTRAINT "debitos_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
-      `DO $$ BEGIN ALTER TABLE "debitos" ADD CONSTRAINT "debitos_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "debitos" ADD CONSTRAINT "debitos_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "debitos" ADD CONSTRAINT "debitos_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "clientes"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
 
       // planos_saas
-      `CREATE TABLE IF NOT EXISTS "planos_saas" (
+      `CREATE TABLE "planos_saas" (
         "id" TEXT NOT NULL PRIMARY KEY,
-        "nome" TEXT NOT NULL,
-        "descricao" TEXT,
-        "valorMensal" DOUBLE PRECISION NOT NULL,
+        "nombre" TEXT NOT NULL,
+        "descripcion" TEXT,
+        "valorMensual" DOUBLE PRECISION NOT NULL,
         "valorAnual" DOUBLE PRECISION,
         "moeda" TEXT NOT NULL DEFAULT 'BRL',
         "limiteClientes" INTEGER NOT NULL,
@@ -292,11 +321,11 @@ export async function POST() {
         "mercadoPagoPreferenceId" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "planos_saas_nome_key" UNIQUE ("nome")
+        CONSTRAINT "planos_saas_nombre_key" UNIQUE ("nombre")
       )`,
 
       // assinaturas_saas
-      `CREATE TABLE IF NOT EXISTS "assinaturas_saas" (
+      `CREATE TABLE "assinaturas_saas" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "empresaId" TEXT NOT NULL,
         "planoSaaSId" TEXT NOT NULL,
@@ -312,33 +341,33 @@ export async function POST() {
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`,
-      `DO $$ BEGIN ALTER TABLE "assinaturas_saas" ADD CONSTRAINT "assinaturas_saas_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
-      `DO $$ BEGIN ALTER TABLE "assinaturas_saas" ADD CONSTRAINT "assinaturas_saas_planoSaaSId_fkey" FOREIGN KEY ("planoSaaSId") REFERENCES "planos_saas"("id") ON DELETE RESTRICT ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "assinaturas_saas" ADD CONSTRAINT "assinaturas_saas_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "assinaturas_saas" ADD CONSTRAINT "assinaturas_saas_planoSaaSId_fkey" FOREIGN KEY ("planoSaaSId") REFERENCES "planos_saas"("id") ON DELETE RESTRICT ON UPDATE CASCADE`,
 
       // pagamentos_saas
-      `CREATE TABLE IF NOT EXISTS "pagamentos_saas" (
+      `CREATE TABLE "pagamentos_saas" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "assinaturaSaaSId" TEXT NOT NULL,
         "empresaId" TEXT NOT NULL,
         "valor" DOUBLE PRECISION NOT NULL,
         "status" "StatusPagamentoSaaS" NOT NULL DEFAULT 'PENDENTE',
         "formaPagamento" "FormaPagamentoSaaS",
-        "dataVencimento" TIMESTAMP(3) NOT NULL,
+        "dataVencimiento" TIMESTAMP(3) NOT NULL,
         "dataPagamento" TIMESTAMP(3),
         "mercadoPagoPaymentId" TEXT,
         "mercadoPagoStatus" TEXT,
         "mercadoPagoApprovedAt" TIMESTAMP(3),
         "mercadoPagoFee" DOUBLE PRECISION,
-        "descricao" TEXT,
+        "descripcion" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT "pagamentos_saas_mercadoPagoPaymentId_key" UNIQUE ("mercadoPagoPaymentId")
       )`,
-      `DO $$ BEGIN ALTER TABLE "pagamentos_saas" ADD CONSTRAINT "pagamentos_saas_assinaturaSaaSId_fkey" FOREIGN KEY ("assinaturaSaaSId") REFERENCES "assinaturas_saas"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
-      `DO $$ BEGIN ALTER TABLE "pagamentos_saas" ADD CONSTRAINT "pagamentos_saas_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE; EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+      `ALTER TABLE "pagamentos_saas" ADD CONSTRAINT "pagamentos_saas_assinaturaSaaSId_fkey" FOREIGN KEY ("assinaturaSaaSId") REFERENCES "assinaturas_saas"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
+      `ALTER TABLE "pagamentos_saas" ADD CONSTRAINT "pagamentos_saas_empresaId_fkey" FOREIGN KEY ("empresaId") REFERENCES "empresas"("id") ON DELETE CASCADE ON UPDATE CASCADE`,
 
-      // Criar _prisma_migrations tabela (para o Prisma não reclamar)
-      `CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
+      // _prisma_migrations
+      `CREATE TABLE "_prisma_migrations" (
         "id" TEXT NOT NULL PRIMARY KEY,
         "checksum" TEXT NOT NULL,
         "finished_at" TIMESTAMP(3),
@@ -353,9 +382,9 @@ export async function POST() {
     for (let i = 0; i < tablesSQL.length; i++) {
       try {
         await prisma.$executeRawUnsafe(tablesSQL[i]);
-        results.push(`SQL ${i + 1} OK`);
+        results.push(`Create ${i + 1} OK`);
       } catch (e: any) {
-        results.push(`SQL ${i + 1}: ${e.message?.substring(0, 120)}`);
+        results.push(`Create ${i + 1}: ${e.message?.substring(0, 120)}`);
       }
     }
 
@@ -363,7 +392,7 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      message: 'Setup do banco de dados executado com sucesso',
+      message: 'Setup completo: DROP + CREATE de todas as tabelas',
       results,
     });
   } catch (error: any) {
