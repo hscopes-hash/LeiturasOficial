@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         email: emailLower,
         senha: senhaHash,
         telefone: telefone?.trim() || null,
-        nivelAcesso: 'ADMIN',
+        nivelAcesso: 'ADMINISTRADOR',
         empresaId: novaEmpresa.id,
       },
       include: {
