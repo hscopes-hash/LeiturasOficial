@@ -167,10 +167,10 @@ export async function GET(request: NextRequest) {
         clientes: ultimosClientes,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Erro ao buscar dashboard:', error);
     return NextResponse.json(
-      { error: 'Erro ao buscar dashboard', detail: error?.message || String(error), code: error?.code || 'UNKNOWN' },
+      { error: 'Erro ao buscar dashboard' },
       { status: 500 }
     );
   }
