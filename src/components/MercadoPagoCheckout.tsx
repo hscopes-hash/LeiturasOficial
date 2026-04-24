@@ -1062,3 +1062,43 @@ export default function MercadoPagoCheckout({
     </Dialog>
   );
 }
+
+// ============================================
+// HELPER: redirectToCheckout (standalone redirect to MP external checkout)
+// ============================================
+export async function redirectToCheckout(params: {
+  planoSaaSId: string;
+  planoTipo: 'mensal' | 'anual';
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const token = useAuthStore.getState().token;
+    const res = await fetch('/api/assinatura-saas/checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ planoSaaSId: params.planoSaaSId, planoTipo: params.planoTipo, embed: false }),
+    });
+
+    if (!res.ok) {
+      let errorMsg = 'Erro ao criar pagamento';
+      try {
+        const errorData = await res.json();
+        errorMsg = errorData.error || errorMsg;
+      } catch { /* ignore */ }
+      return { success: false, error: errorMsg };
+    }
+
+    const data = await res.json();
+    if (data.init_point) {
+      window.open(data.init_point, '_blank');
+      return { success: true };
+    }
+
+    return { success: false, error: 'Nao foi possivel gerar o link de pagamento' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erro ao iniciar checkout';
+    return { success: false, error: message };
+  }
+}
