@@ -25,11 +25,13 @@ import {
   Plus, Pencil, Trash2, Eye, Ban, CheckCircle, AlertTriangle, Building2,
   ClipboardList, Printer, Camera, X, Image as ImageIcon, Layers, MessageCircle, LogIn,
   CalendarDays, ShieldAlert, FileText, Sun, Moon, DatabaseBackup, Download, Upload, HardDrive, SlidersHorizontal,
-  Key, Wifi, EyeOff, CreditCard, ExternalLink, ChevronDown, RotateCcw, Crown, Check, Sparkles, Zap, Shield, Info
+  Key, Wifi, EyeOff, CreditCard, ExternalLink, ChevronDown, RotateCcw, Crown, Check, CheckCircle2, XCircle, Sparkles, Zap, Shield, Info,
+  Receipt, Mic, MicOff, Send, Volume2
 } from 'lucide-react';
 import { VERSION_DISPLAY, VERSION_WITH_DATE } from '@/lib/version';
 import GestaoPlanosSaaS from '@/components/GestaoPlanosSaaS';
-import MercadoPagoCheckout from '@/components/MercadoPagoCheckout';
+import PainelFinanceiroSaaS from '@/components/PainelFinanceiroSaaS';
+import { redirectToCheckout } from '@/components/MercadoPagoCheckout';
 
 // ============================================
 // TYPES
@@ -47,6 +49,7 @@ interface Cliente {
   cep?: string;
   observacoes?: string;
   whatsapp?: string;
+  acertoPercentual?: number;
   ativo: boolean;
   bloqueado: boolean;
   motivoBloqueio?: string;
@@ -145,8 +148,8 @@ function ThemeToggle() {
 }
 
 function LoginPage() {
-  const [etapa, setEtapa] = useState<'empresa' | 'credenciais' | 'superadmin'>('empresa');
-  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [etapa, setEtapa] = useState<'empresa' | 'credenciais' | 'nova_empresa' | 'adicionar_empresa'>('empresa');
+  const [deviceEmpresas, setDeviceEmpresas] = useState<Empresa[]>([]);
   const [empresaSelecionada, setEmpresaSelecionada] = useState<Empresa | null>(null);
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -155,16 +158,63 @@ function LoginPage() {
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showIOSModal, setShowIOSModal] = useState(false);
+  // Nova empresa form
+  const [novaEmpresaNome, setNovaEmpresaNome] = useState('');
+  const [novaEmpresaEmail, setNovaEmpresaEmail] = useState('');
+  const [novaEmpresaSenha, setNovaEmpresaSenha] = useState('');
+  const [novaEmpresaTelefone, setNovaEmpresaTelefone] = useState('');
+  const [novaEmpresaLoading, setNovaEmpresaLoading] = useState(false);
+  // Adicionar empresa
+  const [buscarEmail, setBuscarEmail] = useState('');
+  const [buscarSenha, setBuscarSenha] = useState('');
+  const [buscarResultados, setBuscarResultados] = useState<Array<{ empresaId: string; empresaNome: string; empresaLogo?: string | null; nivelAcesso: string }>>([]);
+  const [buscando, setBuscando] = useState(false);
+  const [logandoBusca, setLogandoBusca] = useState(false);
   const login = useAuthStore((state) => state.login);
 
   // Email do super admin
   const SUPER_ADMIN_EMAIL = 'hscopes@gmail.com';
 
+  // Helper: save company to localStorage
+  const saveEmpresaToDevice = (empresa: Empresa) => {
+    try {
+      const stored = localStorage.getItem('cf-companies');
+      let companies: Array<{ id: string; nome: string; cnpj?: string | null; logo?: string | null }> = stored ? JSON.parse(stored) : [];
+      // Remove existing entry with same id
+      companies = companies.filter(c => c.id !== empresa.id);
+      // Add to top
+      companies.unshift({
+        id: empresa.id,
+        nome: empresa.nome,
+        cnpj: empresa.cnpj || null,
+        logo: empresa.logo || null,
+      });
+      // Keep max 20
+      companies = companies.slice(0, 20);
+      localStorage.setItem('cf-companies', JSON.stringify(companies));
+    } catch {}
+  };
+
   useEffect(() => {
-    fetch('/api/empresas')
-      .then((res) => res.json())
-      .then(setEmpresas)
-      .catch(console.error);
+    // Load device empresas from localStorage
+    try {
+      const stored = localStorage.getItem('cf-companies');
+      const companies: Array<{ id: string; nome: string; cnpj?: string | null; logo?: string | null }> = stored ? JSON.parse(stored) : [];
+
+      if (companies.length > 0) {
+        const ids = companies.map(c => c.id).join(',');
+        fetch(`/api/empresas?ids=${ids}`)
+          .then((res) => res.json())
+          .then((data) => {
+            // Filter: only active and not blocked
+            const fresh = (Array.isArray(data) ? data : []).filter(
+              (e: Empresa) => e.ativa && !e.bloqueada
+            );
+            setDeviceEmpresas(fresh);
+          })
+          .catch(console.error);
+      }
+    } catch {}
 
     // Detectar se já está instalado como app
     const standalone = window.matchMedia('(display-mode: standalone)').matches;
@@ -246,6 +296,10 @@ function LoginPage() {
       }
 
       login(data.usuario, data.empresa, data.token);
+      // Save company to device
+      if (data.empresa) {
+        saveEmpresaToDevice(data.empresa);
+      }
       toast.success('Login realizado com sucesso!');
     } catch {
       toast.error('Erro ao conectar com o servidor');
@@ -254,15 +308,135 @@ function LoginPage() {
     }
   };
 
+  const handleRegistrarEmpresa = async () => {
+    if (!novaEmpresaNome.trim()) {
+      toast.error('Nome da empresa é obrigatório');
+      return;
+    }
+    if (!novaEmpresaEmail.trim()) {
+      toast.error('Email é obrigatório');
+      return;
+    }
+    if (novaEmpresaSenha.length < 6) {
+      toast.error('A senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+
+    setNovaEmpresaLoading(true);
+    try {
+      const res = await fetch('/api/empresas/registrar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome: novaEmpresaNome.trim(),
+          email: novaEmpresaEmail.trim(),
+          senha: novaEmpresaSenha,
+          telefone: novaEmpresaTelefone.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || 'Erro ao criar empresa');
+        return;
+      }
+
+      login(data.usuario, data.empresa, data.token);
+      saveEmpresaToDevice(data.empresa);
+      toast.success('Empresa criada com sucesso! Bem-vindo ao Caixa Fácil!');
+    } catch {
+      toast.error('Erro ao conectar com o servidor');
+    } finally {
+      setNovaEmpresaLoading(false);
+    }
+  };
+
+  const handleBuscarEmpresa = async () => {
+    if (!buscarEmail.trim()) {
+      toast.error('Digite um email');
+      return;
+    }
+
+    setBuscando(true);
+    setBuscarResultados([]);
+    try {
+      const res = await fetch(`/api/empresas/por-email?email=${encodeURIComponent(buscarEmail.trim())}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || 'Erro ao buscar');
+        return;
+      }
+
+      if (data.length === 0) {
+        toast.info('Nenhuma empresa encontrada com esse email');
+      }
+      setBuscarResultados(data);
+    } catch {
+      toast.error('Erro ao conectar com o servidor');
+    } finally {
+      setBuscando(false);
+    }
+  };
+
+  const handleSelecionarEmpresaBusca = async (resultado: { empresaId: string; empresaNome: string; empresaLogo?: string | null; nivelAcesso: string }) => {
+    if (!buscarSenha) {
+      toast.error('Digite sua senha');
+      return;
+    }
+
+    setLogandoBusca(true);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: buscarEmail.trim(),
+          senha: buscarSenha,
+          empresaId: resultado.empresaId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || 'Credenciais inválidas');
+        return;
+      }
+
+      login(data.usuario, data.empresa, data.token);
+      if (data.empresa) {
+        saveEmpresaToDevice(data.empresa);
+      }
+      toast.success('Login realizado com sucesso!');
+    } catch {
+      toast.error('Erro ao conectar com o servidor');
+    } finally {
+      setLogandoBusca(false);
+    }
+  };
+
+  const resetFormStates = () => {
+    setEmail('');
+    setSenha('');
+    setEmpresaSelecionada(null);
+    setNovaEmpresaNome('');
+    setNovaEmpresaEmail('');
+    setNovaEmpresaSenha('');
+    setNovaEmpresaTelefone('');
+    setBuscarEmail('');
+    setBuscarSenha('');
+    setBuscarResultados([]);
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 mb-4 shadow-lg">
-            <Cog className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">Máquinas Gestão</h1>
-          <p className="text-muted-foreground mt-1">Sistema de Gestão de Máquinas</p>
+          <img src="/icon-192.png" alt="Caixa Fácil" className="w-48 h-48 rounded-2xl mb-4 shadow-lg mx-auto" />
+          <h1 className="text-2xl font-bold text-foreground">Caixa Fácil</h1>
+          <p className="text-muted-foreground mt-1">Gestão de Máquinas</p>
           <p className="text-xs text-muted-foreground mt-2">{VERSION_DISPLAY}</p>
         </div>
 
@@ -271,38 +445,35 @@ function LoginPage() {
             {etapa === 'empresa' ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Selecione a Empresa</Label>
-                  <ScrollArea className="h-64 rounded-lg border border-border">
-                    {empresas.length === 0 ? (
-                      <div className="p-4 text-center text-muted-foreground">
-                        <Building2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                        <p className="text-sm">Nenhuma empresa cadastrada</p>
-                        <Button
-                          variant="link"
-                          className="mt-2 text-amber-500"
-                          onClick={async () => {
-                            const res = await fetch('/api/seed', { method: 'POST' });
-                            const data = await res.json();
-                            toast.success('Dados de demonstração criados!');
-                            window.location.reload();
-                          }}
-                        >
-                          Criar dados de demonstração
-                        </Button>
-                      </div>
-                    ) : (
+                  <Label className="text-muted-foreground">Suas Empresas</Label>
+                  {deviceEmpresas.length === 0 ? (
+                    <div className="rounded-lg border border-border p-6 text-center">
+                      <Building2 className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" />
+                      <p className="font-semibold text-foreground">Bem-vindo ao Caixa Fácil!</p>
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Crie sua empresa ou adicione uma existente para começar.
+                      </p>
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-64 rounded-lg border border-border">
                       <div className="p-2 space-y-1">
-                        {empresas.map((empresa) => (
+                        {deviceEmpresas.map((empresa) => (
                           <button
                             key={empresa.id}
                             onClick={() => {
                               setEmpresaSelecionada(empresa);
+                              setEmail('');
+                              setSenha('');
                               setEtapa('credenciais');
                             }}
                             className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left"
                           >
                             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-bold">
-                              {empresa.nome.charAt(0)}
+                              {empresa.logo ? (
+                                <img src={empresa.logo} alt={empresa.nome} className="w-full h-full rounded-lg object-cover" />
+                              ) : (
+                                empresa.nome.charAt(0)
+                              )}
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-foreground truncate">{empresa.nome}</p>
@@ -314,20 +485,212 @@ function LoginPage() {
                           </button>
                         ))}
                       </div>
-                    )}
-                  </ScrollArea>
+                    </ScrollArea>
+                  )}
                 </div>
 
-                {/* Opção para Super Admin */}
+                {/* Ações principais */}
+                <div className="space-y-2">
+                  <Button
+                    onClick={() => {
+                      resetFormStates();
+                      setEtapa('nova_empresa');
+                    }}
+                    className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nova Empresa
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      resetFormStates();
+                      setEtapa('adicionar_empresa');
+                    }}
+                    className="w-full"
+                  >
+                    <LogIn className="w-4 h-4 mr-2" />
+                    Adicionar Empresa Existente
+                  </Button>
+                </div>
+
+                {/* Super Admin link (sutil) */}
                 <div className="pt-2 border-t border-border">
                   <button
-                    onClick={() => setEtapa('credenciais')}
-                    className="w-full flex items-center justify-center gap-2 p-3 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-600/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-600/30 transition-colors"
+                    onClick={() => {
+                      setEmpresaSelecionada(null);
+                      setEmail('');
+                      setSenha('');
+                      setEtapa('credenciais');
+                    }}
+                    className="w-full text-center text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors py-1"
                   >
-                    <ShieldAlert className="w-5 h-5 text-amber-400" />
-                    <span className="text-sm font-medium text-amber-400">Acesso como Super Administrador</span>
+                    Acesso Administrativo
                   </button>
                 </div>
+              </div>
+            ) : etapa === 'nova_empresa' ? (
+              <div className="space-y-4">
+                <button
+                  onClick={() => {
+                    setEtapa('empresa');
+                    resetFormStates();
+                  }}
+                  className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-2"
+                >
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                  <span className="text-sm">Voltar</span>
+                </button>
+
+                <div className="text-center mb-2">
+                  <h2 className="text-lg font-semibold text-foreground">Criar Nova Empresa</h2>
+                  <p className="text-sm text-muted-foreground">Preencha os dados abaixo para começar</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nova-nome" className="text-muted-foreground">Nome da Empresa</Label>
+                  <Input
+                    id="nova-nome"
+                    value={novaEmpresaNome}
+                    onChange={(e) => setNovaEmpresaNome(e.target.value)}
+                    placeholder="Ex: Máquinas do João"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nova-email" className="text-muted-foreground">Email do Administrador</Label>
+                  <Input
+                    id="nova-email"
+                    type="email"
+                    value={novaEmpresaEmail}
+                    onChange={(e) => setNovaEmpresaEmail(e.target.value)}
+                    placeholder="admin@empresa.com"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nova-senha" className="text-muted-foreground">Senha</Label>
+                  <Input
+                    id="nova-senha"
+                    type="password"
+                    value={novaEmpresaSenha}
+                    onChange={(e) => setNovaEmpresaSenha(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="nova-telefone" className="text-muted-foreground">Telefone <span className="text-muted-foreground/50">(opcional)</span></Label>
+                  <Input
+                    id="nova-telefone"
+                    value={novaEmpresaTelefone}
+                    onChange={(e) => setNovaEmpresaTelefone(e.target.value)}
+                    placeholder="(11) 99999-9999"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                  />
+                </div>
+
+                <Button
+                  onClick={handleRegistrarEmpresa}
+                  disabled={novaEmpresaLoading}
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+                >
+                  {novaEmpresaLoading ? 'Criando...' : 'Criar e Entrar'}
+                </Button>
+
+                <p className="text-center text-xs text-muted-foreground">
+                  7 dias de teste grátis. Sem compromisso.
+                </p>
+              </div>
+            ) : etapa === 'adicionar_empresa' ? (
+              <div className="space-y-4">
+                <button
+                  onClick={() => {
+                    setEtapa('empresa');
+                    resetFormStates();
+                  }}
+                  className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-2"
+                >
+                  <ChevronRight className="w-4 h-4 rotate-180" />
+                  <span className="text-sm">Voltar</span>
+                </button>
+
+                <div className="text-center mb-2">
+                  <h2 className="text-lg font-semibold text-foreground">Adicionar Empresa</h2>
+                  <p className="text-sm text-muted-foreground">Digite seus dados de acesso para encontrar sua empresa</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="buscar-email" className="text-muted-foreground">Email</Label>
+                  <Input
+                    id="buscar-email"
+                    type="email"
+                    value={buscarEmail}
+                    onChange={(e) => setBuscarEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleBuscarEmpresa(); }}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="buscar-senha" className="text-muted-foreground">Senha</Label>
+                  <Input
+                    id="buscar-senha"
+                    type="password"
+                    value={buscarSenha}
+                    onChange={(e) => setBuscarSenha(e.target.value)}
+                    placeholder="Sua senha"
+                    className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleBuscarEmpresa(); }}
+                  />
+                </div>
+
+                <Button
+                  onClick={handleBuscarEmpresa}
+                  disabled={buscando}
+                  className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+                >
+                  {buscando ? 'Buscando...' : 'Buscar Empresa'}
+                </Button>
+
+                {buscarResultados.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <Label className="text-muted-foreground text-sm">Clique na empresa para entrar</Label>
+                    <ScrollArea className="max-h-48 rounded-lg border border-border">
+                      <div className="p-2 space-y-1">
+                        {buscarResultados.map((r) => (
+                          <button
+                            key={r.empresaId}
+                            onClick={() => handleSelecionarEmpresaBusca(r)}
+                            disabled={logandoBusca}
+                            className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors text-left disabled:opacity-50"
+                          >
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-bold">
+                              {r.empresaLogo ? (
+                                <img src={r.empresaLogo} alt={r.empresaNome} className="w-full h-full rounded-lg object-cover" />
+                              ) : (
+                                r.empresaNome.charAt(0)
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-foreground truncate">{r.empresaNome}</p>
+                              <p className="text-xs text-muted-foreground">{r.nivelAcesso}</p>
+                            </div>
+                            {logandoBusca ? (
+                              <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
@@ -400,11 +763,6 @@ function LoginPage() {
                 >
                   {loading ? 'Entrando...' : 'Entrar'}
                 </Button>
-
-                <div className="text-center text-xs text-muted-foreground mt-4">
-                  <p>Dados de demonstração:</p>
-                  <p className="mt-1">admin@demo.com / admin123</p>
-                </div>
 
                 <div className="text-center mt-4 pt-4 border-t border-border">
                   <p className="text-xs text-muted-foreground">{VERSION_WITH_DATE}</p>
@@ -690,6 +1048,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
     cep: '',
     observacoes: '',
     whatsapp: '',
+    acertoPercentual: '50',
   });
 
   useEffect(() => {
@@ -721,7 +1080,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
         const res = await fetch(`/api/clientes/${clienteEditando.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({ ...formData, acertoPercentual: parseInt(formData.acertoPercentual) || 50 }),
         });
         if (!res.ok) {
           const errorData = await res.json();
@@ -732,7 +1091,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
         const res = await fetch('/api/clientes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...formData, empresaId }),
+          body: JSON.stringify({ ...formData, acertoPercentual: parseInt(formData.acertoPercentual) || 50, empresaId }),
         });
         if (!res.ok) {
           const errorData = await res.json();
@@ -793,6 +1152,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
       cep: '',
       observacoes: '',
       whatsapp: '',
+      acertoPercentual: '50',
     });
     setClienteEditando(null);
   };
@@ -811,6 +1171,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
       cep: cliente.cep || '',
       observacoes: cliente.observacoes || '',
       whatsapp: cliente.whatsapp || '',
+      acertoPercentual: String(cliente.acertoPercentual ?? 50),
     });
     setDialogOpen(true);
   };
@@ -928,6 +1289,21 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
                     placeholder="https://chat.whatsapp.com/XXXXX"
                   />
                   <p className="text-xs text-muted-foreground">Link do grupo para enviar foto da leitura das máquinas</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Acerto %</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={formData.acertoPercentual}
+                      onChange={(e) => setFormData({ ...formData, acertoPercentual: e.target.value })}
+                      className="bg-muted border-border"
+                      placeholder="50"
+                    />
+                    <p className="text-xs text-muted-foreground">Percentual do cliente no jogado (padrão 50%)</p>
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -1802,6 +2178,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   const [valorDespesa, setValorDespesa] = useState('');
   // Estado para o valor da despesa salva (para exibir no resumo)
   const [valorDespesaSalva, setValorDespesaSalva] = useState<number>(0);
+  // Débitos vencidos não pagos do cliente (saldo acumulado)
+  const [debitosVencidos, setDebitosVencidos] = useState<number>(0);
   // Estados para Lançamento de Lote
   const [loteModalOpen, setLoteModalOpen] = useState(false);
   const [fotosLote, setFotosLote] = useState<{ id: string; imagem: string; status: 'pendente' | 'processando' | 'concluido' | 'erro'; origem?: 'CÂMERA' | 'GALERIA' | 'LOTE'; resultado?: { codigoMaquina: string; codigoReconhecido: boolean; entrada?: number | null; saida?: number | null; confianca: number; observacoes: string; confiancaOCR?: number }; erro?: string }[]>([]);
@@ -1913,6 +2291,23 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     }
   };
 
+  // Carregar débitos vencidos não pagos do cliente
+  const loadDebitosVencidos = async () => {
+    if (!clienteSelecionado) {
+      setDebitosVencidos(0);
+      return;
+    }
+    try {
+      const hoje = new Date().toISOString().split('T')[0];
+      const res = await fetch(`/api/debitos?empresaId=${empresaId}&clienteId=${clienteSelecionado.id}&paga=false&dataMax=${hoje}`);
+      const data = await res.json();
+      const total = Array.isArray(data) ? data.reduce((sum: number, d: any) => sum + d.valor, 0) : 0;
+      setDebitosVencidos(total);
+    } catch {
+      setDebitosVencidos(0);
+    }
+  };
+
   const handleClienteChange = (clienteId: string) => {
     const cliente = clientes.find((c) => c.id === clienteId);
     setClienteSelecionado(cliente || null);
@@ -1924,8 +2319,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     setValorDespesa('');
     if (clienteId) {
       loadMaquinasCliente(clienteId);
+      loadDebitosVencidos();
     } else {
       setMaquinas([]);
+      setDebitosVencidos(0);
     }
   };
 
@@ -3043,7 +3440,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           const origemStr = origem || '-';
 
           // Medir largura de cada texto para posicionar colunas
-          const cabecalhos = ['Data Hora          ', 'User', 'ENTR', 'SAÍDA', 'Origem'];
+          const cabecalhos = ['Data Hora          ', 'Operador', 'ENTR', 'SAÍDA', 'Origem'];
           const valores = [data, usuarioLimitado, entradaStr, saidaStr, origemStr];
 
           // Medir a largura de cada cabeçalho (com fonte maior) e valor (com fonte normal)
@@ -3131,12 +3528,14 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     }), { entradas: 0, saidas: 0, quantidade: 0 });
 
     const jogado = totais.entradas - totais.saidas;
-    const cliente = jogado / 2;
+    const acertoPct = clienteSelecionado?.acertoPercentual ?? 50;
+    const cliente = jogado * (acertoPct / 100);
+    const debitoSaldo = debitosVencidos;
     const liquido = cliente;
     const recebidoNum = parseFloat(recebido) || 0;
     const saldoAtual = liquido - recebidoNum;
 
-    return { ...totais, jogado, cliente, liquido, recebido: recebidoNum, saldoAtual };
+    return { ...totais, jogado, cliente, debitoSaldo, liquido, recebido: recebidoNum, saldoAtual };
   };
 
   const formatNumber = (num: number, decimals: number = 2): string => {
@@ -3232,6 +3631,29 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       setValorDespesaSalva(valorDespesaNum || 0);
       setResumoModalOpen(true);
       
+      // Marcar débitos vencidos como pagos
+      if (debitosVencidos > 0) {
+        try {
+          const hoje = new Date().toISOString().split('T')[0];
+          const debRes = await fetch(`/api/debitos?empresaId=${empresaId}&clienteId=${clienteSelecionado.id}&paga=false&dataMax=${hoje}`);
+          const debitos = await debRes.json();
+          if (Array.isArray(debitos) && debitos.length > 0) {
+            await Promise.all(
+              debitos.map((d: any) =>
+                fetch(`/api/debitos/${d.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ paga: true }),
+                })
+              )
+            );
+            setDebitosVencidos(0);
+          }
+        } catch {
+          // Falha ao marcar débitos não impede o fluxo
+        }
+      }
+
       if (clienteSelecionado) {
         loadMaquinasCliente(clienteSelecionado.id);
       }
@@ -3257,10 +3679,12 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     }), { entradas: 0, saidas: 0, quantidade: 0 });
 
     const jogado = totais.entradas - totais.saidas;
-    const cliente = jogado / 2;
-    const liquido = cliente + valorDespesaSalva;
+    const acertoPct = clienteSelecionado?.acertoPercentual ?? 50;
+    const cliente = jogado * (acertoPct / 100);
+    const debitoSaldo = debitosVencidos;
+    const liquido = cliente + valorDespesaSalva + debitoSaldo;
 
-    return { ...totais, jogado, cliente, despesa: valorDespesaSalva, liquido };
+    return { ...totais, jogado, cliente, despesa: valorDespesaSalva, debitoSaldo, liquido };
   };
 
   // Gerar mensagem para WhatsApp
@@ -3289,6 +3713,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     mensagem += `Saídas.......: ${formatNumber(totaisSalvos.saidas)}\n`;
     mensagem += `Jogado.......: ${formatNumber(totaisSalvos.jogado)}\n`;
     mensagem += `Cliente......: ${formatNumber(totaisSalvos.cliente)}\n`;
+    mensagem += `Débito(Saldo): ${formatNumber(totaisSalvos.debitoSaldo || 0)}\n`;
     mensagem += `Despesa......: ${formatNumber(totaisSalvos.despesa)}\n`;
     mensagem += `Líquido......: ${formatNumber(totaisSalvos.liquido)}\n`;
     
@@ -3600,20 +4025,24 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
               <h3 className="font-semibold text-foreground mb-3">Resumo</h3>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Entradas:</span>
+                  <span className="text-muted-foreground">Entrada:</span>
                   <span className="text-success">R$ {formatNumber(totais.entradas)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Saídas:</span>
-                  <span className="text-danger">R$ {formatNumber(totais.saidas)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Jogado:</span>
                   <span className="text-foreground">R$ {formatNumber(totais.jogado)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Cliente (50%):</span>
+                  <span className="text-muted-foreground">Saída:</span>
+                  <span className="text-danger">R$ {formatNumber(totais.saidas)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cliente ({clienteSelecionado?.acertoPercentual ?? 50}%):</span>
                   <span className="text-warning">R$ {formatNumber(totais.cliente)}</span>
+                </div>
+                <div className="flex justify-between col-span-2">
+                  <span className="text-muted-foreground">Débito(Saldo):</span>
+                  <span className={debitosVencidos > 0 ? 'text-red-400 font-bold' : 'text-muted-foreground'}>R$ {formatNumber(debitosVencidos)}</span>
                 </div>
               </div>
             </CardContent>
@@ -4235,6 +4664,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   <p>Saídas.......: {formatNumber(calcularTotaisSalvos().saidas)}</p>
                   <p>Jogado.......: {formatNumber(calcularTotaisSalvos().jogado)}</p>
                   <p>Cliente......: {formatNumber(calcularTotaisSalvos().cliente)}</p>
+                  <p>Débito(Saldo): {formatNumber(calcularTotaisSalvos().debitoSaldo || 0)}</p>
                   <p>Despesa......: {formatNumber(calcularTotaisSalvos().despesa)}</p>
                   <p>Líquido......: {formatNumber(calcularTotaisSalvos().liquido)}</p>
                 </div>
@@ -4714,6 +5144,7 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
   const [lancamentos, setLancamentos] = useState<LancamentoRelatorio[]>([]);
   const [loading, setLoading] = useState(false);
   const [gerado, setGerado] = useState(false);
+  const [debitoTotal, setDebitoTotal] = useState<number>(0);
 
   useEffect(() => {
     loadClientes();
@@ -4751,6 +5182,30 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
 
       setLancamentos(data);
       setGerado(true);
+
+      // Buscar débitos vencidos não pagos do cliente
+      if (clienteSelecionado !== 'todos') {
+        try {
+          const hoje = new Date().toISOString().split('T')[0];
+          const debRes = await fetch(`/api/debitos?empresaId=${empresaId}&clienteId=${clienteSelecionado}&paga=false&dataMax=${hoje}`);
+          const debData = await debRes.json();
+          const debTotal = Array.isArray(debData) ? debData.reduce((sum: number, d: any) => sum + d.valor, 0) : 0;
+          setDebitoTotal(debTotal);
+        } catch {
+          setDebitoTotal(0);
+        }
+      } else {
+        // Para "todos os clientes", buscar todos os débitos
+        try {
+          const hoje = new Date().toISOString().split('T')[0];
+          const debRes = await fetch(`/api/debitos?empresaId=${empresaId}&paga=false&dataMax=${hoje}`);
+          const debData = await debRes.json();
+          const debTotal = Array.isArray(debData) ? debData.reduce((sum: number, d: any) => sum + d.valor, 0) : 0;
+          setDebitoTotal(debTotal);
+        } catch {
+          setDebitoTotal(0);
+        }
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erro ao gerar relatório';
       toast.error(message);
@@ -4806,7 +5261,9 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
     
     mensagem += `\n*TOTAIS*\n`;
     mensagem += `Despesas: ${formatCurrency(totais.totalDespesas)}\n`;
+    mensagem += `Débito(Saldo): ${formatCurrency(debitoTotal)}\n`;
     mensagem += `Cobranças: ${formatCurrency(totais.totalSaldo)}\n`;
+    mensagem += `A Cobrar: ${formatCurrency(totais.totalSaldo - totais.totalDespesas + debitoTotal)}\n`;
     
     const mensagemCodificada = encodeURIComponent(mensagem);
     window.open(`https://wa.me/?text=${mensagemCodificada}`, '_blank');
@@ -4872,7 +5329,7 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
           <Card className="border-0 shadow-lg bg-card">
             <CardContent className="p-4">
               <h3 className="font-semibold text-foreground mb-3">Resumo do Período</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-muted-foreground">Total Lançamentos</p>
                   <p className="text-xl font-bold text-foreground">{lancamentos.length}</p>
@@ -4888,9 +5345,13 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
                   <p className="text-xl font-bold text-red-400">{formatCurrency(totais.totalDespesas)}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Líquido</p>
-                  <p className={`text-xl font-bold ${(totais.totalSaldo - totais.totalDespesas) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {formatCurrency(totais.totalSaldo - totais.totalDespesas)}
+                  <p className="text-muted-foreground">Débito(Saldo)</p>
+                  <p className={`text-xl font-bold ${debitoTotal > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{formatCurrency(debitoTotal)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">A Cobrar</p>
+                  <p className={`text-xl font-bold ${(totais.totalSaldo - totais.totalDespesas + debitoTotal) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {formatCurrency(totais.totalSaldo - totais.totalDespesas + debitoTotal)}
                   </p>
                 </div>
               </div>
@@ -4931,6 +5392,15 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
                           </td>
                         </tr>
                       ))}
+                      {/* Linha Débito(Saldo) */}
+                      {debitoTotal > 0 && (
+                        <tr className="border-t border-border bg-orange-500/10 font-medium">
+                          <td className="py-2 px-2 text-orange-400" colSpan={3}>Débito(Saldo)</td>
+                          <td className="py-2 px-2 text-orange-400 text-right font-bold">
+                            {formatCurrency(debitoTotal)}
+                          </td>
+                        </tr>
+                      )}
                       {/* Linha de Totais */}
                       <tr className="border-t-2 border-border bg-muted/50 font-bold">
                         <td className="py-3 px-2 text-foreground" colSpan={2}>TOTAIS</td>
@@ -6115,6 +6585,12 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
         </Button>
       </div>
 
+      {/* Painel Financeiro SaaS */}
+      <div className="pt-4">
+        <Separator className="bg-border mb-6" />
+        <PainelFinanceiroSaaS />
+      </div>
+
       {/* Gestao de Planos SaaS */}
       <div className="pt-4">
         <Separator className="bg-border mb-6" />
@@ -6174,19 +6650,58 @@ function AssinaturaTab() {
   const [tipoDialogOpen, setTipoDialogOpen] = useState(false);
   const [planoSelecionado, setPlanoSelecionado] = useState<PlanoSaaS | null>(null);
   const [planoTipo, setPlanoTipo] = useState<'mensal' | 'anual'>('mensal');
-  const [showMPCheckout, setShowMPCheckout] = useState(false);
+  // Feedback de retorno do MercadoPago
+  const [paymentReturn, setPaymentReturn] = useState<'success' | 'failure' | 'pending' | null>(null);
+  const [paymentChecking, setPaymentChecking] = useState(false);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadStatus();
-    // NAO usar checkPaymentReturn — ele mostrava toast de confirmacao
-    // sem verificar o status real no servidor. O fluxo de pagamento
-    // agora e 100% embutido (Payment Brick), sem redirect de URL.
-    // Limpar params antigos de URL se existirem
+    // Detectar retorno do MercadoPago via URL params
     const params = new URLSearchParams(window.location.search);
-    if (params.get('payment')) {
+    const paymentStatus = params.get('payment');
+    if (paymentStatus === 'success' || paymentStatus === 'failure' || paymentStatus === 'pending') {
+      setPaymentReturn(paymentStatus as 'success' | 'failure' | 'pending');
+      // Limpar params da URL
       window.history.replaceState({}, '', window.location.pathname);
+      // Se aprovado/pendente, iniciar polling para detectar webhook
+      if (paymentStatus === 'success' || paymentStatus === 'pending') {
+        startPolling();
+      }
     }
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
+
+  // Polling: verifica se o webhook ativou a assinatura
+  const startPolling = () => {
+    setPaymentChecking(true);
+    let attempts = 0;
+    const maxAttempts = 20; // 20 x 3s = 60s
+    pollRef.current = setInterval(async () => {
+      attempts++;
+      try {
+        const res = await fetch('/api/assinatura-saas/status', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.assinatura?.status === 'ATIVA') {
+            // Webhook ativou a assinatura!
+            setStatusData(data);
+            setPaymentReturn('success');
+            setPaymentChecking(false);
+            if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+            toast.success('Pagamento confirmado! Assinatura ativada.');
+            return;
+          }
+        }
+      } catch { /* silencioso */ }
+      if (attempts >= maxAttempts) {
+        setPaymentChecking(false);
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      }
+    }, 3000);
+  };
 
 
   const loadStatus = async () => {
@@ -6245,10 +6760,16 @@ function AssinaturaTab() {
 
   const handleCheckout = async () => {
     if (!planoSelecionado) return;
-
-    // Fechar dialog de tipo e abrir checkout embutido
-    setTipoDialogOpen(false);
-    setShowMPCheckout(true);
+    setCheckoutLoading(planoSelecionado.id);
+    const result = await redirectToCheckout({
+      planoSaaSId: planoSelecionado.id,
+      planoTipo,
+    });
+    if (!result.success) {
+      toast.error(result.error || 'Erro ao iniciar pagamento');
+      setCheckoutLoading(null);
+    }
+    // Se sucesso, a pagina vai redirecionar (não precisa fazer mais nada)
   };
 
   const getSuporteLabel = (tipo: string) => {
@@ -6634,16 +7155,63 @@ function AssinaturaTab() {
         )}
       </div>
 
+      {/* Payment Return Banner */}
+      {paymentReturn && (
+        <div className={`rounded-lg border p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300 ${
+          paymentReturn === 'success' ? 'bg-emerald-500/10 border-emerald-500/30' :
+          paymentReturn === 'pending' ? 'bg-amber-500/10 border-amber-500/30' :
+          'bg-red-500/10 border-red-500/30'
+        }`}>
+          {paymentReturn === 'success' && (
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          )}
+          {paymentReturn === 'pending' && (
+            <Clock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          )}
+          {paymentReturn === 'failure' && (
+            <XCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+          )}
+          <div className="flex-1">
+            {paymentReturn === 'success' && (
+              <p className="text-sm font-semibold text-emerald-400">Pagamento confirmado!</p>
+            )}
+            {paymentReturn === 'pending' && (
+              <div>
+                <p className="text-sm font-semibold text-amber-400">
+                  {paymentChecking ? 'Aguardando confirmação...' : 'Pagamento pendente'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {paymentChecking
+                    ? 'Estamos processando seu pagamento. A assinatura será ativada automaticamente.'
+                    : 'O pagamento ainda não foi confirmado. Sua assinatura será ativada quando o pagamento for compensado.'}
+                </p>
+              </div>
+            )}
+            {paymentReturn === 'failure' && (
+              <div>
+                <p className="text-sm font-semibold text-red-400">Pagamento não realizado</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  O pagamento foi cancelado ou recusado. Tente novamente com outro método.
+                </p>
+              </div>
+            )}
+          </div>
+          <button onClick={() => setPaymentReturn(null)} className="text-muted-foreground hover:text-foreground shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Billing Type Dialog */}
-      <Dialog open={tipoDialogOpen} onOpenChange={(open) => { setTipoDialogOpen(open); if (!open) setPlanoSelecionado(null); }}>
+      <Dialog open={tipoDialogOpen} onOpenChange={(open) => { setTipoDialogOpen(open); if (!open) { setPlanoSelecionado(null); setCheckoutLoading(null); } }}>
         <DialogContent className="bg-card border-border text-foreground">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-amber-400" />
-              Escolha o Ciclo de Pagamento
+              Assinar {planoSelecionado?.nome}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Selecione como deseja pagar pelo plano <strong className="text-foreground">{planoSelecionado?.nome}</strong>
+              Escolha o ciclo e será redirecionado ao MercadoPago para finalizar.
             </DialogDescription>
           </DialogHeader>
 
@@ -6711,43 +7279,648 @@ function AssinaturaTab() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTipoDialogOpen(false)} disabled={checkoutLoading !== null}>
+            <Button variant="outline" onClick={() => setTipoDialogOpen(false)} disabled={!!checkoutLoading}>
               Cancelar
             </Button>
             <Button
               className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
               onClick={handleCheckout}
-              disabled={checkoutLoading !== null}
+              disabled={!!checkoutLoading}
             >
               {checkoutLoading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                  Processando...
+                  Redirecionando...
                 </>
               ) : (
                 <>
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Ir para Pagamento
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Pagar no MercadoPago
                 </>
               )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
 
-      {/* Embedded MercadoPago Checkout (Brick) */}
-      {showMPCheckout && planoSelecionado && (
-        <MercadoPagoCheckout
-          planoNome={planoSelecionado.nome}
-          planoTipo={planoTipo}
-          valor={formatCurrency(planoTipo === 'anual' && planoSelecionado.valorAnual ? planoSelecionado.valorAnual : planoSelecionado.valorMensal)}
-          planoSaaSId={planoSelecionado.id}
-          onClose={() => setShowMPCheckout(false)}
-          onSuccess={() => {
-            setShowMPCheckout(false);
-            loadStatus();
+// ============================================
+// DESPESAS PAGE COMPONENT
+// ============================================
+interface Debito {
+  id: string;
+  descricao: string;
+  valor: number;
+  data: string;
+  paga: boolean;
+  dataPagamento?: string;
+  observacoes?: string;
+  empresaId: string;
+  clienteId: string;
+  createdAt: string;
+  updatedAt: string;
+  cliente?: { id: string; nome: string };
+}
+
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; isAdmin: boolean; isSupervisor: boolean }) {
+  const { empresa } = useAuthStore();
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clienteSelecionado, setClienteSelecionado] = useState<string>('');
+  const [debitos, setDebitos] = useState<Debito[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingDebito, setEditingDebito] = useState<Debito | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  // Form state
+  const [formDescricao, setFormDescricao] = useState('');
+  const [formValor, setFormValor] = useState('');
+  const [formData, setFormData] = useState(new Date().toISOString().split('T')[0]);
+  const [formObservacoes, setFormObservacoes] = useState('');
+
+  // Chat IA state
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    loadClientes();
+  }, [empresaId]);
+
+  useEffect(() => {
+    if (clienteSelecionado) {
+      loadDebitos();
+    } else {
+      setDebitos([]);
+      setLoading(false);
+    }
+  }, [clienteSelecionado, empresaId]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  const loadClientes = async () => {
+    try {
+      const res = await fetch(`/api/clientes?empresaId=${empresaId}`);
+      const data = await res.json();
+      setClientes(data.filter((c: Cliente) => !c.bloqueado && c.ativo));
+    } catch (error) {
+      toast.error('Erro ao carregar clientes');
+    }
+  };
+
+  const loadDebitos = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/debitos?empresaId=${empresaId}&clienteId=${clienteSelecionado}`);
+      const data = await res.json();
+      setDebitos(data);
+    } catch (error) {
+      toast.error('Erro ao carregar débitos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormDescricao('');
+    setFormValor('');
+    setFormData(new Date().toISOString().split('T')[0]);
+    setFormObservacoes('');
+    setEditingDebito(null);
+    setShowForm(false);
+  };
+
+  const handleSave = async () => {
+    if (!formDescricao || !formValor || !clienteSelecionado) {
+      toast.error('Preencha descrição, valor e selecione um cliente');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingDebito) {
+        await fetch(`/api/debitos/${editingDebito.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            descricao: formDescricao,
+            valor: formValor,
+            data: formData,
+            observacoes: formObservacoes,
+          }),
+        });
+        toast.success('Débito atualizado!');
+      } else {
+        await fetch('/api/debitos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            descricao: formDescricao,
+            valor: formValor,
+            data: formData,
+            observacoes: formObservacoes,
+            empresaId,
+            clienteId: clienteSelecionado,
+          }),
+        });
+        toast.success('Débito adicionado!');
+      }
+      resetForm();
+      loadDebitos();
+    } catch (error) {
+      toast.error('Erro ao salvar débito');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = (debito: Debito) => {
+    setEditingDebito(debito);
+    setFormDescricao(debito.descricao);
+    setFormValor(debito.valor.toString());
+    setFormData(new Date(debito.data).toISOString().split('T')[0]);
+    setFormObservacoes(debito.observacoes || '');
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir este débito?')) return;
+    try {
+      await fetch(`/api/debitos/${id}`, { method: 'DELETE' });
+      toast.success('Débito removido!');
+      loadDebitos();
+    } catch (error) {
+      toast.error('Erro ao remover débito');
+    }
+  };
+
+  const handleTogglePaga = async (debito: Debito) => {
+    try {
+      await fetch(`/api/debitos/${debito.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paga: !debito.paga }),
+      });
+      toast.success(debito.paga ? 'Débito marcado como pendente' : 'Débito marcado como pago!');
+      loadDebitos();
+    } catch (error) {
+      toast.error('Erro ao atualizar débito');
+    }
+  };
+
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('pt-BR');
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
+  };
+
+  // Totals
+  const totalGeral = debitos.reduce((sum, d) => sum + d.valor, 0);
+  const totalPago = debitos.filter(d => d.paga).reduce((sum, d) => sum + d.valor, 0);
+  const totalPendente = debitos.filter(d => !d.paga).reduce((sum, d) => sum + d.valor, 0);
+
+  // Chat IA functions
+  const sendChatMessage = async (message: string) => {
+    if (!message.trim()) return;
+
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: message,
+      timestamp: new Date(),
+    };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      const res = await fetch('/api/debitos/chat-ia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mensagem: message,
+          empresaId,
+          clienteId: clienteSelecionado || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao comunicar com IA');
+      }
+
+      const aiMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.resposta,
+        timestamp: new Date(),
+      };
+      setChatMessages(prev => [...prev, aiMsg]);
+
+      // Refresh expenses if an action was taken
+      if (data.acao) {
+        loadDebitos();
+      }
+
+      // Voice response
+      speakText(data.resposta);
+    } catch (error: any) {
+      const errorMsg: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: `Erro: ${error.message}`,
+        timestamp: new Date(),
+      };
+      setChatMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const speakText = (text: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    // Stop any ongoing speech
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'pt-BR';
+    utterance.rate = 1.1;
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error('Reconhecimento de voz não suportado neste navegador');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = (event: any) => {
+      setIsListening(false);
+      if (event.error !== 'no-speech') {
+        toast.error('Erro no reconhecimento de voz');
+      }
+    };
+    recognition.onresult = (event: any) => {
+      const text = event.results[0][0].transcript;
+      sendChatMessage(text);
+    };
+
+    recognition.start();
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-foreground">Débitos</h2>
+        <Button
+          onClick={() => {
+            if (!clienteSelecionado) {
+              toast.error('Selecione um cliente primeiro');
+              return;
+            }
+            resetForm();
+            setShowForm(true);
           }}
-        />
+          className="bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Novo Débito
+        </Button>
+      </div>
+
+      {/* Client Selector */}
+      <Card className="border-0 shadow-lg bg-card">
+        <CardContent className="p-4">
+          <Label className="text-muted-foreground">Cliente</Label>
+          <Select value={clienteSelecionado} onValueChange={setClienteSelecionado}>
+            <SelectTrigger className="bg-muted border-border text-foreground mt-1.5">
+              <SelectValue placeholder="Selecione um cliente..." />
+            </SelectTrigger>
+            <SelectContent>
+              {clientes.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {/* Add/Edit Expense Form */}
+      {showForm && (
+        <Card className="border-0 shadow-lg bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg text-foreground">
+              {editingDebito ? 'Editar Débito' : 'Novo Débito'}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Descrição *</Label>
+              <Input
+                value={formDescricao}
+                onChange={(e) => setFormDescricao(e.target.value)}
+                placeholder="Ex: Compra de peças, Manutenção..."
+                className="bg-muted border-border text-foreground"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Valor (R$) *</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formValor}
+                  onChange={(e) => setFormValor(e.target.value)}
+                  placeholder="0,00"
+                  className="bg-muted border-border text-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Data</Label>
+                <Input
+                  type="date"
+                  value={formData}
+                  onChange={(e) => setFormData(e.target.value)}
+                  className="bg-muted border-border text-foreground"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Observações</Label>
+              <Textarea
+                value={formObservacoes}
+                onChange={(e) => setFormObservacoes(e.target.value)}
+                placeholder="Observações opcionais..."
+                className="bg-muted border-border text-foreground min-h-[60px]"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700"
+              >
+                {saving ? 'Salvando...' : editingDebito ? 'Atualizar' : 'Adicionar'}
+              </Button>
+              <Button variant="outline" onClick={resetForm} className="border-border text-muted-foreground">
+                Cancelar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Expenses List */}
+      {!clienteSelecionado ? (
+        <Card className="border-0 shadow-lg bg-card">
+          <CardContent className="py-8 text-center text-muted-foreground">
+            <Receipt className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <p>Selecione um cliente para ver seus débitos</p>
+          </CardContent>
+        </Card>
+      ) : loading ? (
+        <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+      ) : debitos.length === 0 ? (
+        <Card className="border-0 shadow-lg bg-card">
+          <CardContent className="py-8 text-center text-muted-foreground">
+            <Receipt className="w-12 h-12 mx-auto mb-3 opacity-50" />
+            <p>Nenhum débito encontrado</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {debitos.map((debito) => (
+            <Card key={debito.id} className={`border-0 shadow-lg ${
+              debito.paga ? 'bg-card opacity-70' : 'bg-card'
+            }`}>
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    debito.paga ? 'bg-green-600/20' : 'bg-amber-600/20'
+                  }`}>
+                    <Receipt className={`w-5 h-5 ${debito.paga ? 'text-green-400' : 'text-amber-400'}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className={`font-bold text-foreground ${debito.paga ? 'line-through opacity-60' : ''}`}>
+                        {formatCurrency(debito.valor)}
+                      </p>
+                      <Badge variant={debito.paga ? 'default' : 'outline'} className={
+                        debito.paga ? 'bg-green-600 text-white' : 'text-amber-400 border-amber-500/50'
+                      }>
+                        {debito.paga ? 'Paga' : 'Pendente'}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-0.5">{debito.descricao}</p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <CalendarDays className="w-3 h-3" />
+                        {formatDate(debito.data)}
+                      </span>
+                      {debito.dataPagamento && (
+                        <span className="text-green-400">Pago em {formatDate(debito.dataPagamento)}</span>
+                      )}
+                    </div>
+                    {debito.observacoes && (
+                      <p className="text-xs text-muted-foreground mt-1 italic">{debito.observacoes}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => handleTogglePaga(debito)}
+                      className={`p-2 rounded-lg transition-colors ${
+                        debito.paga
+                          ? 'bg-green-600/20 text-green-400 hover:bg-green-600/30'
+                          : 'bg-muted text-muted-foreground hover:bg-amber-600/20 hover:text-amber-400'
+                      }`}
+                      title={debito.paga ? 'Marcar como pendente' : 'Marcar como paga'}
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                    </button>
+                    {(isAdmin || isSupervisor) && (
+                      <>
+                        <button
+                          onClick={() => handleEdit(debito)}
+                          className="p-2 rounded-lg bg-muted text-muted-foreground hover:bg-amber-600/20 hover:text-amber-400 transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(debito.id)}
+                          className="p-2 rounded-lg bg-muted text-muted-foreground hover:bg-red-600/20 hover:text-red-400 transition-colors"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {/* Footer Summary */}
+          <Card className="border-0 shadow-lg bg-gradient-to-r from-amber-500/10 to-orange-600/10">
+            <CardContent className="p-4 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Total Geral:</span>
+                <span className="font-bold text-foreground">{formatCurrency(totalGeral)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-green-400">Total Pago:</span>
+                <span className="font-medium text-green-400">{formatCurrency(totalPago)}</span>
+              </div>
+              <Separator className="bg-border" />
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-amber-400">Total Pendente:</span>
+                <span className="font-bold text-amber-400">{formatCurrency(totalPendente)}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* AI Chat Button */}
+      <button
+        onClick={() => setChatOpen(!chatOpen)}
+        className={`fixed bottom-20 right-4 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${
+          chatOpen
+            ? 'bg-red-500 text-white hover:bg-red-600'
+            : 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700'
+        }`}
+        title="Assistente IA"
+      >
+        {chatOpen ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}
+      </button>
+
+      {/* AI Chat Panel */}
+      {chatOpen && (
+        <Card className="fixed bottom-36 right-4 z-50 w-[calc(100vw-2rem)] sm:w-96 h-[500px] flex flex-col border border-border shadow-2xl bg-background">
+          <CardHeader className="py-3 px-4 border-b border-border flex-shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-sm text-foreground">Assistente IA</CardTitle>
+                <p className="text-xs text-muted-foreground">Controle de débitos por voz ou texto</p>
+              </div>
+              {isSpeaking && (
+                <Volume2 className="w-4 h-4 text-amber-400 ml-auto animate-pulse" />
+              )}
+            </div>
+          </CardHeader>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+            {chatMessages.length === 0 && (
+              <div className="text-center text-muted-foreground text-sm py-8">
+                <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>Olá! Posso ajudar com seus débitos.</p>
+                <p className="text-xs mt-1">Ex: &quot;Adicione um débito de 50 reais&quot;</p>
+              </div>
+            )}
+            {chatMessages.map((msg) => (
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
+                  msg.role === 'user'
+                    ? 'bg-amber-500 text-white border border-amber-400'
+                    : 'bg-muted text-foreground border border-border'
+                }`}>
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-amber-200' : 'text-muted-foreground'}`}>
+                    {msg.timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-muted border border-border rounded-xl px-3 py-2">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 rounded-full bg-muted-foreground animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Input */}
+          <div className="p-3 border-t border-border flex-shrink-0">
+            <div className="flex gap-2 items-center">
+              <button
+                onClick={startListening}
+                disabled={isListening || chatLoading}
+                className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+                  isListening
+                    ? 'bg-red-500 text-white animate-pulse'
+                    : 'bg-muted text-muted-foreground hover:bg-amber-600/20 hover:text-amber-400'
+                }`}
+                title="Falar"
+              >
+                {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              </button>
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendChatMessage(chatInput);
+                  }
+                }}
+                placeholder="Digite seu comando..."
+                disabled={chatLoading}
+                className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-500/50 disabled:opacity-50"
+              />
+              <button
+                onClick={() => sendChatMessage(chatInput)}
+                disabled={chatLoading || !chatInput.trim()}
+                className="p-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 transition-colors flex-shrink-0 disabled:opacity-50"
+                title="Enviar"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </Card>
       )}
     </div>
   );
@@ -6797,7 +7970,7 @@ function PWAInstallBanner() {
     <div className="fixed bottom-0 left-0 right-0 z-[100] bg-gradient-to-r from-[#1e3a5f] to-[#0f172a] border-t border-[#00d4aa]/30 px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom duration-300">
       <img src="/icon-192.png" alt="App" className="w-10 h-10 rounded-lg flex-shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white">Instalar LeiturasOficial</p>
+        <p className="text-sm font-semibold text-white">Instalar Caixa Fácil</p>
         <p className="text-xs text-gray-300">Acesse como app no seu celular</p>
       </div>
       <button
@@ -6917,6 +8090,13 @@ export default function App() {
                     <DollarSign className="w-5 h-5" />
                     <span>Pagamentos</span>
                   </button>
+                  <button
+                    onClick={() => { setActiveTab('debitos'); setMenuOpen(false); }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'debitos' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
+                  >
+                    <Receipt className="w-5 h-5" />
+                    <span>Débitos</span>
+                  </button>
                   {isAdmin && (
                     <button
                       onClick={() => { setActiveTab('usuarios'); setMenuOpen(false); }}
@@ -6995,7 +8175,7 @@ export default function App() {
               </SheetContent>
             </Sheet>
             <div>
-              <h1 className="font-bold text-foreground">Máquinas Gestão</h1>
+              <h1 className="font-bold text-foreground">Caixa Fácil</h1>
               <p className="text-xs text-muted-foreground">EMPRESA: {empresa?.nome}</p>
             </div>
           </div>
@@ -7039,6 +8219,9 @@ export default function App() {
         )}
         {activeTab === 'pagamentos' && (
           <PagamentosPage empresaId={empresa?.id || ''} isSupervisor={isSupervisor} />
+        )}
+        {activeTab === 'debitos' && (
+          <DebitosPage empresaId={empresa?.id || ''} isAdmin={isAdmin} isSupervisor={isSupervisor} />
         )}
         {activeTab === 'usuarios' && (
           <UsuariosPage empresaId={empresa?.id || ''} isAdmin={isAdmin} />

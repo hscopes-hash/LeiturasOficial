@@ -4,6 +4,37 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.25.10.9] - 2026-04-21
+
+v2.25.10.9 - Feat: fluxo de pagamento pratico — 2 cliques ate o MercadoPago (Assinar → Pagar no MercadoPago)
+v2.25.10.9 - Feat: banner de feedback apos retorno do pagamento (success/pending/failure) com polling automatico
+v2.25.10.9 - Feat: polling a cada 3s por 60s para detectar ativacao via webhook apos pagamento
+v2.25.10.9 - Security: webhook agora verifica assinatura HMAC-SHA256 (x-signature) do MercadoPago
+v2.25.10.9 - Fix: webhook usa upsert para pagamentos (protege contra duplicidade de notificacao)
+v2.25.10.9 - Refactor: MercadoPagoCheckout simplificado de 900+ linhas para 60 linhas (helper function)
+v2.25.10.9 - Fix: removido onSuccess callback dead code e showMPCheckout state inutil
+
+## [v2.25.10.8] - 2026-04-21
+
+v2.25.10.8 - Fix definitivo: checkout removido Brick embutido, agora usa redirect direto ao site do MercadoPago
+v2.25.10.8 - O Payment Brick (formulario embutido) nunca funcionou corretamente (SW, Brave, Chrome, SDK)
+v2.25.10.8 - Nova abordagem: cria preferencia via API e redireciona para o checkout hospedado do MP (100% confiavel)
+v2.25.10.8 - Componente simplificado de 900+ linhas para ~260 linhas (sem SDK, sem Brick, sem iframes)
+v2.25.10.8 - Checkout funciona em qualquer navegador (Brave, Chrome, Firefox, Safari, mobile)
+
+## [v2.25.10.7] - 2026-04-21
+
+v2.25.10.7 - Fix critico: Public Key e Access Token agora buscam da empresa do usuario (nao de qualquer empresa)
+v2.25.10.7 - Fix: removido next/script que causava renderizacao de HTML cru na tela
+v2.25.10.7 - Fix: SDK carrega via document.createElement dentro do effect (sem Fragment)
+
+## [v2.25.10.6] - 2026-04-21
+
+v2.25.10.6 - Fix: Brick reescrito — SDK agora carrega via next/script (mais confiavel)
+v2.25.10.6 - Fix: removido rAF complexo, volta ao setTimeout(500ms) simples
+v2.25.10.6 - Fix: validacao de Public Key vazia antes de tentar criar o Brick
+v2.25.10.6 - Fix: logging detalhado no console para debug (preferenceId, publicKey, container)
+
 ## [v2.25.10.5] - 2026-04-20
 
 v2.25.10.5 - Fix: Brave browser detectado — redireciona direto pro checkout externo

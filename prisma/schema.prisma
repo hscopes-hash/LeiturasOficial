@@ -49,6 +49,7 @@ model Empresa {
   tiposMaquina    TipoMaquina[]
   assinaturasSaaS AssinaturaSaaS[]
   pagamentosSaaS  PagamentoSaaS[]
+  debitos         Debito[]
 
   @@map("empresas")
 }
@@ -94,6 +95,7 @@ model Cliente {
   cep             String?
   observacoes     String?
   whatsapp        String?         // Link do grupo WhatsApp para envio de foto de leitura
+  acertoPercentual Int             @default(50)  // Percentual do acerto do cliente (padrão 50%)
   ativo           Boolean         @default(true)
   bloqueado       Boolean         @default(false)
   motivoBloqueio  String?
@@ -106,6 +108,7 @@ model Cliente {
   assinaturas     Assinatura[]
   pagamentos      Pagamento[]
   leituras        Leitura[]
+  debitos         Debito[]
 
   @@map("clientes")
 }
@@ -328,6 +331,45 @@ enum TipoMoeda {
 }
 
 // ============================================
+// WEBHOOK LOG - Registro de todos os requests do webhook
+// ============================================
+model WebhookLog {
+  id          String   @id @default(cuid())
+  metodo      String              // GET, POST
+  url         String              // URL completa
+  headers     String              // JSON com todos os headers
+  body        String?             // Body do request (JSON)
+  query       String?             // Query params
+  statusCode  Int?                // Status code da resposta
+  origem      String   @default("mercadopago")
+  createdAt   DateTime @default(now())
+
+  @@map("webhook_logs")
+}
+
+// ============================================
+// DÉBITO - Débitos dos clientes
+// ============================================
+model Debito {
+  id             String    @id @default(cuid())
+  descricao      String
+  valor          Float
+  data           DateTime  @default(now())
+  paga           Boolean   @default(false)
+  dataPagamento  DateTime?
+  observacoes    String?
+  empresaId      String
+  clienteId      String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  empresa        Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  cliente        Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@map("debitos")
+}
+
+// ============================================
 // PLANO SAAS - Planos de assinatura do SaaS
 // ============================================
 model PlanoSaaS {
@@ -415,6 +457,7 @@ model PagamentoSaaS {
   empresa             Empresa             @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@map("pagamentos_saas")
+  @@unique([mercadoPagoPaymentId])
 }
 
 // ============================================
