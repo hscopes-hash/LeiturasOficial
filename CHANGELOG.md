@@ -4,6 +4,13 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.25.10.31] - 2026-04-24
+
+v2.25.10.31 - Fix: build command removido prisma db push (schema gerenciado pelo sync-schema em runtime)
+v2.25.10.30 - Fix: chat IA cores corrigidas (bolhas visiveis) + parser JSON melhorado (fallback para texto cru)
+v2.25.10.29 - Fix: chat IA bolhas com texto preto sobre fundo escuro (agora branco sobre amber)
+v2.25.10.28 - Refactor: renomeado Despesa para Debito em todo o codebase (Prisma, API, UI)
+
 ## [v2.25.10.9] - 2026-04-21
 
 v2.25.10.9 - Feat: fluxo de pagamento pratico — 2 cliques ate o MercadoPago (Assinar → Pagar no MercadoPago)

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
     "prebuild": "node -e \"const v=require('./src/lib/version'); console.log(''); console.log('⚡ Build Version: ' + v.VERSION_WITH_DATE); console.log('⚡ Version String: ' + v.VERSION_STRING); console.log('');\"",
-    "build": "prisma generate && prisma db push --accept-data-loss && next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
     "db:push": "prisma db push",
