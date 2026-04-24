@@ -1,6 +1,6 @@
 {
-  "name": "LeiturasOficial",
-  "short_name": "Leituras",
+  "name": "Caixa Fácil",
+  "short_name": "CF",
   "description": "Gestão financeira de máquinas de entretenimento",
   "start_url": "/",
   "display": "standalone",

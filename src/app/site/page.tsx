@@ -30,9 +30,9 @@ function Navbar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 text-sm font-bold text-black">
-            LO
+            CF
           </div>
-          <span className="text-lg font-bold text-white">LeiturasOficial</span>
+          <span className="text-lg font-bold text-white">Caixa Fácil</span>
         </div>
 
         <div className="hidden items-center gap-8 md:flex">
@@ -390,7 +390,7 @@ function SocialProof() {
     {
       name: "Carlos Silva",
       role: "Operador de Sinucas - SP",
-      text: "O LeiturasOficial transformou meu controle. Antes eu usava planilha e perdia dados. Agora tenho tudo no celular, em tempo real.",
+      text: "O Caixa Fácil transformou meu controle. Antes eu usava planilha e perdia dados. Agora tenho tudo no celular, em tempo real.",
       rating: 5,
     },
     {
@@ -457,12 +457,12 @@ function SocialProof() {
 /* ────────────────────────────────────────── FAQ ────────────────────────── */
 const faqs = [
   {
-    q: "O LeiturasOficial é gratuito?",
+    q: "O Caixa Fácil é gratuito?",
     a: "Sim! O plano Starter é totalmente gratuito e permite cadastrar até 5 máquinas com todas as funcionalidades básicas. Você pode usar pelo tempo que quiser sem pagar nada. Os planos pagos são para quem precisa de recursos avançados como relatórios detalhados, integração com Mercado Pago e gestão de clientes.",
   },
   {
     q: "Como funciona o pagamento via Mercado Pago?",
-    a: "O LeiturasOficial integra-se nativamente com o Mercado Pago. Seus clientes podem pagar aluguéis e compras diretamente pelo sistema. O pagamento é processado de forma segura e automaticamente registrado no financeiro do seu negócio. Você acompanha tudo em tempo real pelo dashboard.",
+    a: "O Caixa Fácil integra-se nativamente com o Mercado Pago. Seus clientes podem pagar aluguéis e compras diretamente pelo sistema. O pagamento é processado de forma segura e automaticamente registrado no financeiro do seu negócio. Você acompanha tudo em tempo real pelo dashboard.",
   },
   {
     q: "Funciona no celular?",
@@ -583,10 +583,10 @@ function Footer() {
           <div className="md:col-span-1">
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 text-sm font-bold text-black">
-                LO
+                CF
               </div>
               <span className="text-lg font-bold text-white">
-                LeiturasOficial
+                Caixa Fácil
               </span>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-gray-500">
@@ -649,7 +649,7 @@ function Footer() {
               Contato
             </h4>
             <ul className="space-y-3 text-sm text-gray-500">
-              <li>suporte@leiturasoficial.com</li>
+              <li>suporte@caixafacil.app</li>
               <li>WhatsApp: (11) 99999-9999</li>
             </ul>
           </div>
@@ -657,7 +657,7 @@ function Footer() {
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-gray-800/50 pt-8 md:flex-row">
           <p className="text-xs text-gray-600">
-            &copy; {new Date().getFullYear()} LeiturasOficial. Todos os direitos
+            &copy; {new Date().getFullYear()} Caixa Fácil. Todos os direitos
             reservados.
           </p>
           <p className="text-xs text-gray-600">

@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     // Montar payload do pagamento
     const paymentPayload: Record<string, any> = {
       transaction_amount: parseFloat(transactionAmount),
-      description: description || `LeiturasOficial - Plano ${plano.nome}`,
+      description: description || `Caixa Fácil - Plano ${plano.nome}`,
       payment_method_id: paymentMethodId,
       payer: {
         email: payer?.email || empresa.email || '',
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         plano_tipo: planoTipo || 'mensal',
         empresa_nome: empresa.nome,
       },
-      statement_descriptor: 'LEITURASOFICIAL',
+      statement_descriptor: 'CAIXAFACIL',
     };
 
     // Para cartao, incluir token e parcelas

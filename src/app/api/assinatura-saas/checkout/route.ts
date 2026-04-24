@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       items: [
         {
           id: plano.id,
-          title: `LeiturasOficial - Plano ${plano.nome} (${planoTipo === 'anual' ? 'Anual' : 'Mensal'})`,
+          title: `Caixa Fácil - Plano ${plano.nome} (${planoTipo === 'anual' ? 'Anual' : 'Mensal'})`,
           description: plano.descricao || `Plano ${plano.nome}`,
           quantity: 1,
           unit_price: parseFloat(valor.toFixed(2)),
@@ -67,9 +67,9 @@ export async function POST(request: NextRequest) {
         name: empresa.nome,
       },
       back_urls: {
-        success: `${process.env.NEXT_PUBLIC_APP_URL || 'https://leiturasoficial.vercel.app'}/?payment=success`,
-        failure: `${process.env.NEXT_PUBLIC_APP_URL || 'https://leiturasoficial.vercel.app'}/?payment=failure`,
-        pending: `${process.env.NEXT_PUBLIC_APP_URL || 'https://leiturasoficial.vercel.app'}/?payment=pending`,
+        success: `${process.env.NEXT_PUBLIC_APP_URL || 'https://caixafacil.vercel.app'}/?payment=success`,
+        failure: `${process.env.NEXT_PUBLIC_APP_URL || 'https://caixafacil.vercel.app'}/?payment=failure`,
+        pending: `${process.env.NEXT_PUBLIC_APP_URL || 'https://caixafacil.vercel.app'}/?payment=pending`,
       },
       auto_return: 'approved',
       external_reference: `${user.empresaId}|${plano.id}|${planoTipo}`,

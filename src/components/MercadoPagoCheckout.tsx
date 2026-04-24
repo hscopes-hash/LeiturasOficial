@@ -423,7 +423,7 @@ export default function MercadoPagoCheckout({
                       paymentMethodId: formData.paymentMethodId,
                       transactionAmount: formData.transactionAmount,
                       installments: formData.installments,
-                      description: `LeiturasOficial - ${planoNome} (${planoTipo})`,
+                      description: `Caixa Fácil - ${planoNome} (${planoTipo})`,
                       payer: {
                         email: formData.payer?.email || '',
                         identification: formData.payer?.identification || {},

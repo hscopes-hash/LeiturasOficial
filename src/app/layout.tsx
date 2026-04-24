@@ -17,26 +17,26 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LeiturasOficial - Gestão de Máquinas",
+  title: "Caixa Fácil - Gestão de Máquinas",
   description: "Sistema de gestão financeira de máquinas de entretenimento. Micro SaaS para controle de leituras, máquinas e clientes.",
-  keywords: ["LeiturasOficial", "máquinas", "entretenimento", "gestão", "leituras", "música", "sinuca"],
-  authors: [{ name: "LeiturasOficial" }],
+  keywords: ["Caixa Fácil", "caixafacil", "máquinas", "entretenimento", "gestão", "leituras", "música", "sinuca"],
+  authors: [{ name: "Caixa Fácil" }],
   icons: {
     icon: "/logo.svg",
     apple: "/icon-192.png",
   },
   manifest: "/manifest.json",
   openGraph: {
-    title: "LeiturasOficial",
+    title: "Caixa Fácil",
     description: "Sistema de gestão de máquinas de entretenimento",
-    siteName: "LeiturasOficial",
+    siteName: "Caixa Fácil",
     type: "website",
   },
   other: {
     "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
-    "apple-mobile-web-app-title": "Leituras",
+    "apple-mobile-web-app-title": "Caixa Fácil",
     "theme-color": "#1e3a5f",
     "msapplication-TileColor": "#1e3a5f",
   },
