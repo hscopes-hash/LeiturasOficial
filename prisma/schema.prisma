@@ -117,18 +117,21 @@ model Cliente {
 // TIPO DE MÁQUINA - Cadastro de tipos de máquina
 // ============================================
 model TipoMaquina {
-  id            String    @id @default(cuid())
-  descricao     String
-  nomeEntrada   String    @default("E")
-  nomeSaida     String    @default("S")
-  ativo         Boolean   @default(true)
-  classe        Int       @default(0) // 0=primária, 1=secundária
-  empresaId     String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id               String   @id @default(cuid())
+  descricao        String
+  nomeEntrada      String   @default("E")
+  nomeSaida        String   @default("S")
+  ativo            Boolean  @default(true)
+  classe           Int      @default(0) // 0=primária, 1=secundária
+  imagemReferencia String?  // URL da imagem de referência para câmera
+  roiEntrada       Json?    // { x, y, w, h } em % (0-100) — região de interesse da entrada
+  roiSaida         Json?    // { x, y, w, h } em % (0-100) — região de interesse da saída
+  empresaId        String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  empresa       Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  maquinas      Maquina[]
+  empresa          Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  maquinas         Maquina[]
 
   @@unique([descricao, empresaId])
   @@map("tipos_maquina")

@@ -43,7 +43,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { descricao, nomeEntrada, nomeSaida, ativo, classe } = body;
+    const { descricao, nomeEntrada, nomeSaida, ativo, classe, imagemReferencia, roiEntrada, roiSaida } = body;
 
     const tipo = await db.tipoMaquina.update({
       where: { id },
@@ -53,6 +53,9 @@ export async function PUT(
         nomeSaida,
         ativo,
         classe: classe ?? 0,
+        ...(imagemReferencia !== undefined && { imagemReferencia: imagemReferencia || null }),
+        ...(roiEntrada !== undefined && { roiEntrada }),
+        ...(roiSaida !== undefined && { roiSaida }),
       },
     });
 
