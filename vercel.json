@@ -1,5 +1,5 @@
 {
-  "buildCommand": "node scripts/increment-version.mjs && prisma generate && next build && node -e \"const fs=require('fs'),c=fs.readFileSync('src/lib/version.ts','utf8'),m=c.match(/VERSION_DISPLAY\\s*=\\s*'(.*?)'/);console.log('');console.log('=============================');console.log('  BUILD OK | '+m[1]+' ('+new Date().toISOString().slice(0,10)+')');console.log('=============================');console.log('')\"",
+  "buildCommand": "node scripts/increment-version.mjs && prisma generate && next build && node scripts/print-version.mjs",
   "installCommand": "npm install --legacy-peer-deps",
   "framework": "nextjs",
   "regions": ["gru1"],
