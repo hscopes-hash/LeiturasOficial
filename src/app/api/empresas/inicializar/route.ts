@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { seedTiposMaquina } from '@/lib/seed-tipos';
 
 const SUPER_ADMIN_EMAIL = 'hscopes@gmail.com';
 
@@ -50,23 +51,10 @@ export async function POST(request: NextRequest) {
 
     const resultados: string[] = [];
 
-    // Criar tipos de máquina padrão se não existirem
-    if (empresa.tiposMaquina.length === 0) {
-      const tiposPadrao = [
-        { descricao: 'Música', nomeEntrada: 'E', nomeSaida: 'S' },
-        { descricao: 'Sinuca', nomeEntrada: 'E', nomeSaida: 'S' },
-        { descricao: 'Urso', nomeEntrada: 'E', nomeSaida: 'S' },
-        { descricao: 'Jogo', nomeEntrada: 'E', nomeSaida: 'S' },
-        { descricao: 'Prancha', nomeEntrada: 'E', nomeSaida: 'S' },
-      ];
-
-      await db.tipoMaquina.createMany({
-        data: tiposPadrao.map((tipo) => ({
-          ...tipo,
-          empresaId: empresa.id,
-        })),
-      });
-      resultados.push('5 tipos de máquina criados');
+    // Criar tipos de máquina padrão
+    const tiposCriados = await seedTiposMaquina(empresaId);
+    if (tiposCriados > 0) {
+      resultados.push(`${tiposCriados} tipos de máquina criados`);
     } else {
       resultados.push(`${empresa.tiposMaquina.length} tipos de máquina já existem`);
     }

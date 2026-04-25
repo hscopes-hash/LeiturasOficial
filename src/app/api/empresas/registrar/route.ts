@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { seedTiposMaquina } from '@/lib/seed-tipos';
 
 // Função para hash de senha
 async function hashSenha(senha: string): Promise<string> {
@@ -72,6 +73,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Popular tipos de máquina padrão
+    const tiposCriados = await seedTiposMaquina(novaEmpresa.id);
+
     // Gerar token
     const token = Buffer.from(`${novoUsuario.id}:${Date.now()}`).toString('base64');
 
@@ -81,6 +85,7 @@ export async function POST(request: NextRequest) {
       usuario: usuarioSemSenha,
       empresa: novaEmpresa,
       token,
+      tiposCriados,
     });
   } catch (error) {
     console.error('Erro ao registrar empresa:', error);
