@@ -1,22 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
-// Garantir que a coluna classe existe (auto-migração)
-async function ensureClasseColumn() {
+// Garantir que todas as colunas extras existem (auto-migração)
+async function ensureColumns() {
   try {
     await db.$executeRawUnsafe(`
       ALTER TABLE tipos_maquina ADD COLUMN IF NOT EXISTS classe INTEGER DEFAULT 0
     `);
-  } catch (e) {
-    // Coluna já existe ou tabela não existe, ignorar
-  }
+  } catch (e) { /* ignorar */ }
+  try {
+    await db.$executeRawUnsafe(`ALTER TABLE tipos_maquina ADD COLUMN IF NOT EXISTS "imagemReferencia" TEXT`);
+  } catch (e) { /* ignorar */ }
+  try {
+    await db.$executeRawUnsafe(`ALTER TABLE tipos_maquina ADD COLUMN IF NOT EXISTS "roiEntrada" JSONB`);
+  } catch (e) { /* ignorar */ }
+  try {
+    await db.$executeRawUnsafe(`ALTER TABLE tipos_maquina ADD COLUMN IF NOT EXISTS "roiSaida" JSONB`);
+  } catch (e) { /* ignorar */ }
 }
 
 // Listar tipos de máquina
 export async function GET(request: NextRequest) {
   try {
-    // Auto-migrar coluna classe antes de consultar
-    await ensureClasseColumn();
+    // Auto-migrar colunas antes de consultar
+    await ensureColumns();
 
     const { searchParams } = new URL(request.url);
     const empresaId = searchParams.get('empresaId');
@@ -57,6 +64,9 @@ export async function GET(request: NextRequest) {
 // Criar novo tipo de máquina
 export async function POST(request: NextRequest) {
   try {
+    // Auto-migrar colunas antes de criar
+    await ensureColumns();
+
     const body = await request.json();
     const { descricao, nomeEntrada, nomeSaida, empresaId, classe, imagemReferencia, roiEntrada, roiSaida } = body;
 

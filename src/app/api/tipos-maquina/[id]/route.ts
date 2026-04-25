@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// Garantir que todas as colunas extras existem (auto-migração)
+async function ensureColumns() {
+  try {
+    await db.$executeRawUnsafe(`ALTER TABLE tipos_maquina ADD COLUMN IF NOT EXISTS classe INTEGER DEFAULT 0`);
+  } catch (e) { /* ignorar */ }
+  try {
+    await db.$executeRawUnsafe(`ALTER TABLE tipos_maquina ADD COLUMN IF NOT EXISTS "imagemReferencia" TEXT`);
+  } catch (e) { /* ignorar */ }
+  try {
+    await db.$executeRawUnsafe(`ALTER TABLE tipos_maquina ADD COLUMN IF NOT EXISTS "roiEntrada" JSONB`);
+  } catch (e) { /* ignorar */ }
+  try {
+    await db.$executeRawUnsafe(`ALTER TABLE tipos_maquina ADD COLUMN IF NOT EXISTS "roiSaida" JSONB`);
+  } catch (e) { /* ignorar */ }
+}
+
 // Buscar tipo de máquina por ID
 export async function GET(
   request: NextRequest,
@@ -41,6 +57,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureColumns();
     const { id } = await params;
     const body = await request.json();
     const { descricao, nomeEntrada, nomeSaida, ativo, classe, imagemReferencia, roiEntrada, roiSaida } = body;
