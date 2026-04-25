@@ -104,6 +104,15 @@ export async function GET() {
       )
     `);
 
+    // Adicionar coluna classe se não existir (0=primária, 1=secundária)
+    try {
+      await db.$executeRawUnsafe(`
+        ALTER TABLE tipos_maquina ADD COLUMN IF NOT EXISTS classe INTEGER DEFAULT 0
+      `);
+    } catch (e) {
+      // Coluna já existe, ignorar
+    }
+
     // Criar tabela maquinas
     await db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS maquinas (

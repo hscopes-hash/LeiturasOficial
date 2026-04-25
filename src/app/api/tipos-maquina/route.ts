@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// Garantir que a coluna classe existe (auto-migração)
+async function ensureClasseColumn() {
+  try {
+    await db.$executeRawUnsafe(`
+      ALTER TABLE tipos_maquina ADD COLUMN IF NOT EXISTS classe INTEGER DEFAULT 0
+    `);
+  } catch (e) {
+    // Coluna já existe ou tabela não existe, ignorar
+  }
+}
+
 // Listar tipos de máquina
 export async function GET(request: NextRequest) {
   try {
+    // Auto-migrar coluna classe antes de consultar
+    await ensureClasseColumn();
+
     const { searchParams } = new URL(request.url);
     const empresaId = searchParams.get('empresaId');
     const ativo = searchParams.get('ativo');

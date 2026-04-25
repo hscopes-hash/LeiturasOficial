@@ -4730,10 +4730,16 @@ function TiposMaquinaPage({ empresaId, isAdmin }: { empresaId: string; isAdmin: 
     setLoading(true);
     try {
       const res = await fetch(`/api/tipos-maquina?empresaId=${empresaId}`);
+      if (!res.ok) {
+        toast.error('Erro ao carregar tipos de máquina');
+        setTipos([]);
+        return;
+      }
       const data = await res.json();
-      setTipos(data);
+      setTipos(Array.isArray(data) ? data : []);
     } catch (error) {
       toast.error('Erro ao carregar tipos de máquina');
+      setTipos([]);
     } finally {
       setLoading(false);
     }
