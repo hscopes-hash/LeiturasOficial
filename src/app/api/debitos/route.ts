@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (clienteId) {
       where.clienteId = clienteId;
     } else {
-      where.cliente = { empresaId };
+      where.cliente = { empresaId: empresaId };
     }
 
     // Filter by paga (boolean string)

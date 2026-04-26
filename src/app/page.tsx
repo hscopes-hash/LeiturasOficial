@@ -7480,8 +7480,14 @@ function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; 
   };
 
   const handleSave = async () => {
-    if (!formDescricao || !formValor || !clienteSelecionado) {
+    if (!formDescricao.trim() || !formValor || !clienteSelecionado) {
       toast.error('Preencha descrição, valor e selecione um cliente');
+      return;
+    }
+
+    const valorNum = parseFloat(String(formValor).replace(',', '.'));
+    if (isNaN(valorNum) || valorNum <= 0) {
+      toast.error('Valor inválido');
       return;
     }
 
@@ -7492,10 +7498,10 @@ function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; 
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            descricao: formDescricao,
-            valor: formValor,
+            descricao: formDescricao.trim(),
+            valor: valorNum,
             data: formData,
-            observacoes: formObservacoes,
+            observacoes: formObservacoes.trim() || null,
           }),
         });
         if (!res.ok) {
@@ -7509,10 +7515,10 @@ function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            descricao: formDescricao,
-            valor: formValor,
+            descricao: formDescricao.trim(),
+            valor: valorNum,
             data: formData,
-            observacoes: formObservacoes,
+            observacoes: formObservacoes.trim() || null,
             empresaId,
             clienteId: clienteSelecionado,
           }),
@@ -7528,6 +7534,7 @@ function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; 
       setShowForm(false);
       loadDebitos();
     } catch (error) {
+      console.error('Erro ao salvar débito:', error);
       toast.error('Erro ao salvar débito');
     } finally {
       setSaving(false);
