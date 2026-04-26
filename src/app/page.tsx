@@ -7454,10 +7454,17 @@ function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; 
     setLoading(true);
     try {
       const res = await fetch(`/api/debitos?empresaId=${empresaId}&clienteId=${clienteSelecionado}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        toast.error(errData.error || 'Erro ao carregar débitos');
+        setDebitos([]);
+        return;
+      }
       const data = await res.json();
-      setDebitos(data);
+      setDebitos(Array.isArray(data) ? data : []);
     } catch (error) {
       toast.error('Erro ao carregar débitos');
+      setDebitos([]);
     } finally {
       setLoading(false);
     }
@@ -7481,7 +7488,7 @@ function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; 
     setSaving(true);
     try {
       if (editingDebito) {
-        await fetch(`/api/debitos/${editingDebito.id}`, {
+        const res = await fetch(`/api/debitos/${editingDebito.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -7491,9 +7498,14 @@ function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; 
             observacoes: formObservacoes,
           }),
         });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          toast.error(errData.error || 'Erro ao atualizar débito');
+          return;
+        }
         toast.success('Débito atualizado!');
       } else {
-        await fetch('/api/debitos', {
+        const res = await fetch('/api/debitos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -7505,9 +7517,15 @@ function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; 
             clienteId: clienteSelecionado,
           }),
         });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          toast.error(errData.error || 'Erro ao adicionar débito');
+          return;
+        }
         toast.success('Débito adicionado!');
       }
       resetForm();
+      setShowForm(false);
       loadDebitos();
     } catch (error) {
       toast.error('Erro ao salvar débito');
