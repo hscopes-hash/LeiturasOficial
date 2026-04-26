@@ -2741,6 +2741,38 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   // ============================================
   // LANCAMENTO DE LOTE
   // ============================================
+
+  // Função helper para processar arquivo de imagem e adicionar ao lote
+  const processarArquivoImagem = (file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1280;
+        let w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.round((h / w) * maxDim); w = maxDim; }
+          else { w = Math.round((w / h) * maxDim); h = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const base64 = canvas.toDataURL('image/jpeg', 0.75);
+          setFotosLote(prev => [...prev, {
+            id: `lote_${++loteIdCounter.current}_${Date.now()}`,
+            imagem: base64,
+            status: 'pendente',
+            origem: 'LOTE',
+          }]);
+        }
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const processarLote = async () => {
     if (fotosLote.length === 0) return;
 
@@ -4113,54 +4145,50 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
               </DialogHeader>
 
               <div className="space-y-4">
-                {/* Botao Tirar Foto */}
+                {/* Botoes Tirar Foto / Galeria */}
                 {!processandoLote && (
-                  <label className="cursor-pointer block">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (!file) return;
-                        event.target.value = '';
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          const img = new Image();
-                          img.onload = () => {
-                            const maxDim = 1280;
-                            let w = img.width, h = img.height;
-                            if (w > maxDim || h > maxDim) {
-                              if (w > h) { h = Math.round((h / w) * maxDim); w = maxDim; }
-                              else { w = Math.round((w / h) * maxDim); h = maxDim; }
-                            }
-                            const canvas = document.createElement('canvas');
-                            canvas.width = w; canvas.height = h;
-                            const ctx = canvas.getContext('2d');
-                            if (ctx) {
-                              ctx.drawImage(img, 0, 0, w, h);
-                              const base64 = canvas.toDataURL('image/jpeg', 0.75);
-                              setFotosLote(prev => [...prev, {
-                                id: `lote_${++loteIdCounter.current}_${Date.now()}`,
-                                imagem: base64,
-                                status: 'pendente',
-                                origem: 'LOTE',
-                              }]);
-                            }
-                          };
-                          img.src = reader.result as string;
-                        };
-                        reader.readAsDataURL(file);
-                      }}
-                    />
-                    <Button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600" asChild>
-                      <span>
-                        <Camera className="w-4 h-4 mr-2" />
-                        TIRAR FOTO
-                      </span>
-                    </Button>
-                  </label>
+                  <div className="flex gap-2">
+                    <label className="cursor-pointer flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          event.target.value = '';
+                          processarArquivoImagem(file);
+                        }}
+                      />
+                      <Button className="w-full bg-gradient-to-r from-indigo-500 to-purple-600" asChild>
+                        <span>
+                          <Camera className="w-4 h-4 mr-2" />
+                          CÂMERA
+                        </span>
+                      </Button>
+                    </label>
+                    <label className="cursor-pointer flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(event) => {
+                          const files = event.target.files;
+                          if (!files || files.length === 0) return;
+                          event.target.value = '';
+                          Array.from(files).forEach(file => processarArquivoImagem(file));
+                        }}
+                      />
+                      <Button className="w-full bg-gradient-to-r from-emerald-500 to-teal-600" asChild>
+                        <span>
+                          <ImageIcon className="w-4 h-4 mr-2" />
+                          GALERIA
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
                 )}
 
                 {/* Lista de fotos enfileiradas */}
