@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { generateZhipuToken, getApiKeyForModel, detectProvider } from '@/lib/zhipu-auth';
 
 interface LLMAction {
   acao: string;
@@ -81,19 +82,21 @@ export async function POST(request: NextRequest) {
       debitosContext = '';
     }
 
-    // Buscar configurações de IA da empresa
-    let llmApiKey = process.env.LLM_API_KEY || '';
-    let llmModel = process.env.LLM_MODEL || 'glm-4-flash';
+    // Buscar configurações de IA da empresa (CONFIG SAAS)
+    let llmApiKey = '';
+    let llmModel = 'gemini-2.5-flash-lite';
 
     try {
       const empresa = await db.empresa.findUnique({
         where: { id: empresaId },
-        select: { llmApiKey: true, llmModel: true },
+        select: { llmApiKey: true, llmModel: true, llmApiKeyGemini: true, llmApiKeyGlm: true, llmApiKeyOpenrouter: true },
       });
-      if (empresa?.llmApiKey) llmApiKey = empresa.llmApiKey;
-      if (empresa?.llmModel) llmModel = empresa.llmModel;
+      if (empresa) {
+        llmModel = empresa.llmModel?.trim() || llmModel;
+        llmApiKey = getApiKeyForModel(llmModel, empresa.llmApiKey, empresa.llmApiKeyGemini, empresa.llmApiKeyGlm, empresa.llmApiKeyOpenrouter) || '';
+      }
     } catch {
-      // Usa valores padrão do env
+      // Usa valores padrão
     }
 
     if (!llmApiKey) {
@@ -119,35 +122,75 @@ Responda com JSON no formato:
 Se a pergunta for apenas informativa, responda normalmente sem ação.
 ${debitosContext}`;
 
-    // Chamar LLM
-    const llmResponse = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${llmApiKey}`,
-      },
-      body: JSON.stringify({
-        model: llmModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: mensagem },
-        ],
-        temperature: 0.3,
-        max_tokens: 1024,
-      }),
-    });
+    // Detectar provider e chamar LLM correto (CONFIG SAAS)
+    const provider = detectProvider(llmModel);
+    let llmResponse: Response;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      if (provider === 'glm') {
+        let authToken: string;
+        try { authToken = generateZhipuToken(llmApiKey); }
+        catch { return NextResponse.json({ error: 'API Key Zhipu AI inválida. O formato deve ser {id}.{secret}.' }, { status: 400 }); }
+        llmResponse = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+          body: JSON.stringify({ model: llmModel, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: mensagem }], temperature: 0.3, max_tokens: 1024 }),
+        });
+      } else if (provider === 'openrouter') {
+        llmResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${llmApiKey}` },
+          body: JSON.stringify({ model: llmModel, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: mensagem }], temperature: 0.3, max_tokens: 1024 }),
+        });
+      } else {
+        llmResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${llmModel}:generateContent?key=${llmApiKey}`,
+          {
+            method: 'POST',
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                { role: 'user', parts: [{ text: systemPrompt }] },
+                { role: 'model', parts: [{ text: 'Entendido, sou o assistente de gestão de débitos.' }] },
+                { role: 'user', parts: [{ text: mensagem }] },
+              ],
+              generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+            }),
+          }
+        );
+      }
+    } catch (fetchErr: unknown) {
+      clearTimeout(timeoutId);
+      const errMsg = fetchErr instanceof Error ? fetchErr.message : 'Erro desconhecido';
+      if (errMsg.includes('abort') || errMsg.includes('timeout')) {
+        return NextResponse.json({ error: 'Tempo esgotado ao comunicar com IA. Tente novamente.' }, { status: 504 });
+      }
+      throw fetchErr;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!llmResponse.ok) {
       const errText = await llmResponse.text();
-      console.error('Erro LLM:', errText);
-      return NextResponse.json(
-        { error: 'Erro ao comunicar com IA' },
-        { status: 502 }
-      );
+      console.error('Erro LLM:', llmResponse.status, errText.substring(0, 300));
+      return NextResponse.json({ error: 'Erro ao comunicar com IA', detalhe: errText.substring(0, 200) }, { status: 502 });
     }
 
     const llmData = await llmResponse.json();
-    const llmMessage = llmData.choices?.[0]?.message?.content || '';
+
+    // Extrair mensagem baseado no provider
+    let llmMessage = '';
+    if (provider === 'gemini') {
+      llmMessage = llmData?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    } else {
+      llmMessage = llmData?.choices?.[0]?.message?.content || '';
+    }
 
     // Parsear ação da resposta
     const parsed = parseActionFromResponse(llmMessage);

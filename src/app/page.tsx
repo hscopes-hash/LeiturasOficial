@@ -7625,7 +7625,7 @@ function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; 
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.resposta,
+        content: data.text,
         timestamp: new Date(),
       };
       setChatMessages(prev => [...prev, aiMsg]);
@@ -7636,7 +7636,7 @@ function DebitosPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string; 
       }
 
       // Voice response
-      speakText(data.resposta);
+      speakText(data.text);
     } catch (error: any) {
       const errorMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),

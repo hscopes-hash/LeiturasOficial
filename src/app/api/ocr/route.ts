@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import ZAI from 'z-ai-web-dev-sdk';
+import { PrismaClient } from '@prisma/client';
+import { generateZhipuToken, getApiKeyForModel, detectProvider } from '@/lib/zhipu-auth';
+
+const prisma = new PrismaClient();
 
 const SYSTEM_PROMPT = `Você é OCR de displays eletrônicos de máquinas de arcade.
 Receberá 2 imagens recortadas de uma câmera apontando para um display.
@@ -12,49 +15,140 @@ Regras:
 - Se não conseguir ler um dos valores, coloque "" (vazio)
 - NÃO retorne nada além do JSON, sem explicação`;
 
+function extractContent(data: any, provider: string): string | null {
+  if (provider === 'glm' || provider === 'openrouter') {
+    return data?.choices?.[0]?.message?.content || null;
+  }
+  return data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { imageBase64Entrada, imageBase64Saida, nomeEntrada, nomeSaida } = await req.json();
+    const { imageBase64Entrada, imageBase64Saida, nomeEntrada, nomeSaida, empresaId } = await req.json();
 
     if (!imageBase64Entrada && !imageBase64Saida) {
       return NextResponse.json({ error: 'Pelo menos uma imagem é obrigatória' }, { status: 400 });
     }
 
-    const zai = await ZAI.create();
+    // Buscar configurações de IA da empresa (CONFIG SAAS)
+    let llmApiKey = '';
+    let llmModel = 'gemini-2.5-flash-lite';
 
-    // Montar conteúdo com as imagens disponíveis
-    const imageContent: { type: string; text?: string; image_url?: { url: string } }[] = [];
-
-    imageContent.push({
-      type: 'text',
-      text: `Imagem 1 (${nomeEntrada || 'Entrada'}): extraia o número visível no display${imageBase64Saida ? `\nImagem 2 (${nomeSaida || 'Saída'}): extraia o número visível no display` : ''}
-Responda no formato: {"entrada":"NNNN","saida":"NNNN"}`,
-    });
-
-    if (imageBase64Entrada) {
-      imageContent.push({
-        type: 'image_url',
-        image_url: { url: `data:image/jpeg;base64,${imageBase64Entrada}` },
+    try {
+      const empresa = await prisma.empresa.findUnique({
+        where: { id: empresaId },
+        select: { llmApiKey: true, llmModel: true, llmApiKeyGemini: true, llmApiKeyGlm: true, llmApiKeyOpenrouter: true },
       });
+      if (empresa) {
+        llmModel = empresa.llmModel?.trim() || llmModel;
+        llmApiKey = getApiKeyForModel(llmModel, empresa.llmApiKey, empresa.llmApiKeyGemini, empresa.llmApiKeyGlm, empresa.llmApiKeyOpenrouter) || '';
+      }
+    } catch {
+      // Usa valores padrão
     }
 
-    if (imageBase64Saida) {
-      imageContent.push({
-        type: 'image_url',
-        image_url: { url: `data:image/jpeg;base64,${imageBase64Saida}` },
-      });
+    if (!llmApiKey) {
+      return NextResponse.json(
+        { error: 'API Key de IA não configurada. Configure nas Config. SaaS do sistema.' },
+        { status: 400 }
+      );
     }
 
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: imageContent as any },
-      ],
-      max_tokens: 30,
-      temperature: 0,
-    });
+    // Detectar provider e montar requisição (CONFIG SAAS)
+    const provider = detectProvider(llmModel);
 
-    const texto = completion.choices[0]?.message?.content?.trim() || '{}';
+    const textPrompt = `Imagem 1 (${nomeEntrada || 'Entrada'}): extraia o número visível no display${imageBase64Saida ? `\nImagem 2 (${nomeSaida || 'Saída'}): extraia o número visível no display` : ''}
+Responda no formato: {"entrada":"NNNN","saida":"NNNN"}`;
+
+    let response: Response;
+
+    if (provider === 'glm') {
+      const authToken = generateZhipuToken(llmApiKey);
+      const imageContent: { type: string; text?: string; image_url?: { url: string } }[] = [
+        { type: 'text', text: textPrompt },
+      ];
+      if (imageBase64Entrada) {
+        imageContent.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64Entrada}` } });
+      }
+      if (imageBase64Saida) {
+        imageContent.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64Saida}` } });
+      }
+
+      response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          model: llmModel,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: imageContent as any },
+          ],
+          max_tokens: 30,
+          temperature: 0,
+        }),
+      });
+    } else if (provider === 'openrouter') {
+      const imageContent: { type: string; text?: string; image_url?: { url: string } }[] = [
+        { type: 'text', text: textPrompt },
+      ];
+      if (imageBase64Entrada) {
+        imageContent.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64Entrada}` } });
+      }
+      if (imageBase64Saida) {
+        imageContent.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${imageBase64Saida}` } });
+      }
+
+      response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${llmApiKey}`,
+        },
+        body: JSON.stringify({
+          model: llmModel,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: imageContent as any },
+          ],
+          max_tokens: 30,
+          temperature: 0,
+        }),
+      });
+    } else {
+      // Gemini
+      const parts: any[] = [{ text: SYSTEM_PROMPT + '\n\n' + textPrompt }];
+      if (imageBase64Entrada) {
+        parts.push({ inline_data: { mime_type: 'image/jpeg', data: imageBase64Entrada } });
+      }
+      if (imageBase64Saida) {
+        parts.push({ inline_data: { mime_type: 'image/jpeg', data: imageBase64Saida } });
+      }
+
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${llmModel}:generateContent?key=${llmApiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts }],
+            generationConfig: { temperature: 0, maxOutputTokens: 30 },
+          }),
+        }
+      );
+    }
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      console.error('Erro OCR:', response.status, responseText.substring(0, 300));
+      return NextResponse.json({ entrada: '', saida: '' }, { status: 500 });
+    }
+
+    const data = JSON.parse(responseText);
+    const texto = extractContent(data, provider)?.trim() || '{}';
 
     // Extrair JSON da resposta
     const match = texto.match(/\{[^}]+\}/);
