@@ -216,15 +216,27 @@ ${debitosContext}`;
     // Parsear ação da resposta
     const parsed = parseActionFromResponse(llmMessage);
 
-    let finalText = parsed.friendlyText || '';
+    let finalText = '';
 
-    // Fallback: se finalText está vazio, extrair texto limpo da resposta
+    // 1) Usar friendlyText de dentro do JSON parseado
+    if (parsed.action?.friendlyText) {
+      finalText = parsed.action.friendlyText;
+    }
+    // 2) Usar texto limpo fora do bloco JSON
+    else if (parsed.friendlyText && parsed.friendlyText !== llmMessage) {
+      finalText = parsed.friendlyText;
+    }
+    // 3) Fallback: remover blocos json da resposta
     if (!finalText.trim()) {
       finalText = llmMessage.replace(/```json[\s\S]*?```/g, '').trim() || '';
     }
-    // Fallback final: se ainda vazio, usar resposta bruta do LLM
-    if (!finalText.trim()) {
-      finalText = llmMessage;
+    // 4) NUNCA mostrar JSON bruto para o usuario
+    if (!finalText.trim() || (finalText.trim().startsWith('{') && finalText.trim().endsWith('}'))) {
+      if (parsed.action?.acao) {
+        finalText = parsed.action.friendlyText || 'Ação executada com sucesso.';
+      } else {
+        finalText = llmMessage.substring(0, 200);
+      }
     }
 
     // Executar ação se identificada
@@ -296,6 +308,34 @@ ${debitosContext}`;
         console.error('Erro ao executar ação:', acaoErr);
         finalText = `Erro ao executar ação: ${acaoErr instanceof Error ? acaoErr.message : 'Erro desconhecido'}`;
       }
+    }
+
+    // Formatar resultado das ações para exibição amigável
+    if (resultadoAcao && Array.isArray(resultadoAcao) && resultadoAcao.length > 0) {
+      // Listar: formatar débitos encontrados
+      const total = resultadoAcao.reduce((s: number, d: any) => s + (d.valor || 0), 0);
+      const pendentes = resultadoAcao.filter((d: any) => !d.paga);
+      const totalPendente = pendentes.reduce((s: number, d: any) => s + (d.valor || 0), 0);
+      finalText = finalText + '\n\n' +
+        resultadoAcao.map((d: any) =>
+          '- ' + (d.descricao || 'Sem descrição') + ' | R$ ' + (d.valor || 0).toFixed(2) + ' | ' + (d.paga ? 'Pago' : 'Pendente')
+        ).join('\n') +
+        '\n\nTotal: ' + resultadoAcao.length + ' débito(s) | R$ ' + total.toFixed(2) +
+        '\nPendentes: ' + pendentes.length + ' | R$ ' + totalPendente.toFixed(2);
+    } else if (resultadoAcao && !Array.isArray(resultadoAcao)) {
+      // Criar/Pagar/Excluir: confirmar ação
+      const desc = (resultadoAcao as any).descricao || '';
+      const valor = (resultadoAcao as any).valor || 0;
+      const pago = (resultadoAcao as any).paga;
+      if (parsed.action?.acao === 'criar') {
+        finalText = finalText + '\n\nDébito criado: ' + desc + ' | R$ ' + valor.toFixed(2);
+      } else if (parsed.action?.acao === 'pagar') {
+        finalText = finalText + '\n\nDébito marcado como pago: ' + desc + ' | R$ ' + valor.toFixed(2);
+      } else if (parsed.action?.acao === 'excluir') {
+        finalText = finalText + '\n\nDébito excluído com sucesso.';
+      }
+    } else if (resultadoAcao && Array.isArray(resultadoAcao) && resultadoAcao.length === 0) {
+      finalText = finalText + '\n\nNenhum débito encontrado.';
     }
 
     return NextResponse.json({
