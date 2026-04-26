@@ -1082,7 +1082,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
         const res = await fetch(`/api/clientes/${clienteEditando.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...formData, acertoPercentual: parseInt(formData.acertoPercentual) || 50 }),
+          body: JSON.stringify({ ...formData, acertoPercentual: formData.acertoPercentual !== '' ? parseInt(formData.acertoPercentual) : 50 }),
         });
         if (!res.ok) {
           const errorData = await res.json();
@@ -1093,7 +1093,7 @@ function ClientesPage({ empresaId, isAdmin, isSupervisor }: { empresaId: string;
         const res = await fetch('/api/clientes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...formData, acertoPercentual: parseInt(formData.acertoPercentual) || 50, empresaId }),
+          body: JSON.stringify({ ...formData, acertoPercentual: formData.acertoPercentual !== '' ? parseInt(formData.acertoPercentual) : 50, empresaId }),
         });
         if (!res.ok) {
           const errorData = await res.json();
@@ -3752,7 +3752,6 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       mensagem += `E ${String(m.entradaAtual || 0).padStart(8)} ${String(m.novaEntrada || m.entradaAtual || 0).padStart(8)}___${formatNumber(calcularValor(m.moeda, m.diferencaEntrada))}\n`;
       mensagem += `S ${String(m.saidaAtual || 0).padStart(8)} ${String(m.novaSaida || m.saidaAtual || 0).padStart(8)}___${formatNumber(calcularValor(m.moeda, m.diferencaSaida))}\n`;
       mensagem += `Saldo: ${formatNumber(m.saldoMaquina || 0)}\n`;
-      mensagem += `_____________\n`;
     });
     
     mensagem += `Qtde Maqs....: ${String(maquinasSalvas.length).padStart(2, '0')}\n`;
@@ -4699,7 +4698,6 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       <p>E {String(m.entradaAtual || 0).padStart(8)} {String(m.novaEntrada || m.entradaAtual || 0).padStart(8)}___{formatNumber(calcularValor(m.moeda, m.diferencaEntrada))}</p>
                       <p>S {String(m.saidaAtual || 0).padStart(8)} {String(m.novaSaida || m.saidaAtual || 0).padStart(8)}___{formatNumber(calcularValor(m.moeda, m.diferencaSaida))}</p>
                       <p>Saldo: {formatNumber(m.saldoMaquina || 0)}</p>
-                      <p className="border-b border-black my-2">_____________</p>
                     </div>
                   );
                 })}
