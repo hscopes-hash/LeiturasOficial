@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       if (clienteId) {
         whereClause.clienteId = clienteId;
       } else {
-        whereClause.cliente = { empresaId };
+        whereClause.cliente = { empresaId: empresaId };
       }
 
       const debitos = await db.debito.findMany({
@@ -67,13 +67,13 @@ export async function POST(request: NextRequest) {
             select: { nome: true },
           },
         },
-        orderBy: { dataVencimento: 'desc' },
+        orderBy: { data: 'desc' },
         take: 20,
       });
 
       if (debitos.length > 0) {
         debitosContext = `\n\nDÉBITOS EXISTENTES:\n${debitos.map(d =>
-          `ID: ${d.id} | Cliente: ${d.cliente.nome} | ${d.descricao} | R$ ${d.valor.toFixed(2)} | Venc: ${new Date(d.dataVencimento).toLocaleDateString('pt-BR')} | Status: ${d.status}`
+          `ID: ${d.id} | Cliente: ${d.cliente.nome} | ${d.descricao} | R$ ${d.valor.toFixed(2)} | Venc: ${new Date(d.data).toLocaleDateString('pt-BR')} | Paga: ${d.paga ? 'Sim' : 'Nao'}`
         ).join('\n')}`;
       }
     } catch (debitoErr) {
@@ -109,7 +109,7 @@ Responda SEMPRE em português brasileiro.
 
 Ações disponíveis:
 - "listar": Listar débitos (filtros opcionais: clienteId, status)
-- "criar": Criar novo débito (campos: descricao, valor, dataVencimento, clienteId)
+- "criar": Criar novo débito (campos: descricao, valor, data, clienteId)
 - "pagar": Marcar débito como pago (campo: id, dataPagamento)
 - "excluir": Excluir débito (campo: id)
 
@@ -172,26 +172,26 @@ ${debitosContext}`;
           case 'listar': {
             const whereClause2: Record<string, unknown> = { empresaId };
             if (parsed.action.dados.clienteId) whereClause2.clienteId = parsed.action.dados.clienteId as string;
-            if (parsed.action.dados.status) whereClause2.status = parsed.action.dados.status as string;
-            if (!parsed.action.dados.clienteId) whereClause2.cliente = { empresaId };
+            if (parsed.action.dados.paga !== undefined) whereClause2.paga = parsed.action.dados.paga as boolean;
+            if (!parsed.action.dados.clienteId) whereClause2.cliente = { empresaId: empresaId };
             
             resultadoAcao = await db.debito.findMany({
               where: whereClause2,
               include: { cliente: { select: { id: true, nome: true } } },
-              orderBy: { dataVencimento: 'desc' },
+              orderBy: { data: 'desc' },
             });
             break;
           }
           case 'criar': {
             const dados = parsed.action.dados;
-            if (!dados.descricao || !dados.valor || !dados.dataVencimento || !dados.clienteId) {
+            if (!dados.descricao || !dados.valor || !dados.data || !dados.clienteId) {
               finalText = 'Campos obrigatórios faltando para criar débito.';
             } else {
               resultadoAcao = await db.debito.create({
                 data: {
                   descricao: dados.descricao as string,
                   valor: parseFloat(String(dados.valor)),
-                  dataVencimento: new Date(dados.dataVencimento as string),
+                  data: new Date((dados.data || dados.data) as string),
                   clienteId: dados.clienteId as string,
                   empresaId,
                 },
@@ -207,7 +207,7 @@ ${debitosContext}`;
               resultadoAcao = await db.debito.update({
                 where: { id: parsed.action.dados.id as string },
                 data: {
-                  status: 'PAGO',
+                  paga: true,
                   dataPagamento: parsed.action.dados.dataPagamento 
                     ? new Date(parsed.action.dados.dataPagamento as string)
                     : new Date(),
