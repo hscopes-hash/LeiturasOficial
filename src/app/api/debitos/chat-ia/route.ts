@@ -178,8 +178,29 @@ ${debitosContext}`;
 
     if (!llmResponse.ok) {
       const errText = await llmResponse.text();
-      console.error('Erro LLM:', llmResponse.status, errText.substring(0, 300));
-      return NextResponse.json({ error: 'Erro ao comunicar com IA', detalhe: errText.substring(0, 200) }, { status: 502 });
+      console.error('Erro LLM:', provider, llmResponse.status, errText.substring(0, 300));
+      let mensagemErro = 'Erro ao comunicar com IA';
+      try {
+        const errData = JSON.parse(errText);
+        const errCode = errData?.error?.code;
+        const errMsg = errData?.error?.message || '';
+        if (provider === 'gemini') {
+          if (llmResponse.status === 429) mensagemErro = 'Limite de uso da API Gemini atingido. Aguarde alguns minutos ou troque o modelo nas Config. SaaS.';
+          else if (llmResponse.status === 403) mensagemErro = 'API Key do Gemini sem permissao. Verifique nas Config. SaaS.';
+          else if (errMsg) mensagemErro = 'Erro Gemini: ' + errMsg.substring(0, 120);
+        } else if (provider === 'glm') {
+          if (errCode === '1305') mensagemErro = 'Modelo GLM com excesso de trafego. Tente novamente ou troque o modelo.';
+          else if (errCode === '1301' || errCode === '1302') mensagemErro = 'API Key GLM invalida ou expirada. Verifique nas Config. SaaS.';
+          else if (errMsg) mensagemErro = 'Erro GLM: ' + errMsg.substring(0, 120);
+        } else if (provider === 'openrouter') {
+          if (llmResponse.status === 429) mensagemErro = 'Limite de uso do OpenRouter atingido. Aguarde ou troque o modelo.';
+          else if (errMsg) mensagemErro = 'Erro OpenRouter: ' + errMsg.substring(0, 120);
+        }
+        if (!mensagemErro.includes('Gemini') && !mensagemErro.includes('GLM') && !mensagemErro.includes('OpenRouter') && !mensagemErro.includes('Limite')) {
+          mensagemErro = 'Erro ' + llmResponse.status + ': ' + (errMsg || errText).substring(0, 120);
+        }
+      } catch {}
+      return NextResponse.json({ error: mensagemErro }, { status: 502 });
     }
 
     const llmData = await llmResponse.json();
