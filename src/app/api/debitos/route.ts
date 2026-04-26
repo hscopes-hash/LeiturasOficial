@@ -7,7 +7,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const empresaId = searchParams.get('empresaId');
     const clienteId = searchParams.get('clienteId');
-    const status = searchParams.get('status');
+    const paga = searchParams.get('paga');
+    const dataMax = searchParams.get('dataMax');
 
     if (!empresaId) {
       return NextResponse.json(
@@ -24,7 +25,17 @@ export async function GET(request: NextRequest) {
       where.cliente = { empresaId };
     }
 
-    if (status) where.status = status;
+    // Filter by paga (boolean string)
+    if (paga === 'true') {
+      where.paga = true;
+    } else if (paga === 'false') {
+      where.paga = false;
+    }
+
+    // Filter by max date (débitos up to this date)
+    if (dataMax) {
+      where.data = { lte: new Date(dataMax + 'T23:59:59.999Z') };
+    }
 
     const debitos = await db.debito.findMany({
       where,
@@ -36,7 +47,7 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: { dataVencimento: 'desc' },
+      orderBy: { data: 'desc' },
     });
 
     return NextResponse.json(debitos);
@@ -57,16 +68,18 @@ export async function POST(request: NextRequest) {
       descricao,
       valor,
       dataVencimento,
+      data,
       dataPagamento,
-      status,
+      paga,
       observacoes,
       clienteId,
       empresaId,
     } = body;
 
-    if (!descricao || !valor || !dataVencimento || !clienteId || !empresaId) {
+    const dataDebito = data || dataVencimento;
+    if (!descricao || !valor || !dataDebito || !clienteId || !empresaId) {
       return NextResponse.json(
-        { error: 'Descrição, valor, data de vencimento, cliente e empresa são obrigatórios' },
+        { error: 'Descrição, valor, data e cliente são obrigatórios' },
         { status: 400 }
       );
     }
@@ -75,9 +88,9 @@ export async function POST(request: NextRequest) {
       data: {
         descricao,
         valor,
-        dataVencimento: new Date(dataVencimento),
+        data: new Date(dataDebito),
         dataPagamento: dataPagamento ? new Date(dataPagamento) : undefined,
-        status: status || 'PENDENTE',
+        paga: paga === true || paga === 'true',
         observacoes,
         clienteId,
         empresaId,

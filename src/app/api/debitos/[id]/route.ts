@@ -46,20 +46,21 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { descricao, valor, dataVencimento, dataPagamento, status, observacoes } = body;
+    const { descricao, valor, dataVencimento, data, dataPagamento, paga, observacoes } = body;
 
-    const data: Record<string, unknown> = {};
+    const updateData: Record<string, unknown> = {};
 
-    if (descricao !== undefined) data.descricao = descricao;
-    if (valor !== undefined) data.valor = valor;
-    if (dataVencimento) data.dataVencimento = new Date(dataVencimento);
-    if (dataPagamento) data.dataPagamento = new Date(dataPagamento);
-    if (status) data.status = status;
-    if (observacoes !== undefined) data.observacoes = observacoes;
+    if (descricao !== undefined) updateData.descricao = descricao;
+    if (valor !== undefined) updateData.valor = valor;
+    if (data) updateData.data = new Date(data);
+    else if (dataVencimento) updateData.data = new Date(dataVencimento);
+    if (dataPagamento) updateData.dataPagamento = new Date(dataPagamento);
+    if (paga !== undefined) updateData.paga = paga;
+    if (observacoes !== undefined) updateData.observacoes = observacoes;
 
     const debito = await db.debito.update({
       where: { id },
-      data,
+      data: updateData,
       include: {
         cliente: {
           select: {
