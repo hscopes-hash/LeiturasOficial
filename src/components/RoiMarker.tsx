@@ -34,26 +34,31 @@ export default function RoiMarker({
 }: RoiMarkerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null); // wrapper inline-block
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [desenhando, setDesenhando] = useState<'entrada' | 'saida' | null>(null);
   const [inicio, setInicio] = useState<{ x: number; y: number } | null>(null);
   const [modo, setModo] = useState<'entrada' | 'saida'>('entrada');
-  const [imgLoaded, setImgLoaded] = useState(false);
+  const [tamanhoCanvas, setTamanhoCanvas] = useState({ w: 0, h: 0 });
 
-  // Desenhar overlay (escurecimento + ROI) sobre a imagem SEM redesenhar a imagem
+  // Desenhar overlay no canvas (escurecimento + ROI) — a imagem real fica no <img>
   const drawOverlay = useCallback(() => {
     const canvas = canvasRef.current;
-    const img = imgRef.current;
-    const wrapper = wrapperRef.current;
-    if (!canvas || !img || !wrapper || !imgLoaded) return;
+    const box = boxRef.current;
+    if (!canvas || !box) return;
+
+    const w = box.clientWidth;
+    const h = box.clientHeight;
+    if (w === 0 || h === 0) return;
+
+    // Evitar redraw se o tamanho não mudou e não está desenhando
+    // (otimização para não piscar durante draw ao vivo)
+    if (tamanhoCanvas.w === w && tamanhoCanvas.h === h && !desenhando) {
+      // ainda assim redesenha quando ROI muda
+    }
+    setTamanhoCanvas({ w, h });
 
     const dpr = window.devicePixelRatio || 1;
-    const rect = img.getBoundingClientRect();
-    const w = Math.round(rect.width);
-    const h = Math.round(rect.height);
-
-    // Tamanho do canvas em pixels reais (suporte a retina)
     canvas.width = w * dpr;
     canvas.height = h * dpr;
     canvas.style.width = `${w}px`;
@@ -67,13 +72,14 @@ export default function RoiMarker({
     ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.fillRect(0, 0, w, h);
 
-    // Desenhar ROI de entrada (limpar escurecimento na região)
+    // Desenhar ROI de entrada
     if (roiEntrada) {
       const ex = (roiEntrada.x / 100) * w;
       const ey = (roiEntrada.y / 100) * h;
       const ew = (roiEntrada.w / 100) * w;
       const eh = (roiEntrada.h / 100) * h;
 
+      // Limpar escurecimento na região (mostra a imagem original por baixo)
       ctx.clearRect(ex, ey, ew, eh);
       ctx.strokeStyle = '#4ade80';
       ctx.lineWidth = 2;
@@ -85,15 +91,15 @@ export default function RoiMarker({
       const label = nomeEntrada;
       ctx.font = 'bold 12px system-ui, sans-serif';
       const tw = ctx.measureText(label).width;
-      const lx = ex + ew / 2 - tw / 2 - 6;
-      const ly = ey > 24 ? ey - 26 : ey + 2;
-      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      const lx = Math.max(0, Math.min(w - tw - 12, ex + ew / 2 - tw / 2 - 6));
+      const ly = ey > 26 ? ey - 26 : ey + 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
       ctx.beginPath();
       ctx.roundRect(lx, ly, tw + 12, 20, 4);
       ctx.fill();
       ctx.fillStyle = '#4ade80';
       ctx.textAlign = 'center';
-      ctx.fillText(label, ex + ew / 2, ly + 14);
+      ctx.fillText(label, lx + (tw + 12) / 2, ly + 14);
     }
 
     // Desenhar ROI de saída
@@ -113,35 +119,42 @@ export default function RoiMarker({
       const label = nomeSaida;
       ctx.font = 'bold 12px system-ui, sans-serif';
       const tw = ctx.measureText(label).width;
-      const lx = sx + sw / 2 - tw / 2 - 6;
-      const ly = sy > 24 ? sy - 26 : sy + 2;
-      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      const lx = Math.max(0, Math.min(w - tw - 12, sx + sw / 2 - tw / 2 - 6));
+      const ly = sy > 26 ? sy - 26 : sy + 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
       ctx.beginPath();
       ctx.roundRect(lx, ly, tw + 12, 20, 4);
       ctx.fill();
       ctx.fillStyle = '#f87171';
       ctx.textAlign = 'center';
-      ctx.fillText(label, sx + sw / 2, ly + 14);
+      ctx.fillText(label, lx + (tw + 12) / 2, ly + 14);
     }
-  }, [roiEntrada, roiSaida, nomeEntrada, nomeSaida, imgLoaded]);
+  }, [roiEntrada, roiSaida, nomeEntrada, nomeSaida, desenhando, tamanhoCanvas]);
 
+  // Redesenhar overlay quando imagem carrega, ROI muda, ou está desenhando
   useEffect(() => {
-    drawOverlay();
-  }, [drawOverlay]);
+    if (!imagem) return;
+    // Pequeno delay para o browser finalizar o layout da imagem
+    const timer = setTimeout(drawOverlay, 10);
+    return () => clearTimeout(timer);
+  }, [imagem, drawOverlay]);
 
   // Redesenhar ao redimensionar a janela
   useEffect(() => {
-    const onResize = () => drawOverlay();
+    const onResize = () => {
+      setTamanhoCanvas({ w: 0, h: 0 }); // força redraw
+      drawOverlay();
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [drawOverlay]);
 
-  // Converter posição do mouse para % da área visível da imagem
+  // Converter posição do mouse para % da área visível
   const getPosPercent = useCallback(
     (e: React.MouseEvent): { x: number; y: number } => {
-      const img = imgRef.current;
-      if (!img) return { x: 0, y: 0 };
-      const rect = img.getBoundingClientRect();
+      const box = boxRef.current;
+      if (!box) return { x: 0, y: 0 };
+      const rect = box.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
       return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) };
@@ -182,19 +195,17 @@ export default function RoiMarker({
       video.srcObject = stream;
       await video.play();
 
-      // Aguardar câmera estabilizar
       await new Promise((r) => setTimeout(r, 1500));
 
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext('2d')!;
+      const cvs = document.createElement('canvas');
+      cvs.width = video.videoWidth;
+      cvs.height = video.videoHeight;
+      const ctx = cvs.getContext('2d')!;
       ctx.drawImage(video, 0, 0);
 
       stream.getTracks().forEach((t) => t.stop());
 
-      // PNG para qualidade máxima
-      const base64 = canvas.toDataURL('image/png');
+      const base64 = cvs.toDataURL('image/png');
       onImagemChange(base64);
     } catch (e) {
       console.error('Erro ao capturar:', e);
@@ -255,24 +266,21 @@ export default function RoiMarker({
           </div>
         </div>
 
-        {/* Imagem + overlay de marcação */}
-        <div
-          ref={wrapperRef}
-          className="relative rounded-lg overflow-hidden bg-black/90 min-h-[200px] flex items-center justify-center"
-        >
+        {/* Container centralizador */}
+        <div className="relative rounded-lg overflow-hidden bg-black/90 min-h-[200px] flex items-center justify-center">
           {imagem ? (
-            <>
-              {/* Imagem original - renderizada pelo browser em qualidade máxima */}
+            /* Wrapper inline-block: encaixa exatamente no tamanho da imagem.
+               O canvas absolute fica perfeitamente alinhado sobre a imagem. */
+            <div ref={boxRef} className="relative inline-block max-w-full">
               <img
                 ref={imgRef}
                 src={imagem}
                 alt="Referência"
-                onLoad={() => setImgLoaded(true)}
-                className="block max-w-full max-h-[400px] object-contain"
+                className="block max-w-full max-h-[400px]"
                 draggable={false}
               />
 
-              {/* Canvas transparente APENAS para overlay de marcação */}
+              {/* Canvas transparente APENAS para overlay escurecimento + ROI */}
               <canvas
                 ref={canvasRef}
                 onMouseDown={handleMouseDown}
@@ -280,18 +288,17 @@ export default function RoiMarker({
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 className="absolute top-0 left-0 cursor-crosshair"
+                style={{ width: tamanhoCanvas.w || 'auto', height: tamanhoCanvas.h || 'auto' }}
               />
 
+              {/* Botão limpar imagem */}
               <button
-                onClick={() => {
-                  onImagemChange('');
-                  setImgLoaded(false);
-                }}
+                onClick={() => onImagemChange('')}
                 className="absolute top-2 right-2 bg-black/70 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 z-10"
               >
                 <X className="w-3 h-3" />
               </button>
-            </>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-48 text-zinc-500">
               <Camera className="w-10 h-10 mb-2 opacity-50" />
