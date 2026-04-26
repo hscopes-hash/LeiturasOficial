@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, Check, X, Loader2 } from 'lucide-react';
+import { Camera, Check, X } from 'lucide-react';
 
 interface ROI {
   x: number;
@@ -33,92 +33,115 @@ export default function RoiMarker({
   onImagemChange,
 }: RoiMarkerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [desenhando, setDesenhando] = useState<'entrada' | 'saida' | null>(null);
   const [inicio, setInicio] = useState<{ x: number; y: number } | null>(null);
   const [modo, setModo] = useState<'entrada' | 'saida'>('entrada');
-  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+  const [imgLoaded, setImgLoaded] = useState(false);
 
-  // Desenhar overlay quando imagem ou ROI mudar
-  useEffect(() => {
+  // Desenhar overlay (escurecimento + ROI) sobre a imagem SEM redesenhar a imagem
+  const drawOverlay = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !imagem) return;
+    const img = imgRef.current;
+    const wrapper = wrapperRef.current;
+    if (!canvas || !img || !wrapper || !imgLoaded) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const rect = img.getBoundingClientRect();
+    const w = Math.round(rect.width);
+    const h = Math.round(rect.height);
+
+    // Tamanho do canvas em pixels reais (suporte a retina)
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    ctx.scale(dpr, dpr);
 
-    const img = new Image();
-    img.onload = () => {
-      const container = containerRef.current;
-      if (!container) return;
+    // Escurecer toda a imagem
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(0, 0, w, h);
 
-      const maxW = container.clientWidth;
-      const maxH = container.clientHeight || 300;
-      const scale = Math.min(maxW / img.width, maxH / img.height, 1);
+    // Desenhar ROI de entrada (limpar escurecimento na região)
+    if (roiEntrada) {
+      const ex = (roiEntrada.x / 100) * w;
+      const ey = (roiEntrada.y / 100) * h;
+      const ew = (roiEntrada.w / 100) * w;
+      const eh = (roiEntrada.h / 100) * h;
 
-      canvas.width = img.width * scale;
-      canvas.height = img.height * scale;
+      ctx.clearRect(ex, ey, ew, eh);
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 3]);
+      ctx.strokeRect(ex + 1, ey + 1, ew - 2, eh - 2);
+      ctx.setLineDash([]);
 
-      setNaturalSize({ w: canvas.width, h: canvas.height });
+      // Label
+      const label = nomeEntrada;
+      ctx.font = 'bold 12px system-ui, sans-serif';
+      const tw = ctx.measureText(label).width;
+      const lx = ex + ew / 2 - tw / 2 - 6;
+      const ly = ey > 24 ? ey - 26 : ey + 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.beginPath();
+      ctx.roundRect(lx, ly, tw + 12, 20, 4);
+      ctx.fill();
+      ctx.fillStyle = '#4ade80';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, ex + ew / 2, ly + 14);
+    }
 
-      // Desenhar imagem
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    // Desenhar ROI de saída
+    if (roiSaida) {
+      const sx = (roiSaida.x / 100) * w;
+      const sy = (roiSaida.y / 100) * h;
+      const sw = (roiSaida.w / 100) * w;
+      const sh = (roiSaida.h / 100) * h;
 
-      // Semi-transparente
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(sx, sy, sw, sh);
+      ctx.strokeStyle = '#f87171';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 3]);
+      ctx.strokeRect(sx + 1, sy + 1, sw - 2, sh - 2);
+      ctx.setLineDash([]);
 
-      // Desenhar ROI de entrada
-      if (roiEntrada) {
-        const ex = (roiEntrada.x / 100) * canvas.width;
-        const ey = (roiEntrada.y / 100) * canvas.height;
-        const ew = (roiEntrada.w / 100) * canvas.width;
-        const eh = (roiEntrada.h / 100) * canvas.height;
+      const label = nomeSaida;
+      ctx.font = 'bold 12px system-ui, sans-serif';
+      const tw = ctx.measureText(label).width;
+      const lx = sx + sw / 2 - tw / 2 - 6;
+      const ly = sy > 24 ? sy - 26 : sy + 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.beginPath();
+      ctx.roundRect(lx, ly, tw + 12, 20, 4);
+      ctx.fill();
+      ctx.fillStyle = '#f87171';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, sx + sw / 2, ly + 14);
+    }
+  }, [roiEntrada, roiSaida, nomeEntrada, nomeSaida, imgLoaded]);
 
-        ctx.clearRect(ex, ey, ew, eh);
-        ctx.drawImage(img, ex, ey, ew, eh, ex, ey, ew, eh);
-        ctx.strokeStyle = '#4ade80';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(ex, ey, ew, eh);
+  useEffect(() => {
+    drawOverlay();
+  }, [drawOverlay]);
 
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(ex, ey - 22, ew, 22);
-        ctx.fillStyle = '#4ade80';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(nomeEntrada, ex + ew / 2, ey - 6);
-      }
+  // Redesenhar ao redimensionar a janela
+  useEffect(() => {
+    const onResize = () => drawOverlay();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [drawOverlay]);
 
-      // Desenhar ROI de saída
-      if (roiSaida) {
-        const sx = (roiSaida.x / 100) * canvas.width;
-        const sy = (roiSaida.y / 100) * canvas.height;
-        const sw = (roiSaida.w / 100) * canvas.width;
-        const sh = (roiSaida.h / 100) * canvas.height;
-
-        ctx.clearRect(sx, sy, sw, sh);
-        ctx.drawImage(img, sx, sy, sw, sh, sx, sy, sw, sh);
-        ctx.strokeStyle = '#f87171';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(sx, sy, sw, sh);
-
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(sx, sy - 22, sw, 22);
-        ctx.fillStyle = '#f87171';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(nomeSaida, sx + sw / 2, sy - 6);
-      }
-    };
-    img.src = imagem;
-  }, [imagem, roiEntrada, roiSaida, nomeEntrada, nomeSaida]);
-
-  // Converter posição do mouse para % do canvas
+  // Converter posição do mouse para % da área visível da imagem
   const getPosPercent = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>): { x: number; y: number } => {
-      const canvas = canvasRef.current!;
-      const rect = canvas.getBoundingClientRect();
+    (e: React.MouseEvent): { x: number; y: number } => {
+      const img = imgRef.current;
+      if (!img) return { x: 0, y: 0 };
+      const rect = img.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       const y = ((e.clientY - rect.top) / rect.height) * 100;
       return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) };
@@ -126,12 +149,12 @@ export default function RoiMarker({
     [],
   );
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseDown = (e: React.MouseEvent) => {
     setDesenhando(modo);
     setInicio(getPosPercent(e));
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseMove = (e: React.MouseEvent) => {
     if (!desenhando || !inicio) return;
 
     const current = getPosPercent(e);
@@ -153,7 +176,7 @@ export default function RoiMarker({
   const handleCapture = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
       });
       const video = document.createElement('video');
       video.srcObject = stream;
@@ -170,7 +193,8 @@ export default function RoiMarker({
 
       stream.getTracks().forEach((t) => t.stop());
 
-      const base64 = canvas.toDataURL('image/jpeg', 0.85);
+      // PNG para qualidade máxima
+      const base64 = canvas.toDataURL('image/png');
       onImagemChange(base64);
     } catch (e) {
       console.error('Erro ao capturar:', e);
@@ -231,21 +255,39 @@ export default function RoiMarker({
           </div>
         </div>
 
-        {/* Canvas com imagem + overlay */}
-        <div ref={containerRef} className="relative rounded-lg overflow-hidden bg-black min-h-[200px]">
+        {/* Imagem + overlay de marcação */}
+        <div
+          ref={wrapperRef}
+          className="relative rounded-lg overflow-hidden bg-black/90 min-h-[200px] flex items-center justify-center"
+        >
           {imagem ? (
             <>
+              {/* Imagem original - renderizada pelo browser em qualidade máxima */}
+              <img
+                ref={imgRef}
+                src={imagem}
+                alt="Referência"
+                onLoad={() => setImgLoaded(true)}
+                className="block max-w-full max-h-[400px] object-contain"
+                draggable={false}
+              />
+
+              {/* Canvas transparente APENAS para overlay de marcação */}
               <canvas
                 ref={canvasRef}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
-                className="cursor-crosshair block mx-auto"
+                className="absolute top-0 left-0 cursor-crosshair"
               />
+
               <button
-                onClick={() => onImagemChange('')}
-                className="absolute top-2 right-2 bg-black/70 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                onClick={() => {
+                  onImagemChange('');
+                  setImgLoaded(false);
+                }}
+                className="absolute top-2 right-2 bg-black/70 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 z-10"
               >
                 <X className="w-3 h-3" />
               </button>
