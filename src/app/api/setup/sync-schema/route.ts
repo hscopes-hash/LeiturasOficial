@@ -436,6 +436,23 @@ export async function GET() {
       // Tabela pode nao existir ainda
     }
 
+    // Criar tabela chat_instrucoes (instrucoes permanentes do usuario)
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS chat_instrucoes (
+        id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+        "empresaId" TEXT NOT NULL,
+        instrucao TEXT NOT NULL,
+        "criadoEm" TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Indice para chat_instrucoes
+    try {
+      await db.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS chat_instrucoes_empresaId_idx ON chat_instrucoes("empresaId")
+      `);
+    } catch (e) { /* indice ja existe */ }
+
     results.push('✓ Todas as tabelas foram criadas/verificadas com sucesso!');
 
     return NextResponse.json({

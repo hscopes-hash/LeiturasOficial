@@ -509,3 +509,18 @@ model ChatHistorico {
   @@index([deletadoEm])
   @@map("chat_historico")
 }
+
+// ============================================
+// CHAT INSTRUCOES - Instrucoes permanentes do Chat IA
+// Nunca sao removidas pela auto-limpeza
+// Sempre incluidas no contexto do LLM
+// ============================================
+model ChatInstrucao {
+  id          String   @id @default(cuid())
+  empresaId   String
+  instrucao   String   @db.Text  // Texto da instrucao
+  criadoEm    DateTime @default(now())
+
+  @@index([empresaId])
+  @@map("chat_instrucoes")
+}

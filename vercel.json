@@ -3,6 +3,12 @@
   "installCommand": "npm install --legacy-peer-deps",
   "framework": "nextjs",
   "regions": ["gru1"],
+  "crons": [
+    {
+      "path": "/api/chat-ia/cleanup",
+      "schedule": "0 3 * * *"
+    }
+  ],
   "functions": {
     "src/app/api/leituras/identificar-lote/route.ts": {
       "maxDuration": 60

@@ -269,12 +269,122 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Mensagem e obrigatoria' }, { status: 400 });
     }
 
+    // ========== DETECCAO DE INSTRUCOES (sem chamada LLM) ==========
+    const msgLower = mensagem.toLowerCase().trim();
+
+    // Detectar: "anote uma instrucao: ..." ou "instrucao: ..." ou "lembre-se: ..."
+    const instructionPatterns = [
+      /anote\s+(?:uma\s+)?instruc[\wã]*:\s*(.+)/i,
+      /instruc[\wã]*:\s*(.+)/i,
+      /lembre[- ](?:se)?\s*:\s*(.+)/i,
+      /regra:\s*(.+)/i,
+      /sempre:\s*(.+)/i,
+    ];
+
+    for (const pattern of instructionPatterns) {
+      const match = mensagem.match(pattern);
+      if (match?.[1]?.trim()) {
+        const instrucaoText = match[1].trim().substring(0, 500);
+        // Salvar instrucao permanente
+        await db.$queryRawUnsafe(
+          `INSERT INTO chat_instrucoes ("empresaId", instrucao) VALUES ($1, $2)`,
+          empresaId, instrucaoText
+        ).catch(() => {});
+
+        if (sessaoId) {
+          saveToHistory(empresaId, sessaoId, 'user', mensagem);
+        }
+
+        const reply = `Instrucao registrada com sucesso: "${instrucaoText.substring(0, 100)}${instrucaoText.length > 100 ? '...' : ''}"
+
+Vou seguir essa instrucao em todas as nossas conversas, mesmo se voce fechar e reabrir o chat.\n\nPara ver suas instrucoes, digite "lista instrucoes".\nPara remover, digite "remova instrucao: <parte do texto>".`;
+
+        if (sessaoId) {
+          saveToHistory(empresaId, sessaoId, 'assistant', reply);
+        }
+
+        return NextResponse.json({ text: reply, acao: 'salvar_instrucao' });
+      }
+    }
+
+    // Detectar: "lista instrucoes" ou "quais instrucoes"
+    if (/lista\s+instruc|quais\s+instruc|minhas\s+instruc/.test(msgLower)) {
+      const instrucoes = await db.$queryRawUnsafe<Array<{ instrucao: string; criadoEm: Date }>>(
+        `SELECT instrucao, "criadoEm" FROM chat_instrucoes WHERE "empresaId" = $1 ORDER BY "criadoEm" ASC`,
+        empresaId
+      ).catch(() => []);
+
+      if (sessaoId) {
+        saveToHistory(empresaId, sessaoId, 'user', mensagem);
+      }
+
+      let reply: string;
+      if (instrucoes.length === 0) {
+        reply = 'Voce nao tem nenhuma instrucao permanente registrada.\n\nPara criar uma, digite:\n"Anote uma instrucao: <texto>"';
+      } else {
+        reply = `Voce tem ${instrucoes.length} instrucao(oes) permanente(s):\n\n` +
+          instrucoes.map((inst, i) => `${i + 1}. ${inst.instrucao}`).join('\n') +
+          '\n\nPara remover, digite: "Remova instrucao: <parte do texto>"';
+      }
+
+      if (sessaoId) {
+        saveToHistory(empresaId, sessaoId, 'assistant', reply);
+      }
+
+      return NextResponse.json({ text: reply });
+    }
+
+    // Detectar: "remova instrucao: ..." ou "esqueca instrucao: ..."
+    if (/remova\s+instruc|esquec[a\s]+instruc|apague\s+instruc|delete\s+instruc/i.test(msgLower)) {
+      const removeMatch = mensagem.match(/(?:remova|esquec[a]|apague|delete)\s+instruc[\wã]*:\s*(.+)/i);
+
+      if (sessaoId) {
+        saveToHistory(empresaId, sessaoId, 'user', mensagem);
+      }
+
+      if (removeMatch?.[1]?.trim()) {
+        const searchText = '%' + removeMatch[1].trim() + '%';
+        await db.$queryRawUnsafe(
+          `DELETE FROM chat_instrucoes WHERE "empresaId" = $1 AND instrucao ILIKE $2`,
+          empresaId, searchText
+        ).catch(() => {});
+
+        const reply = `Instrucao removida. Se nao encontrou exatamente o texto, tente novamente com uma parte diferente.`;
+        if (sessaoId) {
+          saveToHistory(empresaId, sessaoId, 'assistant', reply);
+        }
+        return NextResponse.json({ text: reply, acao: 'remover_instrucao' });
+      } else {
+        const reply = 'Para remover uma instrucao, digite: "Remova instrucao: <parte do texto da instrucao>"';
+        if (sessaoId) {
+          saveToHistory(empresaId, sessaoId, 'assistant', reply);
+        }
+        return NextResponse.json({ text: reply });
+      }
+    }
+
     // Salvar mensagem do usuario no historico
     if (sessaoId) {
       saveToHistory(empresaId, sessaoId, 'user', mensagem);
     }
 
     // ========== NORMAL CHAT FLOW (com historico multi-turn) ==========
+
+    // Carregar instrucoes permanentes da empresa
+    let instrucoesPermanentes = '';
+    try {
+      const instrucoes = await db.$queryRawUnsafe<Array<{ instrucao: string }>>(
+        `SELECT instrucao FROM chat_instrucoes WHERE "empresaId" = $1 ORDER BY "criadoEm" ASC`,
+        empresaId
+      );
+      if (instrucoes.length > 0) {
+        instrucoesPermanentes = '\nINSTRUCOES PERMANENTES DO USUARIO (OBRIGATORIO seguir):\n' +
+          instrucoes.map((inst, i) => `${i + 1}. ${inst.instrucao}`).join('\n') +
+          '\nVoce DEVE seguir estas instrucoes em TODAS as suas respostas.';
+      }
+    } catch {
+      // Tabela pode nao existir ainda
+    }
 
     // Gather comprehensive company context
     let companyContext = '';
@@ -367,7 +477,7 @@ Voce tem acesso a dados em tempo real da empresa e pode responder perguntas sobr
 - Pagamentos e assinaturas
 
 Dados atuais da empresa:
-${companyContext}${conversationSummary}
+${companyContext}${conversationSummary}${instrucoesPermanentes}
 
 Responda em portugues brasileiro de forma clara e objetiva.
 Se o usuario pedir para criar/alterar dados, use as acoes disponiveis.
