@@ -14,12 +14,12 @@ function parseActionFromResponse(text: string): { action: LLMAction | null; frie
 
   // 1) Tentar extrair JSON de bloco ```json ... ```
   const jsonMatch = text.match(/```json\s*([\s\S]*?)```/);
-  // 2) Tentar extrair JSON bruto com "acao"
-  const rawJsonMatch = !jsonMatch ? text.match(/\{[\s\S]*?"acao"[\s\S]*?\}/) : null;
-  // 3) Fallback: JSON inline com "acao"
-  const anyJsonMatch = (!jsonMatch && !rawJsonMatch) ? text.match(/\{[^{}]*?"acao"[^{}]*\}/) : null;
+  // 2) Tentar extrair JSON bruto com "acao" (greedy para pegar objetos aninhados)
+  const rawJsonMatch = !jsonMatch ? text.match(/\{[^{}]*"acao"[^{}]*\}/) : null;
+  // 3) Fallback: JSON multi-linha com "acao"
+  const multiJsonMatch = (!jsonMatch && !rawJsonMatch) ? text.match(/\{[\s\S]*?"acao"[\s\S]*\}/) : null;
 
-  const jsonBlock = jsonMatch ? jsonMatch[1].trim() : rawJsonMatch ? rawJsonMatch[0] : anyJsonMatch ? anyJsonMatch[0] : null;
+  const jsonBlock = jsonMatch ? jsonMatch[1].trim() : rawJsonMatch ? rawJsonMatch[0] : multiJsonMatch ? multiJsonMatch[0] : null;
 
   if (jsonBlock) {
     try {
@@ -33,14 +33,15 @@ function parseActionFromResponse(text: string): { action: LLMAction | null; frie
   }
 
   // Remover qualquer JSON da resposta para obter o texto amigavel
-  let friendlyText = text
-    .replace(/```json[\s\S]*?```/g, '')
-    .replace(/\{[\s\S]*?"acao"[\s\S]*?\}/g, '')
-    .replace(/\{[^{}]*?"acao"[^{}]*\}/g, '')
-    .replace(/```[\s\S]*?```/g, '')
-    .trim();
+  // Primeiro remover blocos ```json```
+  let friendlyText = text.replace(/```json[\s\S]*?```/g, '');
+  // Depois remover JSON com "acao" (greedy: do primeiro { ate o ultimo })
+  friendlyText = friendlyText.replace(/\{[\s\S]*?"acao"[\s\S]*\}/g, '');
+  // Remover qualquer bloco de codigo residual
+  friendlyText = friendlyText.replace(/```[\s\S]*?```/g, '');
+  friendlyText = friendlyText.trim();
 
-  // Se ainda for JSON puro, limpar
+  // Se ainda comecar com { e terminar com }, e JSON puro - limpar
   if (friendlyText.startsWith('{') && friendlyText.endsWith('}')) {
     friendlyText = '';
   }
@@ -221,20 +222,19 @@ Use formato de moeda brasileiro (R$ X.XXX,XX) nos valores.`;
 
     let finalText = '';
 
-    // 1) Usar friendlyText de dentro do JSON parseado
-    if (parsed.action?.friendlyText) {
-      finalText = parsed.action.friendlyText;
-    }
-    // 2) Usar texto limpo fora do bloco JSON
-    else if (parsed.friendlyText) {
+    // 1) Prioridade: texto limpo fora do JSON (resposta natural do LLM)
+    if (parsed.friendlyText) {
       finalText = parsed.friendlyText;
+    }
+    // 2) Fallback: friendlyText de dentro do JSON
+    else if (parsed.action?.friendlyText) {
+      finalText = parsed.action.friendlyText;
     }
     // 3) Fallback: limpar qualquer JSON residual
     if (!finalText.trim()) {
       finalText = llmMessage
         .replace(/```json[\s\S]*?```/g, '')
-        .replace(/\{[\s\S]*?"acao"[\s\S]*?\}/g, '')
-        .replace(/\{[^{}]*?"acao"[^{}]*\}/g, '')
+        .replace(/\{[\s\S]*?"acao"[\s\S]*\}/g, '')
         .replace(/```[\s\S]*?```/g, '')
         .trim();
     }
