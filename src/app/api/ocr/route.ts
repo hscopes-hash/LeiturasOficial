@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { db } from '@/lib/db';
 import { generateZhipuToken, getApiKeyForModel, detectProvider } from '@/lib/zhipu-auth';
-
-const prisma = new PrismaClient();
 
 const SYSTEM_PROMPT = `Você é OCR de displays eletrônicos de máquinas de arcade.
 Receberá 2 imagens recortadas de uma câmera apontando para um display.
@@ -35,7 +33,7 @@ export async function POST(req: NextRequest) {
     let llmModel = 'gemini-2.5-flash-lite';
 
     try {
-      const empresa = await prisma.empresa.findUnique({
+      const empresa = await db.empresa.findUnique({
         where: { id: empresaId },
         select: { llmApiKey: true, llmModel: true, llmApiKeyGemini: true, llmApiKeyGlm: true, llmApiKeyOpenrouter: true },
       });

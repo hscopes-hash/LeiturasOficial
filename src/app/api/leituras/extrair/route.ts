@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 import { generateZhipuToken, getApiKeyForModel, detectProvider } from '@/lib/zhipu-auth';
 
 // ============================================
@@ -172,25 +173,43 @@ async function callAI(prompt: string, imagem: string, apiKey: string, model: str
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imagem, nomeEntrada, nomeSaida, model: bodyModel, llmApiKey, llmApiKeyGemini, llmApiKeyGlm, llmApiKeyOpenrouter } = body;
+    const { imagem, nomeEntrada, nomeSaida, model: bodyModel, empresaId } = body;
 
     if (!imagem) {
       return NextResponse.json({ error: 'Imagem é obrigatória' }, { status: 400 });
+    }
+
+    if (!empresaId) {
+      return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
     }
 
     if (!imagem.startsWith('data:image/')) {
       return NextResponse.json({ error: 'Formato de imagem inválido. Envie uma imagem em base64.' }, { status: 400 });
     }
 
-    // Modelo (prioridade: body > padrao)
-    const model = bodyModel?.trim() || 'gemini-2.5-flash-lite';
+    // Buscar configurações de IA da empresa (CONFIG SAAS)
+    let llmApiKey = '';
+    let llmModel = bodyModel?.trim() || 'gemini-2.5-flash-lite';
 
-    // API Key: do banco de dados (Config. IA)
-    const apiKey = getApiKeyForModel(model, llmApiKey, llmApiKeyGemini, llmApiKeyGlm, llmApiKeyOpenrouter);
-    if (!apiKey) {
+    try {
+      const empresa = await db.empresa.findUnique({
+        where: { id: empresaId },
+        select: { llmApiKey: true, llmModel: true, llmApiKeyGemini: true, llmApiKeyGlm: true, llmApiKeyOpenrouter: true },
+      });
+      if (empresa) {
+        llmModel = empresa.llmModel?.trim() || llmModel;
+        llmApiKey = getApiKeyForModel(llmModel, empresa.llmApiKey, empresa.llmApiKeyGemini, empresa.llmApiKeyGlm, empresa.llmApiKeyOpenrouter) || '';
+      }
+    } catch {
+      // Usa valores padrão
+    }
+
+    const model = llmModel;
+
+    if (!llmApiKey) {
       return NextResponse.json(
-        { error: 'API Key não configurada. O super admin deve configurar nas Config. de IA.' },
-        { status: 500 }
+        { error: 'API Key não configurada. Configure nas Configurações do sistema.' },
+        { status: 400 }
       );
     }
 
@@ -213,7 +232,7 @@ Responda apenas com o JSON:
 
     console.log(`[EXTRAIR] Modelo: ${model} | Provedor: ${detectProvider(model)}`);
 
-    const result = await callAI(prompt, imagem, apiKey, model);
+    const result = await callAI(prompt, imagem, llmApiKey, model);
     const content = result.content;
 
     console.log(`[EXTRAIR] Conteúdo extraído (provedor: ${result.provider}):`, content.substring(0, 200));

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 import { generateZhipuToken, getApiKeyForModel, detectProvider } from '@/lib/zhipu-auth';
 
 // ============================================
@@ -159,10 +160,14 @@ async function callAI(prompt: string, imagem: string, apiKey: string, model: str
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { imagem, codigosMaquinas, model: bodyModel, llmApiKey, llmApiKeyGemini, llmApiKeyGlm, llmApiKeyOpenrouter } = body;
+    const { imagem, codigosMaquinas, model: bodyModel, empresaId } = body;
 
     if (!imagem) {
       return NextResponse.json({ error: 'Imagem é obrigatória' }, { status: 400 });
+    }
+
+    if (!empresaId) {
+      return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
     }
 
     if (!codigosMaquinas || !Array.isArray(codigosMaquinas) || codigosMaquinas.length === 0) {
@@ -173,15 +178,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Formato de imagem inválido.' }, { status: 400 });
     }
 
-    // Modelo (prioridade: body > padrao)
-    const model = bodyModel?.trim() || 'gemini-2.5-flash-lite';
+    // Buscar configurações de IA da empresa (CONFIG SAAS)
+    let llmApiKey = '';
+    let llmModel = bodyModel?.trim() || 'gemini-2.5-flash-lite';
 
-    // API Key: do banco de dados (Config. IA)
-    const apiKey = getApiKeyForModel(model, llmApiKey, llmApiKeyGemini, llmApiKeyGlm, llmApiKeyOpenrouter);
-    if (!apiKey) {
+    try {
+      const empresa = await db.empresa.findUnique({
+        where: { id: empresaId },
+        select: { llmApiKey: true, llmModel: true, llmApiKeyGemini: true, llmApiKeyGlm: true, llmApiKeyOpenrouter: true },
+      });
+      if (empresa) {
+        llmModel = empresa.llmModel?.trim() || llmModel;
+        llmApiKey = getApiKeyForModel(llmModel, empresa.llmApiKey, empresa.llmApiKeyGemini, empresa.llmApiKeyGlm, empresa.llmApiKeyOpenrouter) || '';
+      }
+    } catch {
+      // Usa valores padrão
+    }
+
+    const model = llmModel;
+
+    if (!llmApiKey) {
       return NextResponse.json(
-        { error: 'API Key não configurada. O super admin deve configurar nas Config. de IA.' },
-        { status: 500 }
+        { error: 'API Key não configurada. Configure nas Configurações do sistema.' },
+        { status: 400 }
       );
     }
 
@@ -204,7 +223,7 @@ Responda APENAS com este JSON (sem markdown, sem explicações):
 {"codigoMaquina": "CODIGO_EXATO", "confianca": PERCENTUAL_0_A_100, "observacoes": "texto breve sobre onde encontrou a etiqueta"}`;
 
     console.log(`[IDENTIFICAR] Tentando modelo: ${model}`);
-    const result = await callAI(prompt, imagem, apiKey, model);
+    const result = await callAI(prompt, imagem, llmApiKey, model);
     const content = result.content;
 
     let resultado;

@@ -1,4 +1,4 @@
-# LeiturasOficial - Sistema de Gestão de Máquinas
+# CaixaFácil - Sistema de Gestão de Máquinas
 
 Micro SaaS mobile para gestão financeira de máquinas de entretenimento (música, sinuca, urso, jogos).
 
@@ -29,21 +29,21 @@ Micro SaaS mobile para gestão financeira de máquinas de entretenimento (músic
 ### Passo 1: Importar Repositório
 
 1. Acesse [vercel.com/new](https://vercel.com/new)
-2. Importe o repositório `hscopes-hash/LeiturasOficial`
+2. Importe o repositório `hscopes-hash/caixafacil`
 3. Clique em **Import**
 
 ### Passo 2: Criar Banco PostgreSQL
 
 1. No Vercel, vá em **Storage** → **Create Database**
 2. Selecione **Postgres**
-3. Nome do banco: `leiturasoficial-db`
+3. Nome do banco: `caixafacil-db`
 4. Região: **São Paulo (gru1)** ou a mais próxima
 5. Clique em **Create**
 
 ### Passo 3: Conectar Banco ao Projeto
 
 1. Após criar o banco, clique em **Connect to Project**
-2. Selecione o projeto `LeiturasOficial`
+2. Selecione o projeto `caixafacil`
 3. O Vercel injetará automaticamente as variáveis de ambiente:
    - `POSTGRES_PRISMA_URL` (connection pooling)
    - `POSTGRES_URL_NON_POOLING` (conexão direta)
@@ -70,8 +70,8 @@ bun install
 
 # Configurar variáveis de ambiente
 # Crie um arquivo .env com:
-# POSTGRES_PRISMA_URL="postgresql://usuario:senha@localhost:5432/leiturasoficial"
-# POSTGRES_URL_NON_POOLING="postgresql://usuario:senha@localhost:5432/leiturasoficial"
+# POSTGRES_PRISMA_URL="postgresql://usuario:senha@localhost:5432/caixafacil"
+# POSTGRES_URL_NON_POOLING="postgresql://usuario:senha@localhost:5432/caixafacil"
 
 # Gerar Prisma Client
 bun run db:generate
