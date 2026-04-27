@@ -7458,6 +7458,7 @@ function FluxoCaixaPage({ empresaId, isAdmin, isSupervisor }: { empresaId: strin
     try {
       let url = `/api/contas?empresaId=${empresaId}&clienteId=${clienteSelecionado}`;
       if (filtroTipo !== null) url += `&tipo=${filtroTipo}`;
+      url += `&_t=${Date.now()}`;
       const res = await fetch(url);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -7522,6 +7523,10 @@ function FluxoCaixaPage({ empresaId, isAdmin, isSupervisor }: { empresaId: strin
           toast.error(errData.error || 'Erro ao atualizar conta');
           return;
         }
+        const contaAtualizada = await res.json().catch(() => null);
+        if (contaAtualizada) {
+          setContas(prev => prev.map(c => c.id === editingConta.id ? contaAtualizada : c));
+        }
         toast.success('Conta atualizada!');
       } else {
         const res = await fetch('/api/contas', {
@@ -7578,11 +7583,17 @@ function FluxoCaixaPage({ empresaId, isAdmin, isSupervisor }: { empresaId: strin
 
   const handleTogglePaga = async (conta: ContaItem) => {
     try {
-      await fetch(`/api/contas/${conta.id}`, {
+      const res = await fetch(`/api/contas/${conta.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paga: !conta.paga }),
       });
+      if (res.ok) {
+        const contaAtualizada = await res.json().catch(() => null);
+        if (contaAtualizada) {
+          setContas(prev => prev.map(c => c.id === conta.id ? contaAtualizada : c));
+        }
+      }
       toast.success(conta.paga ? 'Conta marcada como pendente' : 'Conta liquidada!');
       loadContas();
     } catch (error) {
