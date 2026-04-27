@@ -50,8 +50,7 @@ export default function FloatingChat() {
   const [loading, setLoading] = useState(false);
   const [voiceOn, setVoiceOn] = useState(true);
   const [micStatus, setMicStatus] = useState<SpeechRecognitionStatus>('idle');
-  const [sessaoId, setSessaoId] = useState<string>('');
-  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [sessaoId, setSessaoId] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -78,39 +77,21 @@ export default function FloatingChat() {
         window.speechSynthesis.cancel();
       }
       stopListening();
+      // Limpar mensagens visuais ao fechar (chat sempre abre limpo)
+      setMessages([]);
+      setConfirmingMsgIndex(null);
+      setConfirmingAction(null);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Carregar historico ao abrir o chat
+  // Garantir sessaoId ao abrir
   useEffect(() => {
-    if (open && empresa?.id && !historyLoaded) {
-      loadHistory();
+    if (open && !sessaoId) {
+      setSessaoId(generateSessionId());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, empresa?.id]);
-
-  const loadHistory = async () => {
-    try {
-      const res = await fetch(`/api/chat-ia/historico?empresaId=${empresa.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.messages && data.messages.length > 0) {
-          setMessages(data.messages.map((m: any) => ({ role: m.role, content: m.content })));
-          setSessaoId(data.sessaoId);
-        } else {
-          // Sem historico, criar nova sessao
-          setSessaoId(generateSessionId());
-        }
-      } else {
-        setSessaoId(generateSessionId());
-      }
-    } catch {
-      setSessaoId(generateSessionId());
-    } finally {
-      setHistoryLoaded(true);
-    }
-  };
+  }, [open]);
 
   const scrollToBottom = useCallback(() => {
     if (messagesEndRef.current) {
@@ -146,7 +127,7 @@ export default function FloatingChat() {
       return;
     }
 
-    // Parar TTS enquanto escuta (para nao confundir)
+    // Parar TTS enquanto escuta
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
@@ -195,10 +176,7 @@ export default function FloatingChat() {
   useEffect(() => {
     if (micStatus === 'idle' && input.trim() && !loading) {
       const timer = setTimeout(() => {
-        const SpeechRecognition = getSpeechRecognition();
-        if (!recognitionRef.current && input.trim() && !loading) {
-          // O usuario pode estar digitando, so envia se veio do mic
-        }
+        if (!recognitionRef.current && input.trim() && !loading) {}
       }, 500);
       return () => clearTimeout(timer);
     }
@@ -210,7 +188,6 @@ export default function FloatingChat() {
     if (!confirmingAction || confirmingMsgIndex === null || confirmingLoading) return;
     setConfirmingLoading(true);
 
-    // Parar TTS
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
@@ -287,10 +264,9 @@ export default function FloatingChat() {
   const sendMessage = async () => {
     if (!input.trim() || !empresa?.id || loading) return;
 
-    // Parar microfone se estiver ativo
     stopListening();
 
-    // Garantir que temos um sessaoId
+    // Garantir sessaoId
     let currentSessaoId = sessaoId;
     if (!currentSessaoId) {
       currentSessaoId = generateSessionId();
@@ -300,18 +276,15 @@ export default function FloatingChat() {
     const userMsg = input.trim();
     setInput('');
 
-    // Adicionar mensagem do usuario ao historico
     const newMessages = [...messages, { role: 'user' as const, content: userMsg }];
     setMessages(newMessages);
     setLoading(true);
 
-    // Parar TTS se estiver falando
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
 
     try {
-      // Enviar ultimas 10 mensagens como historico (sem incluir a que acabamos de adicionar ao userMsg)
       const historyToSend = messages.slice(-10);
 
       const res = await fetch('/api/chat-ia', {
@@ -329,19 +302,15 @@ export default function FloatingChat() {
       const responseText = data.text || 'Sem resposta.';
 
       if (!res.ok) {
-        const errorText = data.error || 'Erro ao processar mensagem.';
-        setMessages(prev => [...prev, { role: 'assistant', content: errorText }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: data.error || 'Erro ao processar mensagem.' }]);
       } else {
-        const assistantMsg: ChatMessage = { role: 'assistant', content: responseText };
-        setMessages(prev => [...prev, assistantMsg]);
-
+        setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
         if (voiceOn) {
           speak(responseText);
         }
 
-        // Verificar se precisa de confirmacao para acao destrutiva
         if (data.requiresConfirmation && data.pendingAction) {
-          const assistantIndex = newMessages.length; // newMessages ja tem a msg do user
+          const assistantIndex = newMessages.length;
           setConfirmingMsgIndex(assistantIndex);
           setConfirmingAction(data.pendingAction);
         }
@@ -360,7 +329,6 @@ export default function FloatingChat() {
     setVoiceOn(prev => !prev);
   };
 
-  // Detecta se o navegador suporta reconhecimento de voz
   const hasSpeechRecognition = typeof window !== 'undefined' && !!getSpeechRecognition();
 
   if (!empresa?.id) return null;
@@ -400,9 +368,6 @@ export default function FloatingChat() {
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4" />
               <span className="font-semibold text-sm">CaixaFacil IA</span>
-              {!minimized && messages.length > 0 && (
-                <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full ml-1">Com memoria</span>
-              )}
             </div>
             <div className="flex items-center gap-1">
               <button
@@ -430,17 +395,12 @@ export default function FloatingChat() {
                 onScroll={(e) => e.stopPropagation()}
               >
                 <div className="space-y-3">
-                  {!historyLoaded && (
-                    <div className="flex justify-center py-8">
-                      <div className="w-5 h-5 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
-                    </div>
-                  )}
-                  {historyLoaded && messages.length === 0 && (
+                  {messages.length === 0 && (
                     <div className="text-center py-8">
                       <Sparkles className="w-10 h-10 mx-auto mb-3 text-amber-500/50" />
                       <p className="text-sm text-muted-foreground">Ola! Sou o assistente do CaixaFacil.</p>
                       <p className="text-xs text-muted-foreground mt-1">Posso ajudar com clientes, maquinas, fluxo de caixa e mais.</p>
-                      <p className="text-xs text-muted-foreground mt-1">Lembro das nossas conversas anteriores!</p>
+                      <p className="text-xs text-amber-500/60 mt-2">Lembro das nossas conversas anteriores.</p>
                       <div className="flex items-center justify-center gap-3 mt-3">
                         {voiceOn && (
                           <span className="flex items-center gap-1 text-xs text-amber-500/50">
@@ -453,11 +413,6 @@ export default function FloatingChat() {
                           </span>
                         )}
                       </div>
-                    </div>
-                  )}
-                  {historyLoaded && messages.length > 0 && (
-                    <div className="text-[10px] text-muted-foreground/50 text-center mb-1">
-                      Retomando ultima conversa
                     </div>
                   )}
                   {messages.map((msg, i) => (
@@ -525,7 +480,7 @@ export default function FloatingChat() {
                 </div>
               )}
 
-              {/* Input - sempre visivel, shrink-0 */}
+              {/* Input */}
               <div className="p-3 border-t border-border shrink-0 bg-card">
                 <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2">
                   {hasSpeechRecognition && (
