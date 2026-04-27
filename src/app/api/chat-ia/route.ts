@@ -9,7 +9,7 @@ interface LLMAction {
   friendlyText?: string;
 }
 
-const DESTRUCTIVE_ACTIONS = new Set(['criar_conta', 'liquidar_conta', 'excluir_conta']);
+const DESTRUCTIVE_ACTIONS = new Set(['criar_conta', 'liquidar_conta', 'excluir_conta', 'editar_conta']);
 
 // Salvar mensagem no historico (fire-and-forget, nao bloqueia a resposta)
 function saveToHistory(empresaId: string, sessaoId: string, role: string, content: string, acaoExecutada?: string | null, resultadoAcao?: string | null): void {
@@ -135,8 +135,8 @@ async function resolveContaId(empresaId: string, dados: Record<string, unknown>)
       where.clienteId = resolved.id;
     }
 
-    // Filtrar por valor se fornecido
-    if (dados.valor !== undefined) {
+    // Filtrar por valor se fornecido (mas nao se for novoValor - nesse caso valor e o antigo para busca)
+    if (dados.valor !== undefined && dados.novoValor === undefined) {
       where.valor = parseFloat(String(dados.valor));
     }
 
@@ -248,6 +248,40 @@ async function runAction(
         if (resolved.error) { finalText = resolved.error; break; }
         resultadoAcao = await db.conta.delete({
           where: { id: resolved.id },
+        });
+      }
+      break;
+    }
+    case 'editar_conta': {
+      if (!action.dados?.id && !action.dados?.clienteId) {
+        finalText = 'Informacoes insuficientes para editar. Informe pelo menos o cliente e o valor.';
+      } else {
+        const resolved = await resolveContaId(empresaId, action.dados!);
+        if (resolved.error) { finalText = resolved.error; break; }
+
+        // Montar campos para atualizar (so os que foram fornecidos)
+        const updateData: Record<string, unknown> = {};
+        if (action.dados.descricao !== undefined) updateData.descricao = String(action.dados.descricao);
+        if (action.dados.novoValor !== undefined) {
+          // Quando o LLM envia "mude de X para Y", ele usa novoValor para o novo valor
+          updateData.valor = parseFloat(String(action.dados.novoValor));
+        } else if (action.dados.valor !== undefined) {
+          updateData.valor = parseFloat(String(action.dados.valor));
+        }
+        if (action.dados.data !== undefined) updateData.data = new Date(String(action.dados.data));
+        if (action.dados.tipo !== undefined) updateData.tipo = parseInt(String(action.dados.tipo), 10);
+        if (action.dados.paga !== undefined) updateData.paga = action.dados.paga as boolean;
+        if (action.dados.observacoes !== undefined) updateData.observacoes = String(action.dados.observacoes);
+
+        if (Object.keys(updateData).length === 0) {
+          finalText = 'Nenhum campo fornecido para atualizar. Informe o que deseja alterar (descricao, valor, data, etc).';
+          break;
+        }
+
+        resultadoAcao = await db.conta.update({
+          where: { id: resolved.id },
+          data: updateData,
+          include: { cliente: { select: { id: true, nome: true } } },
         });
       }
       break;
@@ -408,6 +442,12 @@ function formatActionResult(
       text = text + '\n\nConta liquidada com sucesso! ' + desc + clienteStr + ', R$ ' + fmtBrl(valor);
     } else if (acaoNome === 'excluir_conta') {
       text = text + '\n\nConta excluida com sucesso.';
+    } else if (acaoNome === 'editar_conta') {
+      const desc = (resultadoAcao as any).descricao || '';
+      const valor = (resultadoAcao as any).valor || 0;
+      const cliente = (resultadoAcao as any).cliente?.nome || '';
+      const clienteStr = cliente ? ` do cliente ${cliente}` : '';
+      text = text + `\n\nConta atualizada com sucesso! ${desc}${clienteStr}, R$ ${fmtBrl(valor)}.`;
     } else if (acaoNome === 'resumo_financeiro') {
       text = text + '\n\n' + String(resultadoAcao);
     }
@@ -683,6 +723,7 @@ Acoes disponiveis:
 - "criar_conta": Criar nova conta (campos: descricao, valor, data, tipo: 0=Pagar/1=Receber, clienteId)
 - "liquidar_conta": Marcar conta como liquidada. Use clienteId + valor + data para identificar. Ex: {"acao":"liquidar_conta","dados":{"clienteId":"NOME_DO_CLIENTE","valor":110,"data":"2026-04-28"}}
 - "excluir_conta": Excluir conta. Use clienteId + valor + data para identificar. Ex: {"acao":"excluir_conta","dados":{"clienteId":"NOME_DO_CLIENTE","valor":110,"data":"2026-04-28"}}
+- "editar_conta": Alterar campos de uma conta existente. Use clienteId + valor + data para identificar a conta, e inclua os campos a alterar (descricao, valor, data, observacoes). Ex: {"acao":"editar_conta","dados":{"clienteId":"Geninho","valor":239,"descricao":"JB"}}
 - "listar_clientes": Listar clientes. SEMPRE use esta acao quando o usuario perguntar sobre clientes.
 - "listar_maquinas": Listar maquinas (por clienteId). SEMPRE use esta acao quando o usuario perguntar sobre maquinas.
 - "resumo_financeiro": Obter resumo financeiro detalhado completo
@@ -706,6 +747,8 @@ EXEMPLOS:
 - Usuario: "minhas maquinas" -> {"acao": "listar_maquinas", "dados": {}}
 - Usuario: "marque a conta do Joao de R$ 150 como paga" -> {"acao": "liquidar_conta", "dados": {"clienteId": "Joao", "valor": 150}}
 - Usuario: "liquidar conta do BAR R$ 110" -> {"acao": "liquidar_conta", "dados": {"clienteId": "BAR", "valor": 110}}
+- Usuario: "altere a descricao dessa conta para JB" -> {"acao": "editar_conta", "dados": {"clienteId": "Geninho", "valor": 239, "descricao": "JB"}, "friendlyText": "Vou alterar a descricao da conta para JB."}
+- Usuario: "mude o valor da conta do Joao de R$ 100 para R$ 200" -> {"acao": "editar_conta", "dados": {"clienteId": "Joao", "valor": 100, "data": "2026-04-28", "novoValor": 200}, "friendlyText": "Vou atualizar o valor da conta de R$ 100 para R$ 200."}
 
 Use formato de moeda brasileiro (R$ X.XXX,XX) nos valores.`;
 
