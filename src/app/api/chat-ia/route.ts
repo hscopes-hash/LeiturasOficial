@@ -9,6 +9,8 @@ interface LLMAction {
   friendlyText?: string;
 }
 
+const DESTRUCTIVE_ACTIONS = new Set(['criar_conta', 'liquidar_conta', 'excluir_conta']);
+
 function parseActionFromResponse(text: string): { action: LLMAction | null; friendlyText: string } {
   let action: LLMAction | null = null;
 
@@ -52,27 +54,210 @@ function parseActionFromResponse(text: string): { action: LLMAction | null; frie
   return { action, friendlyText };
 }
 
+// ==================== Executar acao no banco ====================
+async function runAction(
+  action: LLMAction,
+  empresaId: string,
+): Promise<{ finalText: string; resultadoAcao: unknown }> {
+  let finalText = '';
+  let resultadoAcao: unknown = null;
+
+  switch (action.acao) {
+    case 'listar_contas': {
+      const whereClause: Record<string, unknown> = { empresaId };
+      if (action.dados?.clienteId) whereClause.clienteId = action.dados.clienteId as string;
+      if (action.dados?.tipo !== undefined) whereClause.tipo = parseInt(String(action.dados.tipo), 10);
+      if (action.dados?.paga !== undefined) whereClause.paga = action.dados.paga as boolean;
+      if (!action.dados?.clienteId) whereClause.cliente = { empresaId: empresaId };
+
+      resultadoAcao = await db.conta.findMany({
+        where: whereClause,
+        include: { cliente: { select: { id: true, nome: true } } },
+        orderBy: { data: 'desc' },
+      });
+      break;
+    }
+    case 'criar_conta': {
+      const dados = action.dados!;
+      if (!dados.descricao || !dados.valor || !dados.data || !dados.clienteId) {
+        finalText = 'Campos obrigatorios faltando para criar conta (descricao, valor, data, clienteId).';
+      } else {
+        resultadoAcao = await db.conta.create({
+          data: {
+            descricao: dados.descricao as string,
+            valor: parseFloat(String(dados.valor)),
+            data: new Date(dados.data as string),
+            tipo: dados.tipo !== undefined ? parseInt(String(dados.tipo), 10) : 1,
+            clienteId: dados.clienteId as string,
+            empresaId,
+          },
+          include: { cliente: { select: { id: true, nome: true } } },
+        });
+      }
+      break;
+    }
+    case 'liquidar_conta': {
+      if (!action.dados?.id) {
+        finalText = 'ID da conta e obrigatorio para liquidar.';
+      } else {
+        resultadoAcao = await db.conta.update({
+          where: { id: action.dados.id as string },
+          data: {
+            paga: true,
+            dataPagamento: action.dados.dataPagamento
+              ? new Date(action.dados.dataPagamento as string)
+              : new Date(),
+          },
+          include: { cliente: { select: { id: true, nome: true } } },
+        });
+      }
+      break;
+    }
+    case 'excluir_conta': {
+      if (!action.dados?.id) {
+        finalText = 'ID da conta e obrigatorio para excluir.';
+      } else {
+        resultadoAcao = await db.conta.delete({
+          where: { id: action.dados.id as string },
+        });
+      }
+      break;
+    }
+    case 'listar_clientes': {
+      resultadoAcao = await db.cliente.findMany({
+        where: { empresaId },
+        select: { id: true, nome: true, telefone: true, ativo: true, bloqueado: true },
+        orderBy: { nome: 'asc' },
+        take: 30,
+      });
+      break;
+    }
+    case 'listar_maquinas': {
+      const whereM: Record<string, unknown> = { cliente: { empresaId } };
+      if (action.dados?.clienteId) whereM.clienteId = action.dados.clienteId as string;
+
+      resultadoAcao = await db.maquina.findMany({
+        where: whereM,
+        select: { id: true, codigo: true, descricao: true, status: true, localizacao: true, cliente: { select: { nome: true } } },
+        orderBy: { codigo: 'asc' },
+        take: 30,
+      });
+      break;
+    }
+    case 'resumo_financeiro': {
+      const ctx = await gatherCompanyContext(empresaId);
+      resultadoAcao = ctx;
+      break;
+    }
+  }
+
+  return { finalText, resultadoAcao };
+}
+
+// ==================== Formatar resultado das acoes ====================
+function formatActionResult(
+  finalText: string,
+  resultadoAcao: unknown,
+  action: LLMAction | null,
+): string {
+  let text = finalText;
+  const acaoNome = action?.acao || '';
+
+  if (resultadoAcao && Array.isArray(resultadoAcao) && resultadoAcao.length > 0) {
+    if (acaoNome === 'listar_contas') {
+      const total = resultadoAcao.reduce((s: number, d: any) => s + (d.valor || 0), 0);
+      const pendentes = resultadoAcao.filter((d: any) => !d.paga);
+      const totalPendente = pendentes.reduce((s: number, d: any) => s + (d.valor || 0), 0);
+      text = text + '\n\n' +
+        resultadoAcao.map((d: any) => {
+          const tipoStr = d.tipo === 0 ? 'PAGAR' : 'RECEBER';
+          return `- [${tipoStr}] ${(d.descricao || 'Sem descricao')} | R$ ${(d.valor || 0).toFixed(2)} | ${(d.paga ? 'Liquidada' : 'Pendente')}`;
+        }).join('\n') +
+        '\n\nTotal: ' + resultadoAcao.length + ' conta(s) | R$ ' + total.toFixed(2) +
+        '\nPendentes: ' + pendentes.length + ' | R$ ' + totalPendente.toFixed(2);
+    } else if (acaoNome === 'listar_clientes') {
+      text = text + '\n\n' +
+        resultadoAcao.map((c: any) => {
+          const statusStr = c.bloqueado ? 'BLOQUEADO' : (c.ativo ? 'Ativo' : 'Inativo');
+          return `- ${c.nome} | Tel: ${c.telefone || '-'} | ${statusStr}`;
+        }).join('\n');
+    } else if (acaoNome === 'listar_maquinas') {
+      text = text + '\n\n' +
+        resultadoAcao.map((m: any) => {
+          return `- ${m.codigo} (${m.descricao || '-'}) | ${m.status} | ${m.cliente?.nome || '-'} | ${m.localizacao || '-'}`;
+        }).join('\n');
+    } else {
+      const total = resultadoAcao.reduce((s: number, d: any) => s + (d.valor || 0), 0);
+      text = text + '\n\n' +
+        resultadoAcao.map((d: any) =>
+          '- ' + (d.descricao || 'Sem descricao') + ' | R$ ' + (d.valor || 0).toFixed(2) + ' | ' + (d.paga ? 'Liquidada' : 'Pendente')
+        ).join('\n') +
+        '\n\nTotal: ' + resultadoAcao.length + ' conta(s) | R$ ' + total.toFixed(2);
+    }
+  } else if (resultadoAcao && !Array.isArray(resultadoAcao)) {
+    if (acaoNome === 'criar_conta') {
+      const desc = (resultadoAcao as any).descricao || '';
+      const valor = (resultadoAcao as any).valor || 0;
+      const tipoStr = (resultadoAcao as any).tipo === 0 ? 'A Pagar' : 'A Receber';
+      text = text + '\n\nConta criada: ' + tipoStr + ' - ' + desc + ' | R$ ' + valor.toFixed(2);
+    } else if (acaoNome === 'liquidar_conta') {
+      const desc = (resultadoAcao as any).descricao || '';
+      const valor = (resultadoAcao as any).valor || 0;
+      text = text + '\n\nConta liquidada: ' + desc + ' | R$ ' + valor.toFixed(2);
+    } else if (acaoNome === 'excluir_conta') {
+      text = text + '\n\nConta excluida com sucesso.';
+    } else if (acaoNome === 'resumo_financeiro') {
+      text = text + '\n\n' + String(resultadoAcao);
+    }
+  } else if (resultadoAcao && Array.isArray(resultadoAcao) && resultadoAcao.length === 0) {
+    text = text + '\n\nNenhum registro encontrado.';
+  }
+
+  return text.replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { mensagem, empresaId, clienteId } = body;
+    const { mensagem, empresaId, clienteId, messages: historyMessages, confirmAction } = body;
 
-    if (!mensagem || !empresaId) {
-      return NextResponse.json(
-        { error: 'Mensagem e empresaId são obrigatórios' },
-        { status: 400 }
-      );
+    if (!empresaId) {
+      return NextResponse.json({ error: 'empresaId e obrigatorio' }, { status: 400 });
     }
+
+    // ========== CONFIRM ACTION FLOW (sem chamada LLM) ==========
+    if (confirmAction && !mensagem) {
+      try {
+        const { finalText: actionText, resultadoAcao } = await runAction(confirmAction, empresaId);
+        const formatted = formatActionResult(actionText || 'Acao executada.', resultadoAcao, confirmAction);
+        return NextResponse.json({
+          text: formatted || 'Acao executada com sucesso.',
+          acao: confirmAction.acao,
+          resultado: resultadoAcao,
+        });
+      } catch (acaoErr) {
+        console.error('Erro ao executar acao confirmada:', acaoErr);
+        return NextResponse.json({
+          error: `Erro ao executar acao: ${acaoErr instanceof Error ? acaoErr.message : 'Erro desconhecido'}`,
+        }, { status: 500 });
+      }
+    }
+
+    if (!mensagem) {
+      return NextResponse.json({ error: 'Mensagem e obrigatoria' }, { status: 400 });
+    }
+
+    // ========== NORMAL CHAT FLOW (com historico multi-turn) ==========
 
     // Gather comprehensive company context
     let companyContext = '';
     try {
       companyContext = await gatherCompanyContext(empresaId);
     } catch (ctxErr) {
-      console.warn('Não foi possível buscar contexto da empresa:', ctxErr);
+      console.warn('Nao foi possivel buscar contexto da empresa:', ctxErr);
     }
 
-    // Buscar configurações de IA da empresa (CONFIG SAAS)
+    // Buscar configuracoes de IA da empresa (CONFIG SAAS)
     let llmApiKey = '';
     let llmModel = 'gemini-2.5-flash-lite';
 
@@ -86,45 +271,52 @@ export async function POST(request: NextRequest) {
         llmApiKey = getApiKeyForModel(llmModel, empresa.llmApiKey, empresa.llmApiKeyGemini, empresa.llmApiKeyGlm, empresa.llmApiKeyOpenrouter) || '';
       }
     } catch {
-      // Usa valores padrão
+      // Usa valores padrao
     }
 
     if (!llmApiKey) {
       return NextResponse.json(
-        { error: 'API Key de IA não configurada. Configure nas Config. SaaS.' },
+        { error: 'API Key de IA nao configurada. Configure nas Config. SaaS.' },
         { status: 400 }
       );
     }
 
     // Montar prompt do sistema - General Business Assistant
-    const systemPrompt = `Você é o assistente virtual do CaixaFácil, sistema de gestão de máquinas de entretenimento.
-Você tem acesso a dados em tempo real da empresa e pode responder perguntas sobre:
+    const systemPrompt = `Voce e o assistente virtual do CaixaFacil, sistema de gestao de maquinas de entretenimento.
+Voce tem acesso a dados em tempo real da empresa e pode responder perguntas sobre:
 - Clientes (cadastro, status, contato)
-- Máquinas (status, localização, leituras)
+- Maquinas (status, localizacao, leituras)
 - Fluxo de caixa (contas a pagar e receber, saldo)
-- Leituras recentes (valores de entrada/saída)
+- Leituras recentes (valores de entrada/saida)
 - Pagamentos e assinaturas
 
 Dados atuais da empresa:
 ${companyContext}
 
-Responda em português brasileiro de forma clara e objetiva.
-Se o usuário pedir para criar/alterar dados, use as ações disponíveis.
+Responda em portugues brasileiro de forma clara e objetiva.
+Se o usuario pedir para criar/alterar dados, use as acoes disponiveis.
 
-Ações disponíveis:
+Acoes disponiveis:
 - "listar_contas": Listar contas com filtros (clienteId, tipo: 0=Pagar, 1=Receber, paga: true/false)
 - "criar_conta": Criar nova conta (campos: descricao, valor, data, tipo: 0=Pagar/1=Receber, clienteId)
 - "liquidar_conta": Marcar conta como liquidada (campo: id, dataPagamento opcional)
 - "excluir_conta": Excluir conta (campo: id)
 - "listar_clientes": Listar clientes
-- "listar_maquinas": Listar máquinas (por clienteId)
+- "listar_maquinas": Listar maquinas (por clienteId)
 - "resumo_financeiro": Obter resumo financeiro completo
 
-Responda com JSON no formato (quando uma ação for necessária):
-{"acao": "nome_da_acao", "dados": {...}, "friendlyText": "Mensagem amigável para o usuário"}
+IMPORTANTE: Quando sugerir uma acao que modifica dados (criar, liquidar, excluir), sempre explique ao usuario o que sera feito de forma clara no campo "friendlyText". O sistema pedira confirmacao automaticamente ao usuario.
 
-Se a pergunta for apenas informativa, responda normalmente sem ação JSON.
+Responda com JSON no formato (quando uma acao for necessaria):
+{"acao": "nome_da_acao", "dados": {...}, "friendlyText": "Mensagem amigavel descrevendo o que sera feito"}
+
+Se a pergunta for apenas informativa, responda normalmente sem acao JSON.
 Use formato de moeda brasileiro (R$ X.XXX,XX) nos valores.`;
+
+    // Historico de conversa (limitado as ultimas 10 mensagens)
+    const recentHistory = Array.isArray(historyMessages)
+      ? historyMessages.slice(-10)
+      : [];
 
     // Detectar provider e chamar LLM correto (CONFIG SAAS)
     const provider = detectProvider(llmModel);
@@ -137,21 +329,50 @@ Use formato de moeda brasileiro (R$ X.XXX,XX) nos valores.`;
       if (provider === 'glm') {
         let authToken: string;
         try { authToken = generateZhipuToken(llmApiKey); }
-        catch { return NextResponse.json({ error: 'API Key Zhipu AI inválida. O formato deve ser {id}.{secret}.' }, { status: 400 }); }
+        catch { return NextResponse.json({ error: 'API Key Zhipu AI invalida. O formato deve ser {id}.{secret}.' }, { status: 400 }); }
+
+        const chatMessages = [
+          { role: 'system', content: systemPrompt },
+          ...recentHistory.map(m => ({
+            role: m.role === 'assistant' ? 'assistant' : 'user' as const,
+            content: m.content,
+          })),
+          { role: 'user' as const, content: mensagem },
+        ];
+
         llmResponse = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
           method: 'POST',
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-          body: JSON.stringify({ model: llmModel, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: mensagem }], temperature: 0.3, max_tokens: 1024 }),
+          body: JSON.stringify({ model: llmModel, messages: chatMessages, temperature: 0.3, max_tokens: 2048 }),
         });
       } else if (provider === 'openrouter') {
+        const chatMessages = [
+          { role: 'system', content: systemPrompt },
+          ...recentHistory.map(m => ({
+            role: m.role === 'assistant' ? 'assistant' : 'user' as const,
+            content: m.content,
+          })),
+          { role: 'user' as const, content: mensagem },
+        ];
+
         llmResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
           method: 'POST',
           signal: controller.signal,
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${llmApiKey}` },
-          body: JSON.stringify({ model: llmModel, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: mensagem }], temperature: 0.3, max_tokens: 1024 }),
+          body: JSON.stringify({ model: llmModel, messages: chatMessages, temperature: 0.3, max_tokens: 2048 }),
         });
       } else {
+        // Gemini format
+        const contents = [
+          { role: 'user', parts: [{ text: systemPrompt }] },
+          { role: 'model', parts: [{ text: 'Entendido, sou o assistente virtual do CaixaFacil.' }] },
+          ...recentHistory.flatMap(m => [
+            { role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] }
+          ]),
+          { role: 'user', parts: [{ text: mensagem }] },
+        ];
+
         llmResponse = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${llmModel}:generateContent?key=${llmApiKey}`,
           {
@@ -159,12 +380,8 @@ Use formato de moeda brasileiro (R$ X.XXX,XX) nos valores.`;
             signal: controller.signal,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              contents: [
-                { role: 'user', parts: [{ text: systemPrompt }] },
-                { role: 'model', parts: [{ text: 'Entendido, sou o assistente virtual do CaixaFácil.' }] },
-                { role: 'user', parts: [{ text: mensagem }] },
-              ],
-              generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+              contents,
+              generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
             }),
           }
         );
@@ -217,7 +434,7 @@ Use formato de moeda brasileiro (R$ X.XXX,XX) nos valores.`;
       llmMessage = llmData?.choices?.[0]?.message?.content || '';
     }
 
-    // Parsear ação da resposta
+    // Parsear acao da resposta
     const parsed = parseActionFromResponse(llmMessage);
 
     let finalText = '';
@@ -245,158 +462,29 @@ Use formato de moeda brasileiro (R$ X.XXX,XX) nos valores.`;
     // 5) Limpar linhas duplicadas
     finalText = finalText.replace(/\n{3,}/g, '\n\n').trim();
 
-    // Executar ação se identificada
+    // ========== ACAO DESTRUTIVA: pedir confirmacao ==========
+    if (parsed.action?.acao && parsed.action.dados && DESTRUCTIVE_ACTIONS.has(parsed.action.acao)) {
+      return NextResponse.json({
+        text: finalText,
+        acao: parsed.action.acao,
+        requiresConfirmation: true,
+        pendingAction: parsed.action,
+      });
+    }
+
+    // ========== ACAO NAO-DESTRUTIVA: executar imediatamente ==========
     let resultadoAcao: unknown = null;
 
     if (parsed.action?.acao && parsed.action.dados) {
       try {
-        switch (parsed.action.acao) {
-          case 'listar_contas': {
-            const whereClause: Record<string, unknown> = { empresaId };
-            if (parsed.action.dados.clienteId) whereClause.clienteId = parsed.action.dados.clienteId as string;
-            if (parsed.action.dados.tipo !== undefined) whereClause.tipo = parseInt(String(parsed.action.dados.tipo), 10);
-            if (parsed.action.dados.paga !== undefined) whereClause.paga = parsed.action.dados.paga as boolean;
-            if (!parsed.action.dados.clienteId) whereClause.cliente = { empresaId: empresaId };
-            
-            resultadoAcao = await db.conta.findMany({
-              where: whereClause,
-              include: { cliente: { select: { id: true, nome: true } } },
-              orderBy: { data: 'desc' },
-            });
-            break;
-          }
-          case 'criar_conta': {
-            const dados = parsed.action.dados;
-            if (!dados.descricao || !dados.valor || !dados.data || !dados.clienteId) {
-              finalText = 'Campos obrigatórios faltando para criar conta (descricao, valor, data, clienteId).';
-            } else {
-              resultadoAcao = await db.conta.create({
-                data: {
-                  descricao: dados.descricao as string,
-                  valor: parseFloat(String(dados.valor)),
-                  data: new Date(dados.data as string),
-                  tipo: dados.tipo !== undefined ? parseInt(String(dados.tipo), 10) : 1,
-                  clienteId: dados.clienteId as string,
-                  empresaId,
-                },
-                include: { cliente: { select: { id: true, nome: true } } },
-              });
-            }
-            break;
-          }
-          case 'liquidar_conta': {
-            if (!parsed.action.dados.id) {
-              finalText = 'ID da conta é obrigatório para liquidar.';
-            } else {
-              resultadoAcao = await db.conta.update({
-                where: { id: parsed.action.dados.id as string },
-                data: {
-                  paga: true,
-                  dataPagamento: parsed.action.dados.dataPagamento 
-                    ? new Date(parsed.action.dados.dataPagamento as string)
-                    : new Date(),
-                },
-                include: { cliente: { select: { id: true, nome: true } } },
-              });
-            }
-            break;
-          }
-          case 'excluir_conta': {
-            if (!parsed.action.dados.id) {
-              finalText = 'ID da conta é obrigatório para excluir.';
-            } else {
-              resultadoAcao = await db.conta.delete({
-                where: { id: parsed.action.dados.id as string },
-              });
-            }
-            break;
-          }
-          case 'listar_clientes': {
-            resultadoAcao = await db.cliente.findMany({
-              where: { empresaId },
-              select: { id: true, nome: true, telefone: true, ativo: true, bloqueado: true },
-              orderBy: { nome: 'asc' },
-              take: 30,
-            });
-            break;
-          }
-          case 'listar_maquinas': {
-            const whereM: Record<string, unknown> = { cliente: { empresaId } };
-            if (parsed.action.dados.clienteId) whereM.clienteId = parsed.action.dados.clienteId as string;
-            
-            resultadoAcao = await db.maquina.findMany({
-              where: whereM,
-              select: { id: true, codigo: true, descricao: true, status: true, localizacao: true, cliente: { select: { nome: true } } },
-              orderBy: { codigo: 'asc' },
-              take: 30,
-            });
-            break;
-          }
-          case 'resumo_financeiro': {
-            const ctx = await gatherCompanyContext(empresaId);
-            resultadoAcao = ctx;
-            break;
-          }
-        }
+        const result = await runAction(parsed.action, empresaId);
+        resultadoAcao = result.resultadoAcao;
+        if (result.finalText) finalText = result.finalText;
+        finalText = formatActionResult(finalText, resultadoAcao, parsed.action);
       } catch (acaoErr) {
-        console.error('Erro ao executar ação:', acaoErr);
-        finalText = `Erro ao executar ação: ${acaoErr instanceof Error ? acaoErr.message : 'Erro desconhecido'}`;
+        console.error('Erro ao executar acao:', acaoErr);
+        finalText = `Erro ao executar acao: ${acaoErr instanceof Error ? acaoErr.message : 'Erro desconhecido'}`;
       }
-    }
-
-    // Formatar resultado das ações para exibição amigável
-    if (resultadoAcao && Array.isArray(resultadoAcao) && resultadoAcao.length > 0) {
-      const acaoNome = parsed.action?.acao || '';
-      
-      if (acaoNome === 'listar_contas') {
-        const total = resultadoAcao.reduce((s: number, d: any) => s + (d.valor || 0), 0);
-        const pendentes = resultadoAcao.filter((d: any) => !d.paga);
-        const totalPendente = pendentes.reduce((s: number, d: any) => s + (d.valor || 0), 0);
-        finalText = finalText + '\n\n' +
-          resultadoAcao.map((d: any) => {
-            const tipoStr = d.tipo === 0 ? 'PAGAR' : 'RECEBER';
-            return `- [${tipoStr}] ${(d.descricao || 'Sem descrição')} | R$ ${(d.valor || 0).toFixed(2)} | ${(d.paga ? 'Liquidada' : 'Pendente')}`;
-          }).join('\n') +
-          '\n\nTotal: ' + resultadoAcao.length + ' conta(s) | R$ ' + total.toFixed(2) +
-          '\nPendentes: ' + pendentes.length + ' | R$ ' + totalPendente.toFixed(2);
-      } else if (acaoNome === 'listar_clientes') {
-        finalText = finalText + '\n\n' +
-          resultadoAcao.map((c: any) => {
-            const statusStr = c.bloqueado ? 'BLOQUEADO' : (c.ativo ? 'Ativo' : 'Inativo');
-            return `- ${c.nome} | Tel: ${c.telefone || '-'} | ${statusStr}`;
-          }).join('\n');
-      } else if (acaoNome === 'listar_maquinas') {
-        finalText = finalText + '\n\n' +
-          resultadoAcao.map((m: any) => {
-            return `- ${m.codigo} (${m.descricao || '-'}) | ${m.status} | ${m.cliente?.nome || '-'} | ${m.localizacao || '-'}`;
-          }).join('\n');
-      } else {
-        // Generic list
-        const total = resultadoAcao.reduce((s: number, d: any) => s + (d.valor || 0), 0);
-        finalText = finalText + '\n\n' +
-          resultadoAcao.map((d: any) =>
-            '- ' + (d.descricao || 'Sem descrição') + ' | R$ ' + (d.valor || 0).toFixed(2) + ' | ' + (d.paga ? 'Liquidada' : 'Pendente')
-          ).join('\n') +
-          '\n\nTotal: ' + resultadoAcao.length + ' conta(s) | R$ ' + total.toFixed(2);
-      }
-    } else if (resultadoAcao && !Array.isArray(resultadoAcao)) {
-      const acaoNome = parsed.action?.acao || '';
-      if (acaoNome === 'criar_conta') {
-        const desc = (resultadoAcao as any).descricao || '';
-        const valor = (resultadoAcao as any).valor || 0;
-        const tipoStr = (resultadoAcao as any).tipo === 0 ? 'A Pagar' : 'A Receber';
-        finalText = finalText + '\n\nConta criada: ' + tipoStr + ' - ' + desc + ' | R$ ' + valor.toFixed(2);
-      } else if (acaoNome === 'liquidar_conta') {
-        const desc = (resultadoAcao as any).descricao || '';
-        const valor = (resultadoAcao as any).valor || 0;
-        finalText = finalText + '\n\nConta liquidada: ' + desc + ' | R$ ' + valor.toFixed(2);
-      } else if (acaoNome === 'excluir_conta') {
-        finalText = finalText + '\n\nConta excluída com sucesso.';
-      } else if (acaoNome === 'resumo_financeiro') {
-        finalText = finalText + '\n\n' + String(resultadoAcao);
-      }
-    } else if (resultadoAcao && Array.isArray(resultadoAcao) && resultadoAcao.length === 0) {
-      finalText = finalText + '\n\nNenhum registro encontrado.';
     }
 
     return NextResponse.json({

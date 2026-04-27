@@ -49,6 +49,11 @@ export default function FloatingChat() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
 
+  // Estado para confirmacao de acoes destrutivas
+  const [confirmingMsgIndex, setConfirmingMsgIndex] = useState<number | null>(null);
+  const [confirmingAction, setConfirmingAction] = useState<{ acao: string; dados: Record<string, unknown> } | null>(null);
+  const [confirmingLoading, setConfirmingLoading] = useState(false);
+
   // Carregar vozes disponiveis
   useEffect(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
@@ -166,6 +171,83 @@ export default function FloatingChat() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [micStatus]);
 
+  // ==================== Confirmar acao destrutiva ====================
+  const handleConfirm = async () => {
+    if (!confirmingAction || confirmingMsgIndex === null || confirmingLoading) return;
+    setConfirmingLoading(true);
+
+    // Parar TTS
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+
+    try {
+      const res = await fetch('/api/chat-ia', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          empresaId: empresa.id,
+          confirmAction: confirmingAction,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[confirmingMsgIndex] = {
+            ...updated[confirmingMsgIndex],
+            content: updated[confirmingMsgIndex].content + '\n\nErro: ' + (data.error || 'Erro ao executar acao.'),
+          };
+          return updated;
+        });
+      } else {
+        const resultText = data.text || 'Acao executada com sucesso.';
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[confirmingMsgIndex] = {
+            ...updated[confirmingMsgIndex],
+            content: resultText,
+          };
+          return updated;
+        });
+        if (voiceOn) {
+          speak(resultText);
+        }
+      }
+    } catch {
+      setMessages(prev => {
+        const updated = [...prev];
+        updated[confirmingMsgIndex] = {
+          ...updated[confirmingMsgIndex],
+          content: updated[confirmingMsgIndex].content + '\n\nErro de conexao.',
+        };
+        return updated;
+      });
+    } finally {
+      setConfirmingMsgIndex(null);
+      setConfirmingAction(null);
+      setConfirmingLoading(false);
+    }
+  };
+
+  const handleCancel = () => {
+    if (confirmingMsgIndex === null) return;
+
+    setMessages(prev => {
+      const updated = [...prev];
+      updated[confirmingMsgIndex] = {
+        ...updated[confirmingMsgIndex],
+        content: updated[confirmingMsgIndex].content + '\n\nAcao cancelada.',
+      };
+      return updated;
+    });
+
+    setConfirmingMsgIndex(null);
+    setConfirmingAction(null);
+  };
+
   // ==================== Enviar mensagem ====================
   const sendMessage = async () => {
     if (!input.trim() || !empresa?.id || loading) return;
@@ -175,14 +257,29 @@ export default function FloatingChat() {
 
     const userMsg = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+
+    // Adicionar mensagem do usuario ao historico
+    const newMessages = [...messages, { role: 'user' as const, content: userMsg }];
+    setMessages(newMessages);
     setLoading(true);
 
+    // Parar TTS se estiver falando
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+
     try {
+      // Enviar ultimas 10 mensagens como historico (sem incluir a que acabamos de adicionar ao userMsg)
+      const historyToSend = messages.slice(-10);
+
       const res = await fetch('/api/chat-ia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mensagem: userMsg, empresaId: empresa.id }),
+        body: JSON.stringify({
+          mensagem: userMsg,
+          empresaId: empresa.id,
+          messages: historyToSend,
+        }),
       });
 
       const data = await res.json();
@@ -192,9 +289,22 @@ export default function FloatingChat() {
         const errorText = data.error || 'Erro ao processar mensagem.';
         setMessages(prev => [...prev, { role: 'assistant', content: errorText }]);
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
+        const assistantMsg: ChatMessage = { role: 'assistant', content: responseText };
+        setMessages(prev => [...prev, assistantMsg]);
+
         if (voiceOn) {
           speak(responseText);
+        }
+
+        // Verificar se precisa de confirmacao para acao destrutiva
+        if (data.requiresConfirmation && data.pendingAction) {
+          // O indice da mensagem do assistente e messages.length (antigo) + 1 (user) + 0 (assistant)
+          // Mas como usamos functional update, precisamos calcular com base no estado atual
+          // messages.length foi atualizado no setMessages acima, entao:
+          // newMessages.length + 1 = indice do assistente
+          const assistantIndex = newMessages.length; // newMessages ja tem a msg do user
+          setConfirmingMsgIndex(assistantIndex);
+          setConfirmingAction(data.pendingAction);
         }
       }
     } catch {
@@ -283,6 +393,7 @@ export default function FloatingChat() {
                       <Sparkles className="w-10 h-10 mx-auto mb-3 text-amber-500/50" />
                       <p className="text-sm text-muted-foreground">Ola! Sou o assistente do CaixaFacil.</p>
                       <p className="text-xs text-muted-foreground mt-1">Posso ajudar com clientes, maquinas, fluxo de caixa e mais.</p>
+                      <p className="text-xs text-muted-foreground mt-1">Lembro do contexto da nossa conversa!</p>
                       <div className="flex items-center justify-center gap-3 mt-3">
                         {voiceOn && (
                           <span className="flex items-center gap-1 text-xs text-amber-500/50">
@@ -304,6 +415,36 @@ export default function FloatingChat() {
                       </div>
                     </div>
                   ))}
+
+                  {/* Botoes de confirmacao para acoes destrutivas */}
+                  {confirmingMsgIndex !== null && confirmingMsgIndex < messages.length && (
+                    <div className="flex justify-start">
+                      <div className="flex gap-2 mt-1 ml-1">
+                        <button
+                          onClick={handleConfirm}
+                          disabled={confirmingLoading}
+                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg flex items-center gap-1.5 disabled:opacity-50 transition-colors shadow-sm"
+                        >
+                          {confirmingLoading ? (
+                            <>
+                              <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Executando...
+                            </>
+                          ) : (
+                            'Confirmar'
+                          )}
+                        </button>
+                        <button
+                          onClick={handleCancel}
+                          disabled={confirmingLoading}
+                          className="px-3 py-1.5 bg-red-500/80 hover:bg-red-600 text-white text-xs rounded-lg disabled:opacity-50 transition-colors shadow-sm"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {loading && (
                     <div className="flex justify-start">
                       <div className="bg-muted px-3 py-2 rounded-xl rounded-bl-sm">
