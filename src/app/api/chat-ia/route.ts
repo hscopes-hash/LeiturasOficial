@@ -79,13 +79,26 @@ async function resolveClienteId(empresaId: string, rawId: string): Promise<{ id:
   // Se ja e UUID valido, usar direto
   if (UUID_REGEX.test(rawId)) return { id: rawId };
 
-  // Tentar buscar por nome (busca parcial, case-insensitive)
+  // Se parece com inicio de UUID (ex: "cmofawri..." copiado pelo LLM), limpar e buscar por prefixo
+  const cleanedRaw = rawId.replace(/\.{2,}/g, '').trim().toLowerCase();
+
   try {
-    const cliente = await db.cliente.findFirst({
-      where: { empresaId, nome: { contains: rawId, mode: 'insensitive' } },
+    // 1) Buscar por nome (case-insensitive, partial match)
+    const byName = await db.cliente.findFirst({
+      where: { empresaId, nome: { contains: cleanedRaw, mode: 'insensitive' } },
       select: { id: true, nome: true },
     });
-    if (cliente) return { id: cliente.id };
+    if (byName) return { id: byName.id };
+
+    // 2) Se nao achou por nome, tentar buscar por prefixo do UUID (ex: "cmofawri")
+    if (cleanedRaw.length >= 6) {
+      const byPrefix = await db.cliente.findFirst({
+        where: { empresaId, id: { startsWith: cleanedRaw } },
+        select: { id: true, nome: true },
+      });
+      if (byPrefix) return { id: byPrefix.id };
+    }
+
     return { id: '', error: `Cliente "${rawId}" nao encontrado no cadastro.` };
   } catch {
     return { id: '', error: 'Erro ao buscar cliente.' };

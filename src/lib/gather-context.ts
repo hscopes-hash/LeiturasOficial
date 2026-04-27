@@ -73,8 +73,8 @@ async function loadClientList(empresaId: string): Promise<string> {
       take: 50,
     });
     if (clientes.length === 0) return '';
-    return '\nCLIENTES CADASTRADOS (use o ID no campo clienteId):\n' +
-      clientes.map(c => `  ${c.id.substring(0, 8)}... -> ${c.nome}`).join('\n');
+    return '\nCLIENTES CADASTRADOS (copie o ID COMPLETO no campo clienteId):\n' +
+      clientes.map(c => `  ${c.nome} => ${c.id}`).join('\n');
   } catch {
     return '';
   }
