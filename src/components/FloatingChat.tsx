@@ -61,6 +61,7 @@ export default function FloatingChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const voiceTriggeredRef = useRef(false);
 
   // Estado para confirmacao de acoes destrutivas
   const [confirmingMsgIndex, setConfirmingMsgIndex] = useState<number | null>(null);
@@ -156,13 +157,9 @@ export default function FloatingChat() {
     };
 
     recognition.onend = () => {
-      if (input.trim()) {
-        setTimeout(() => {
-          setMicStatus('idle');
-        }, 300);
-      } else {
-        setMicStatus('idle');
-      }
+      // Se a voz capturou texto, marcar para envio automatico
+      voiceTriggeredRef.current = true;
+      setMicStatus('idle');
     };
 
     recognition.onerror = () => setMicStatus('idle');
@@ -179,16 +176,17 @@ export default function FloatingChat() {
     }
   };
 
-  // Enviar automaticamente quando para de escutar
+  // Enviar automaticamente quando para de escutar (voz -> processa direto)
   useEffect(() => {
-    if (micStatus === 'idle' && input.trim() && !loading) {
+    if (micStatus === 'idle' && voiceTriggeredRef.current && input.trim() && !loading) {
+      voiceTriggeredRef.current = false;
       const timer = setTimeout(() => {
-        if (!recognitionRef.current && input.trim() && !loading) {}
-      }, 500);
+        sendMessage();
+      }, 400);
       return () => clearTimeout(timer);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [micStatus]);
+  }, [micStatus, input, loading]);
 
   // ==================== Confirmar acao destrutiva ====================
   const handleConfirm = async () => {
