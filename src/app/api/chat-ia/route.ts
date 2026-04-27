@@ -70,6 +70,28 @@ function parseActionFromResponse(text: string): { action: LLMAction | null; frie
   return { action, friendlyText };
 }
 
+// ==================== Resolver clienteId (nome -> UUID) ====================
+// O LLM frequentemente passa o NOME do cliente em vez do UUID real.
+// Esta funcao detecta se o valor e um UUID ou um nome e faz a conversao.
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveClienteId(empresaId: string, rawId: string): Promise<{ id: string; error?: string }> {
+  // Se ja e UUID valido, usar direto
+  if (UUID_REGEX.test(rawId)) return { id: rawId };
+
+  // Tentar buscar por nome (busca parcial, case-insensitive)
+  try {
+    const cliente = await db.cliente.findFirst({
+      where: { empresaId, nome: { contains: rawId, mode: 'insensitive' } },
+      select: { id: true, nome: true },
+    });
+    if (cliente) return { id: cliente.id };
+    return { id: '', error: `Cliente "${rawId}" nao encontrado no cadastro.` };
+  } catch {
+    return { id: '', error: 'Erro ao buscar cliente.' };
+  }
+}
+
 // ==================== Executar acao no banco ====================
 async function runAction(
   action: LLMAction,
@@ -81,7 +103,11 @@ async function runAction(
   switch (action.acao) {
     case 'listar_contas': {
       const whereClause: Record<string, unknown> = { empresaId };
-      if (action.dados?.clienteId) whereClause.clienteId = action.dados.clienteId as string;
+      if (action.dados?.clienteId) {
+        const resolved = await resolveClienteId(empresaId, String(action.dados.clienteId));
+        if (resolved.error) { finalText = resolved.error; break; }
+        whereClause.clienteId = resolved.id;
+      }
       if (action.dados?.tipo !== undefined) whereClause.tipo = parseInt(String(action.dados.tipo), 10);
       if (action.dados?.paga !== undefined) whereClause.paga = action.dados.paga as boolean;
       if (!action.dados?.clienteId) whereClause.cliente = { empresaId: empresaId };
@@ -98,13 +124,16 @@ async function runAction(
       if (!dados.descricao || !dados.valor || !dados.data || !dados.clienteId) {
         finalText = 'Campos obrigatorios faltando para criar conta (descricao, valor, data, clienteId).';
       } else {
+        // Resolver clienteId (nome -> UUID)
+        const resolved = await resolveClienteId(empresaId, String(dados.clienteId));
+        if (resolved.error) { finalText = resolved.error; break; }
         resultadoAcao = await db.conta.create({
           data: {
             descricao: dados.descricao as string,
             valor: parseFloat(String(dados.valor)),
             data: new Date(dados.data as string),
             tipo: dados.tipo !== undefined ? parseInt(String(dados.tipo), 10) : 1,
-            clienteId: dados.clienteId as string,
+            clienteId: resolved.id,
             empresaId,
           },
           include: { cliente: { select: { id: true, nome: true } } },
@@ -150,7 +179,11 @@ async function runAction(
     }
     case 'listar_maquinas': {
       const whereM: Record<string, unknown> = { cliente: { empresaId } };
-      if (action.dados?.clienteId) whereM.clienteId = action.dados.clienteId as string;
+      if (action.dados?.clienteId) {
+        const resolved = await resolveClienteId(empresaId, String(action.dados.clienteId));
+        if (resolved.error) { finalText = resolved.error; break; }
+        whereM.clienteId = resolved.id;
+      }
 
       resultadoAcao = await db.maquina.findMany({
         where: whereM,

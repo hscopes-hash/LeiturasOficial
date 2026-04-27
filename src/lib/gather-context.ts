@@ -50,30 +50,53 @@ export async function gatherCompanyContext(empresaId: string, intent: ContextInt
   } catch {}
 
   // 2) Carregar SOMENTE o contexto relevante a intencao (paralelo quando possivel)
-  if (intent === 'financeiro') {
-    parts.push(await loadFinancialSummary(empresaId));
-  } else if (intent === 'clientes') {
-    parts.push(await loadClientSummary(empresaId));
-  } else if (intent === 'maquinas') {
-    parts.push(await loadMachineSummary(empresaId));
-  } else if (intent === 'leituras') {
-    parts.push(await loadReadingsSummary(empresaId));
-  } else if (intent === 'geral') {
-    // Intent geral: carregar TODOS os resumos em PARALELO (1 rodada de queries)
-    const [fin, cli, maq, lei] = await Promise.all([
-      loadFinancialSummary(empresaId),
-      loadClientSummary(empresaId),
-      loadMachineSummary(empresaId),
-      loadReadingsSummary(empresaId),
-    ]);
-    parts.push(fin, cli, maq, lei);
-  }
-  // intent === 'conversa': somente info basica da empresa, sem dados extras
+  // Sempre incluir lista de clientes (ID -> nome) para o LLM usar clienteId correto
+  const [clientList, ...contextModules] = await Promise.all([
+    loadClientList(empresaId),
+    ...getContextModules(empresaId, intent),
+  ]);
+  if (clientList) parts.push(clientList);
+  parts.push(...contextModules);
 
   return parts.filter(Boolean).join('\n');
 }
 
 // ==================== Modulos de contexto (cada um com Promise.all interno) ====================
+
+// Lista de clientes (ID -> nome) para o LLM usar clienteId correto nas acoes
+async function loadClientList(empresaId: string): Promise<string> {
+  try {
+    const clientes = await db.cliente.findMany({
+      where: { empresaId },
+      select: { id: true, nome: true },
+      orderBy: { nome: 'asc' },
+      take: 50,
+    });
+    if (clientes.length === 0) return '';
+    return '\nCLIENTES CADASTRADOS (use o ID no campo clienteId):\n' +
+      clientes.map(c => `  ${c.id.substring(0, 8)}... -> ${c.nome}`).join('\n');
+  } catch {
+    return '';
+  }
+}
+
+// Dispacha os modulos de contexto conforme a intencao
+function getContextModules(empresaId: string, intent: ContextIntent): Promise<string>[] {
+  switch (intent) {
+    case 'financeiro': return [loadFinancialSummary(empresaId)];
+    case 'clientes': return [loadClientSummary(empresaId)];
+    case 'maquinas': return [loadMachineSummary(empresaId)];
+    case 'leituras': return [loadReadingsSummary(empresaId)];
+    case 'geral': return [
+      loadFinancialSummary(empresaId),
+      loadClientSummary(empresaId),
+      loadMachineSummary(empresaId),
+      loadReadingsSummary(empresaId),
+    ];
+    case 'conversa': return [];
+    default: return [];
+  }
+}
 
 async function loadFinancialSummary(empresaId: string): Promise<string> {
   try {
