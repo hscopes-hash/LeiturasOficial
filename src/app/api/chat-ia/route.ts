@@ -105,6 +105,73 @@ async function resolveClienteId(empresaId: string, rawId: string): Promise<{ id:
   }
 }
 
+// ==================== Resolver contaId (descricao + valor + cliente) ====================
+// O LLM frequentemente nao tem o UUID da conta. Esta funcao encontra a conta
+// pelo cliente + valor + data, combinacoes flexiveis.
+async function resolveContaId(empresaId: string, dados: Record<string, unknown>): Promise<{ id: string; conta?: any; error?: string }> {
+  // Se ja e UUID valido, usar direto (mas verificar se existe)
+  const rawId = String(dados.id || '');
+  if (UUID_REGEX.test(rawId)) {
+    try {
+      const conta = await db.conta.findFirst({
+        where: { id: rawId, empresaId },
+        include: { cliente: { select: { id: true, nome: true } } },
+      });
+      if (conta) return { id: conta.id, conta };
+      return { id: '', error: 'Conta nao encontrada (pode ter sido excluida).' };
+    } catch {
+      return { id: '', error: 'Erro ao buscar conta.' };
+    }
+  }
+
+  // Buscar por combinacao de: cliente, valor, data, tipo
+  try {
+    const where: Record<string, unknown> = { empresaId };
+
+    // Resolver clienteId se fornecido
+    if (dados.clienteId) {
+      const resolved = await resolveClienteId(empresaId, String(dados.clienteId));
+      if (resolved.error) return { id: '', error: resolved.error };
+      where.clienteId = resolved.id;
+    }
+
+    // Filtrar por valor se fornecido
+    if (dados.valor !== undefined) {
+      where.valor = parseFloat(String(dados.valor));
+    }
+
+    // Filtrar por data se fornecida
+    if (dados.data) {
+      const dataStr = String(dados.data);
+      const dataObj = new Date(dataStr);
+      if (!isNaN(dataObj.getTime())) {
+        where.data = dataObj;
+      }
+    }
+
+    // Filtrar por tipo se fornecido (padrao: receber)
+    if (dados.tipo !== undefined) {
+      where.tipo = parseInt(String(dados.tipo), 10);
+    }
+
+    // Filtrar apenas contas pendentes (se for liquidar)
+    if (dados.paga !== undefined) {
+      where.paga = dados.paga as boolean;
+    }
+
+    const conta = await db.conta.findFirst({
+      where,
+      include: { cliente: { select: { id: true, nome: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (conta) return { id: conta.id, conta };
+    return { id: '', error: 'Nenhuma conta encontrada com esses criterios. Verifique o nome do cliente, valor e data.' };
+  } catch {
+    return { id: '', error: 'Erro ao buscar conta.' };
+  }
+}
+
 // ==================== Executar acao no banco ====================
 async function runAction(
   action: LLMAction,
@@ -155,11 +222,13 @@ async function runAction(
       break;
     }
     case 'liquidar_conta': {
-      if (!action.dados?.id) {
-        finalText = 'ID da conta e obrigatorio para liquidar.';
+      if (!action.dados?.id && !action.dados?.clienteId) {
+        finalText = 'Informacoes insuficientes para liquidar. Informe pelo menos o cliente e o valor.';
       } else {
+        const resolved = await resolveContaId(empresaId, action.dados!);
+        if (resolved.error) { finalText = resolved.error; break; }
         resultadoAcao = await db.conta.update({
-          where: { id: action.dados.id as string },
+          where: { id: resolved.id },
           data: {
             paga: true,
             dataPagamento: action.dados.dataPagamento
@@ -172,11 +241,13 @@ async function runAction(
       break;
     }
     case 'excluir_conta': {
-      if (!action.dados?.id) {
-        finalText = 'ID da conta e obrigatorio para excluir.';
+      if (!action.dados?.id && !action.dados?.clienteId) {
+        finalText = 'Informacoes insuficientes para excluir. Informe pelo menos o cliente e o valor.';
       } else {
+        const resolved = await resolveContaId(empresaId, action.dados!);
+        if (resolved.error) { finalText = resolved.error; break; }
         resultadoAcao = await db.conta.delete({
-          where: { id: action.dados.id as string },
+          where: { id: resolved.id },
         });
       }
       break;
@@ -610,8 +681,8 @@ REGRAS FUNDAMENTAIS:
 Acoes disponiveis:
 - "listar_contas": Listar contas com filtros (clienteId, tipo: 0=Pagar, 1=Receber, paga: true/false). SEMPRE use esta acao quando o usuario perguntar sobre contas.
 - "criar_conta": Criar nova conta (campos: descricao, valor, data, tipo: 0=Pagar/1=Receber, clienteId)
-- "liquidar_conta": Marcar conta como liquidada (campo: id, dataPagamento opcional)
-- "excluir_conta": Excluir conta (campo: id)
+- "liquidar_conta": Marcar conta como liquidada. Use clienteId + valor + data para identificar. Ex: {"acao":"liquidar_conta","dados":{"clienteId":"NOME_DO_CLIENTE","valor":110,"data":"2026-04-28"}}
+- "excluir_conta": Excluir conta. Use clienteId + valor + data para identificar. Ex: {"acao":"excluir_conta","dados":{"clienteId":"NOME_DO_CLIENTE","valor":110,"data":"2026-04-28"}}
 - "listar_clientes": Listar clientes. SEMPRE use esta acao quando o usuario perguntar sobre clientes.
 - "listar_maquinas": Listar maquinas (por clienteId). SEMPRE use esta acao quando o usuario perguntar sobre maquinas.
 - "resumo_financeiro": Obter resumo financeiro detalhado completo
@@ -633,6 +704,8 @@ EXEMPLOS:
 - Usuario: "receber de Joao" -> {"acao": "listar_contas", "dados": {"tipo": 1, "clienteId": "ID_DO_CLIENTE"}}
 - Usuario: "quanto tenho a receber pendente?" -> {"acao": "listar_contas", "dados": {"tipo": 1, "paga": false}}
 - Usuario: "minhas maquinas" -> {"acao": "listar_maquinas", "dados": {}}
+- Usuario: "marque a conta do Joao de R$ 150 como paga" -> {"acao": "liquidar_conta", "dados": {"clienteId": "Joao", "valor": 150}}
+- Usuario: "liquidar conta do BAR R$ 110" -> {"acao": "liquidar_conta", "dados": {"clienteId": "BAR", "valor": 110}}
 
 Use formato de moeda brasileiro (R$ X.XXX,XX) nos valores.`;
 
