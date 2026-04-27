@@ -259,6 +259,12 @@ async function runAction(
         const resolved = await resolveContaId(empresaId, action.dados!);
         if (resolved.error) { finalText = resolved.error; break; }
 
+        // Bloquear edicao de contas ja quitadas/pagas
+        if (resolved.conta?.paga) {
+          finalText = 'Essa conta ja esta quitada. Contas pagas nao podem ser alteradas.';
+          break;
+        }
+
         // Montar campos para atualizar (so os que foram fornecidos)
         const updateData: Record<string, unknown> = {};
         if (action.dados.descricao !== undefined) updateData.descricao = String(action.dados.descricao);
@@ -723,7 +729,7 @@ Acoes disponiveis:
 - "criar_conta": Criar nova conta (campos: descricao, valor, data, tipo: 0=Pagar/1=Receber, clienteId)
 - "liquidar_conta": Marcar conta como liquidada. Use clienteId + valor + data para identificar. Ex: {"acao":"liquidar_conta","dados":{"clienteId":"NOME_DO_CLIENTE","valor":110,"data":"2026-04-28"}}
 - "excluir_conta": Excluir conta. Use clienteId + valor + data para identificar. Ex: {"acao":"excluir_conta","dados":{"clienteId":"NOME_DO_CLIENTE","valor":110,"data":"2026-04-28"}}
-- "editar_conta": Alterar campos de uma conta existente. Use clienteId + valor + data para identificar a conta, e inclua os campos a alterar (descricao, valor, data, observacoes). Ex: {"acao":"editar_conta","dados":{"clienteId":"Geninho","valor":239,"descricao":"JB"}}
+- "editar_conta": Alterar campos de uma conta PENDENTE. Contas ja quitadas NAO podem ser editadas. Use clienteId + valor + data para identificar, e inclua os campos a alterar. Ex: {"acao":"editar_conta","dados":{"clienteId":"Geninho","valor":239,"descricao":"JB"}}
 - "listar_clientes": Listar clientes. SEMPRE use esta acao quando o usuario perguntar sobre clientes.
 - "listar_maquinas": Listar maquinas (por clienteId). SEMPRE use esta acao quando o usuario perguntar sobre maquinas.
 - "resumo_financeiro": Obter resumo financeiro detalhado completo
