@@ -10,14 +10,14 @@ const __dirname = dirname(__filename);
 const versionFile = join(__dirname, '..', 'src', 'lib', 'version.ts');
 const content = readFileSync(versionFile, 'utf-8');
 
-const displayMatch = content.match(/VERSION_DISPLAY\s*=\s*'(.*?)'/);
-const dateMatch = content.match(/LAST_DEPLOY\s*=\s*'(.*?)'/);
-
-const version = displayMatch ? displayMatch[1] : 'unknown';
-const date = dateMatch ? dateMatch[1] : new Date().toISOString().slice(0, 10);
+const match = content.match(/VERSION_WITH_DATE\s*=\s*'(.*?)'/);
+if (!match) {
+  console.error('❌ Could not parse VERSION_WITH_DATE from version.ts');
+  process.exit(1);
+}
 
 console.log('');
-console.log('=============================');
-console.log(`  BUILD OK | ${version} (${date})`);
-console.log('=============================');
+console.log('══════════════════════════════════════════');
+console.log(`  📦 Build finalizado - ${match[1]}`);
+console.log('══════════════════════════════════════════');
 console.log('');
