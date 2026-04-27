@@ -58,9 +58,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(contas);
   } catch (error) {
-    console.error('Erro ao listar contas:', error);
+    const errMsg = error instanceof Error ? error.message : 'Erro desconhecido';
+    console.error('Erro ao listar contas:', errMsg, error);
     return NextResponse.json(
-      { error: 'Erro ao listar contas' },
+      { error: 'Erro ao listar contas', details: errMsg },
       { status: 500 }
     );
   }

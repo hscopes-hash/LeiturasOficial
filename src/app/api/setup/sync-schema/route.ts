@@ -273,6 +273,28 @@ export async function GET() {
       // Coluna já existe, ignorar
     }
 
+    // Adicionar coluna empresaId se não existir (migração de debito antigo para conta)
+    try {
+      await db.$executeRawUnsafe(`
+        ALTER TABLE debitos ADD COLUMN IF NOT EXISTS "empresaId" TEXT NOT NULL DEFAULT ''
+      `);
+    } catch (e) {
+      // Coluna já existe, ignorar
+    }
+
+    // Migrar registros sem empresaId: preencher com o empresaId do cliente
+    try {
+      await db.$executeRawUnsafe(`
+        UPDATE debitos d
+        SET "empresaId" = c."empresaId"
+        FROM clientes c
+        WHERE d."clienteId" = c.id
+        AND (d."empresaId" IS NULL OR d."empresaId" = '')
+      `);
+    } catch (e) {
+      // Nenhum registro para migrar ou erro ignorável
+    }
+
     // Criar tabela planos_saas
     await db.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS planos_saas (
