@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateZhipuToken, getApiKeyForModel, detectProvider } from '@/lib/zhipu-auth';
-import { gatherCompanyContext } from '@/lib/gather-context';
+import { gatherCompanyContext, detectIntent } from '@/lib/gather-context';
 
 interface LLMAction {
   acao: string;
@@ -309,6 +309,67 @@ function formatActionResult(
   return text.replace(/\n{3,}/g, '\n\n').trim();
 }
 
+async function loadInstrucoes(empresaId: string): Promise<string> {
+  try {
+    const instrucoes = await db.$queryRawUnsafe<Array<{ instrucao: string }>>(
+      `SELECT instrucao FROM chat_instrucoes WHERE "empresaId" = $1 ORDER BY "criadoEm" ASC`,
+      empresaId
+    );
+    if (instrucoes.length > 0) {
+      return '\nINSTRUCOES PERMANENTES DO USUARIO (OBRIGATORIO seguir):\n' +
+        instrucoes.map((inst, i) => `${i + 1}. ${inst.instrucao}`).join('\n') +
+        '\nVoce DEVE seguir estas instrucoes em TODAS as suas respostas.';
+    }
+  } catch {
+    // Tabela pode nao existir ainda
+  }
+  return '';
+}
+
+async function loadConversationSummary(empresaId: string): Promise<string> {
+  try {
+    // UNICA query substitui o antigo for-loop (1 query em vez de 1 + N + 1)
+    const recentHistory = await db.$queryRawUnsafe<Array<{ content: string; role: string; sessaoId: string; acaoExecutada: string | null }>>(
+      `SELECT content, role, "sessaoId", "acaoExecutada"
+       FROM chat_historico
+       WHERE "empresaId" = $1 AND "deletadoEm" IS NULL
+       AND "criadoEm" > NOW() - INTERVAL '24 hours'
+       ORDER BY "criadoEm" DESC
+       LIMIT 30`,
+      empresaId
+    );
+
+    if (recentHistory.length === 0) return '';
+
+    // Agrupar por sessao no JS (sem queries dentro de loop)
+    const sessions = new Map<string, string[]>();
+    const actions: string[] = [];
+
+    for (const row of recentHistory) {
+      if (row.role === 'user') {
+        if (!sessions.has(row.sessaoId)) sessions.set(row.sessaoId, []);
+        const msgs = sessions.get(row.sessaoId)!;
+        if (msgs.length < 5) msgs.push(row.content.substring(0, 100));
+      }
+      if (row.acaoExecutada) {
+        actions.push(`[${row.acaoExecutada}] ${row.content.substring(0, 60)}`);
+      }
+    }
+
+    const summaries: string[] = [];
+    for (const [, questions] of sessions) {
+      summaries.push(`Perguntas recentes: ${questions.join(' | ')}`);
+    }
+
+    let summary = '\nCONTEXTO DE CONVERSAS RECENTES (ultimas 24h):\n';
+    if (summaries.length > 0) summary += summaries.join('\n');
+    if (actions.length > 0) summary += '\nAcoes recentes do usuario: ' + actions.slice(0, 10).join(' | ');
+    return summary;
+  } catch {
+    return '';
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -447,78 +508,16 @@ Vou seguir essa instrucao em todas as nossas conversas, mesmo se voce fechar e r
 
     // ========== NORMAL CHAT FLOW (com historico multi-turn) ==========
 
-    // Carregar instrucoes permanentes da empresa
-    let instrucoesPermanentes = '';
-    try {
-      const instrucoes = await db.$queryRawUnsafe<Array<{ instrucao: string }>>(
-        `SELECT instrucao FROM chat_instrucoes WHERE "empresaId" = $1 ORDER BY "criadoEm" ASC`,
-        empresaId
-      );
-      if (instrucoes.length > 0) {
-        instrucoesPermanentes = '\nINSTRUCOES PERMANENTES DO USUARIO (OBRIGATORIO seguir):\n' +
-          instrucoes.map((inst, i) => `${i + 1}. ${inst.instrucao}`).join('\n') +
-          '\nVoce DEVE seguir estas instrucoes em TODAS as suas respostas.';
-      }
-    } catch {
-      // Tabela pode nao existir ainda
-    }
+    // Detectar intencao para carregar APENAS contexto relevante (ex: perguntar sobre contas nao carrega maquinas)
+    const intent = detectIntent(mensagem);
 
-    // Gather comprehensive company context
-    let companyContext = '';
-    try {
-      companyContext = await gatherCompanyContext(empresaId);
-    } catch (ctxErr) {
-      console.warn('Nao foi possivel buscar contexto da empresa:', ctxErr);
-    }
-
-    // Gather conversation summary from last 24h (for cross-session memory)
-    let conversationSummary = '';
-    try {
-      const last24hSessions = await db.$queryRawUnsafe<Array<{ sessaoId: string }>>(
-        `SELECT "sessaoId" FROM chat_historico
-         WHERE "empresaId" = $1 AND "deletadoEm" IS NULL
-         AND "criadoEm" > NOW() - INTERVAL '24 hours'
-         GROUP BY "sessaoId"
-         ORDER BY MAX("criadoEm") ASC`,
-        empresaId
-      );
-
-      if (last24hSessions.length > 0) {
-        const summaries: string[] = [];
-        for (const session of last24hSessions) {
-          const userMessages = await db.$queryRawUnsafe<Array<{ content: string; criadoEm: Date }>>(
-            `SELECT content, "criadoEm" FROM chat_historico
-             WHERE "empresaId" = $1 AND "sessaoId" = $2 AND "deletadoEm" IS NULL AND role = 'user'
-             ORDER BY "criadoEm" ASC`,
-            empresaId, session.sessaoId
-          );
-          if (userMessages.length > 0) {
-            const questions = userMessages.slice(-5).map(m => m.content.substring(0, 100));
-            summaries.push(`Perguntas recentes: ${questions.join(' | ')}`);
-          }
-        }
-
-        // Acoes executadas nas ultimas 24h
-        const recentActions = await db.$queryRawUnsafe<Array<{ acaoExecutada: string; content: string }>>(
-          `SELECT "acaoExecutada", content FROM chat_historico
-           WHERE "empresaId" = $1 AND "deletadoEm" IS NULL
-           AND "acaoExecutada" IS NOT NULL
-           AND "criadoEm" > NOW() - INTERVAL '24 hours'
-           ORDER BY "criadoEm" DESC LIMIT 10`,
-          empresaId
-        );
-
-        if (summaries.length > 0 || recentActions.length > 0) {
-          conversationSummary = '\nCONTEXTO DE CONVERSAS RECENTES (ultimas 24h):\n';
-          if (summaries.length > 0) conversationSummary += summaries.join('\n');
-          if (recentActions.length > 0) {
-            conversationSummary += '\nAcoes recentes do usuario: ' + recentActions.map(a => `[${a.acaoExecutada}] ${a.content.substring(0, 60)}`).join(' | ');
-          }
-        }
-      }
-    } catch {
-      // Nao bloqueia se falhar (tabela pode nao existir ainda)
-    }
+    // Carregar tudo em PARALELO: contexto da empresa + instrucoes + historico recente
+    // Antes: ~13 queries sequenciais (~15s). Agora: 3 grupos paralelos (~2s)
+    const [companyContext, instrucoesPermanentes, conversationSummary] = await Promise.all([
+      gatherCompanyContext(empresaId, intent),
+      loadInstrucoes(empresaId),
+      loadConversationSummary(empresaId),
+    ]);
 
     // Buscar configuracoes de IA da empresa (CONFIG SAAS)
     let llmApiKey = '';
