@@ -188,7 +188,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Formato de imagem inválido. Envie uma imagem em base64.' }, { status: 400 });
     }
 
-    const planCheck = await enforcePlan(empresaId, { feature: 'recIA' });
+    const planCheck = await enforcePlan(empresaId, { feature: 'recIA' }, request);
     if (planCheck.error) return NextResponse.json({ error: planCheck.error }, { status: 403 });
 
     // Buscar configurações de IA da empresa (CONFIG SAAS)

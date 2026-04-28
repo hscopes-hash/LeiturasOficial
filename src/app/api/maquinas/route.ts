@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const planCheck = await enforcePlan(cliente.empresaId, { limit: 'maquinas' });
+    const planCheck = await enforcePlan(cliente.empresaId, { limit: 'maquinas' }, request);
     if (planCheck.error) {
       return NextResponse.json({ error: planCheck.error }, { status: 403 });
     }

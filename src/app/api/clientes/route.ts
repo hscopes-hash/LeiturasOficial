@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const planCheck = await enforcePlan(empresaId, { limit: 'clientes' });
+    const planCheck = await enforcePlan(empresaId, { limit: 'clientes' }, request);
     if (planCheck.error) {
       return NextResponse.json({ error: planCheck.error }, { status: 403 });
     }

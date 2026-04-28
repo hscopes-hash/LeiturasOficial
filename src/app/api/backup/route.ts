@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verificar acesso ao recurso de backup
-    const planCheck = await enforcePlan(empresaId, { feature: 'recBackup' });
+    const planCheck = await enforcePlan(empresaId, { feature: 'recBackup' }, request);
     if (planCheck.error) {
       return NextResponse.json({ error: planCheck.error }, { status: 403 });
     }

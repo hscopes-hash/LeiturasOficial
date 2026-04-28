@@ -1,18 +1,21 @@
 import { db } from '@/lib/db';
+import { isSuperAdmin } from '@/lib/auth';
+import type { NextRequest } from 'next/server';
 
 /**
  * Modulo central de enforcement de planos SaaS.
  * Verifica limites de recursos, features e status da assinatura.
+ * Super administradores (nivelAcesso ADMINISTRADOR) bypassam todas as restricoes.
  *
  * Uso nos endpoints:
- *   const check = await enforcePlan(empresaId);
+ *   const check = await enforcePlan(empresaId, { limit: 'clientes' }, request);
  *   if (check.error) return NextResponse.json({ error: check.error }, { status: 403 });
  */
 
 type LimitType = 'clientes' | 'usuarios' | 'maquinas';
 type FeatureType = 'recIA' | 'recRelatorios' | 'recBackup' | 'recAPI';
 
-interface PlanInfo {
+export interface PlanInfo {
   planoId: string;
   planoNome: string;
   statusAssinatura: string;
@@ -107,17 +110,18 @@ async function getPlanInfo(empresaId: string): Promise<PlanInfo | null> {
 
 /**
  * Verifica se a assinatura da empresa esta ativa.
- * Retorna objeto com `error` se houver bloqueio, ou vazio se OK.
+ * Super admin (ADMINISTRADOR) bypassa todas as restricoes.
  */
-export async function checkSubscriptionStatus(empresaId: string): Promise<{ error?: string }> {
+export async function checkSubscriptionStatus(empresaId: string, request?: NextRequest): Promise<{ error?: string }> {
+  // Super admin bypassa todas as restricoes
+  if (request && await isSuperAdmin(request)) return {};
+
   const info = await getPlanInfo(empresaId);
 
   if (!info) {
-    // Nao conseguiu verificar = permitir (nao bloqueia por falha tecnica)
-    return {};
+    return {}; // Falha tecnica = nao bloqueia
   }
 
-  // Status que bloqueiam o uso
   const bloqueantes = ['VENCIDA', 'CANCELADA', 'SUSPENSA'];
   if (bloqueantes.includes(info.statusAssinatura)) {
     const msg = info.statusAssinatura === 'VENCIDA'
@@ -133,14 +137,16 @@ export async function checkSubscriptionStatus(empresaId: string): Promise<{ erro
 
 /**
  * Verifica se a empresa pode criar mais um recurso do tipo especificado.
- * Retorna objeto com `error` se excedeu o limite, ou vazio se OK.
+ * Super admin (ADMINISTRADOR) bypassa todas as restricoes.
  */
-export async function checkLimit(empresaId: string, tipo: LimitType): Promise<{ error?: string; usados?: number; limite?: number }> {
+export async function checkLimit(empresaId: string, tipo: LimitType, request?: NextRequest): Promise<{ error?: string; usados?: number; limite?: number }> {
+  // Super admin bypassa todas as restricoes
+  if (request && await isSuperAdmin(request)) return {};
+
   const info = await getPlanInfo(empresaId);
 
-  if (!info) return {}; // Falha tecnica = nao bloqueia
+  if (!info) return {};
 
-  // -1 = ilimitado
   const limites: Record<LimitType, number> = {
     clientes: info.limiteClientes,
     usuarios: info.limiteUsuarios,
@@ -155,7 +161,7 @@ export async function checkLimit(empresaId: string, tipo: LimitType): Promise<{ 
   const limite = limites[tipo];
   const usado = usados[tipo];
 
-  if (limite === -1) return {}; // Ilimitado
+  if (limite === -1) return {};
 
   if (usado >= limite) {
     const labels: Record<LimitType, string> = {
@@ -175,12 +181,15 @@ export async function checkLimit(empresaId: string, tipo: LimitType): Promise<{ 
 
 /**
  * Verifica se a empresa tem acesso a uma feature especifica.
- * Retorna objeto com `error` se nao tem acesso, ou vazio se OK.
+ * Super admin (ADMINISTRADOR) bypassa todas as restricoes.
  */
-export async function checkFeature(empresaId: string, feature: FeatureType): Promise<{ error?: string }> {
+export async function checkFeature(empresaId: string, feature: FeatureType, request?: NextRequest): Promise<{ error?: string }> {
+  // Super admin bypassa todas as restricoes
+  if (request && await isSuperAdmin(request)) return {};
+
   const info = await getPlanInfo(empresaId);
 
-  if (!info) return {}; // Falha tecnica = nao bloqueia
+  if (!info) return {};
 
   const features: Record<FeatureType, boolean> = {
     recIA: info.recIA,
@@ -206,15 +215,19 @@ export async function checkFeature(empresaId: string, feature: FeatureType): Pro
 
 /**
  * Verificacao completa: status + limite de recurso + feature.
- * Combina todas as verificacoes em uma unica chamada.
+ * Super admin (ADMINISTRADOR) bypassa todas as restricoes.
  */
 export async function enforcePlan(
   empresaId: string,
   options?: {
     limit?: LimitType;
     feature?: FeatureType;
-  }
+  },
+  request?: NextRequest,
 ): Promise<{ error?: string }> {
+  // Super admin bypassa todas as restricoes (check rapido, antes de qualquer query)
+  if (request && await isSuperAdmin(request)) return {};
+
   // 1) Verificar status da assinatura
   const statusCheck = await checkSubscriptionStatus(empresaId);
   if (statusCheck.error) return statusCheck;
@@ -235,7 +248,7 @@ export async function enforcePlan(
 }
 
 /**
- * Retorna info completa do plano para uso no frontend (sem counts, so limites/features).
+ * Retorna info completa do plano para uso no frontend.
  */
 export async function getPlanInfoForFrontend(empresaId: string): Promise<PlanInfo | null> {
   return getPlanInfo(empresaId);

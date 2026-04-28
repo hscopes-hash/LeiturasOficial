@@ -543,7 +543,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'empresaId e obrigatorio' }, { status: 400 });
     }
 
-    const planCheck = await enforcePlan(empresaId, { feature: 'recIA' });
+    const planCheck = await enforcePlan(empresaId, { feature: 'recIA' }, request);
     if (planCheck.error) return NextResponse.json({ error: planCheck.error }, { status: 403 });
 
     // ========== CONFIRM ACTION FLOW (sem chamada LLM) ==========

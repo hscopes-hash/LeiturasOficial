@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
     }
 
-    const planCheck = await enforcePlan(empresaId, { feature: 'recIA' });
+    const planCheck = await enforcePlan(empresaId, { feature: 'recIA' }, req);
     if (planCheck.error) return NextResponse.json({ error: planCheck.error }, { status: 403 });
 
     // Buscar configurações de IA da empresa (CONFIG SAAS)

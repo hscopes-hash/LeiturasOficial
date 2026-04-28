@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verificar acesso ao recurso de relatórios
-    const planCheck = await enforcePlan(empresaId, { feature: 'recRelatorios' });
+    const planCheck = await enforcePlan(empresaId, { feature: 'recRelatorios' }, request);
     if (planCheck.error) {
       return NextResponse.json({ error: planCheck.error }, { status: 403 });
     }
