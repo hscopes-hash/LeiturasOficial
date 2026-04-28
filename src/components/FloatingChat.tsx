@@ -48,7 +48,7 @@ function generateSessionId(): string {
   return `sess_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 }
 
-export default function FloatingChat() {
+export default function FloatingChat({ enabled = true }: { enabled?: boolean }) {
   const { empresa } = useAuthStore();
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
@@ -336,7 +336,7 @@ export default function FloatingChat() {
 
   const hasSpeechRecognition = typeof window !== 'undefined' && !!getSpeechRecognition();
 
-  if (!empresa?.id) return null;
+  if (!empresa?.id || !enabled) return null;
 
   return (
     <>

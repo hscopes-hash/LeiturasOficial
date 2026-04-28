@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { enforcePlan } from '@/lib/plan-enforcement';
 
 // GET - Relatório de extrato por período
 export async function GET(request: NextRequest) {
@@ -15,6 +16,12 @@ export async function GET(request: NextRequest) {
         { error: 'empresaId é obrigatório' },
         { status: 400 }
       );
+    }
+
+    // Verificar acesso ao recurso de relatórios
+    const planCheck = await enforcePlan(empresaId, { feature: 'recRelatorios' });
+    if (planCheck.error) {
+      return NextResponse.json({ error: planCheck.error }, { status: 403 });
     }
 
     if (!dataInicio || !dataFim) {

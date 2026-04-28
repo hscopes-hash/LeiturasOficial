@@ -8068,6 +8068,21 @@ export default function App() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [planoFeatures, setPlanoFeatures] = useState<{ recIA: boolean } | null>(null);
+
+  // Carregar info do plano SaaS (features)
+  useEffect(() => {
+    if (isAuthenticated && empresa?.id) {
+      fetch(`/api/meu-plano?empresaId=${empresa.id}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.features) {
+            setPlanoFeatures({ recIA: data.features.recIA });
+          }
+        })
+        .catch(() => {}); // Falha silenciosa = nao bloqueia UI
+    }
+  }, [isAuthenticated, empresa?.id]);
 
   useEffect(() => {
     if (isAuthenticated && empresa?.id) {
@@ -8362,7 +8377,7 @@ export default function App() {
           ))}
         </div>
       </nav>
-      <FloatingChat />
+      <FloatingChat enabled={planoFeatures?.recIA ?? false} />
     </div>
   );
 }

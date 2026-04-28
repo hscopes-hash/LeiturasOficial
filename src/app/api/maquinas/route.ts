@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { enforcePlan } from '@/lib/plan-enforcement';
 
 // Garantir que os enums existem (auto-migração)
 async function ensureEnums() {
@@ -90,6 +91,24 @@ export async function POST(request: NextRequest) {
         { error: 'Código, tipo e cliente são obrigatórios' },
         { status: 400 }
       );
+    }
+
+    // Obter empresaId do cliente para verificação de plano
+    const cliente = await db.cliente.findUnique({
+      where: { id: clienteId },
+      select: { empresaId: true },
+    });
+
+    if (!cliente) {
+      return NextResponse.json(
+        { error: 'Cliente não encontrado' },
+        { status: 400 }
+      );
+    }
+
+    const planCheck = await enforcePlan(cliente.empresaId, { limit: 'maquinas' });
+    if (planCheck.error) {
+      return NextResponse.json({ error: planCheck.error }, { status: 403 });
     }
 
     // Verificar se código já existe para o cliente

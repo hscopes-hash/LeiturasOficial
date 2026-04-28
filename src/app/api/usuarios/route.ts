@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { enforcePlan } from '@/lib/plan-enforcement';
 
 // Função para hash de senha
 async function hashSenha(senha: string): Promise<string> {
@@ -60,6 +61,11 @@ export async function POST(request: NextRequest) {
         { error: 'Todos os campos obrigatórios devem ser preenchidos' },
         { status: 400 }
       );
+    }
+
+    const planCheck = await enforcePlan(empresaId, { limit: 'usuarios' });
+    if (planCheck.error) {
+      return NextResponse.json({ error: planCheck.error }, { status: 403 });
     }
 
     // Verificar se email já existe na empresa

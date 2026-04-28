@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateZhipuToken, getApiKeyForModel, detectProvider } from '@/lib/zhipu-auth';
+import { enforcePlan } from '@/lib/plan-enforcement';
 
 const SYSTEM_PROMPT = `Você é OCR de displays eletrônicos de máquinas de arcade.
 Receberá 2 imagens recortadas de uma câmera apontando para um display.
@@ -27,6 +28,13 @@ export async function POST(req: NextRequest) {
     if (!imageBase64Entrada && !imageBase64Saida) {
       return NextResponse.json({ error: 'Pelo menos uma imagem é obrigatória' }, { status: 400 });
     }
+
+    if (!empresaId) {
+      return NextResponse.json({ error: 'empresaId é obrigatório' }, { status: 400 });
+    }
+
+    const planCheck = await enforcePlan(empresaId, { feature: 'recIA' });
+    if (planCheck.error) return NextResponse.json({ error: planCheck.error }, { status: 403 });
 
     // Buscar configurações de IA da empresa (CONFIG SAAS)
     let llmApiKey = '';

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateZhipuToken, getApiKeyForModel, detectProvider } from '@/lib/zhipu-auth';
+import { enforcePlan } from '@/lib/plan-enforcement';
 
 // ============================================
 // FUNÇÕES COMPARTILHADAS - Provedor Único
@@ -186,6 +187,9 @@ export async function POST(request: NextRequest) {
     if (!imagem.startsWith('data:image/')) {
       return NextResponse.json({ error: 'Formato de imagem inválido. Envie uma imagem em base64.' }, { status: 400 });
     }
+
+    const planCheck = await enforcePlan(empresaId, { feature: 'recIA' });
+    if (planCheck.error) return NextResponse.json({ error: planCheck.error }, { status: 403 });
 
     // Buscar configurações de IA da empresa (CONFIG SAAS)
     let llmApiKey = '';

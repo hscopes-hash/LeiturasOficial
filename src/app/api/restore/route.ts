@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { hashSenha } from '@/lib/auth';
+import { enforcePlan } from '@/lib/plan-enforcement';
 
 // Restaurar dados da empresa a partir de um backup JSON
 export async function POST(request: NextRequest) {
@@ -13,6 +14,12 @@ export async function POST(request: NextRequest) {
         { error: 'Dados do backup e ID da empresa são obrigatórios' },
         { status: 400 }
       );
+    }
+
+    // Verificar acesso ao recurso de backup
+    const planCheck = await enforcePlan(empresaId, { feature: 'recBackup' });
+    if (planCheck.error) {
+      return NextResponse.json({ error: planCheck.error }, { status: 403 });
     }
 
     // Verificar se a empresa existe

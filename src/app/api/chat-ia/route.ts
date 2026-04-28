@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { generateZhipuToken, getApiKeyForModel, detectProvider } from '@/lib/zhipu-auth';
 import { gatherCompanyContext, detectIntent } from '@/lib/gather-context';
+import { enforcePlan } from '@/lib/plan-enforcement';
 
 interface LLMAction {
   acao: string;
@@ -541,6 +542,9 @@ export async function POST(request: NextRequest) {
     if (!empresaId) {
       return NextResponse.json({ error: 'empresaId e obrigatorio' }, { status: 400 });
     }
+
+    const planCheck = await enforcePlan(empresaId, { feature: 'recIA' });
+    if (planCheck.error) return NextResponse.json({ error: planCheck.error }, { status: 403 });
 
     // ========== CONFIRM ACTION FLOW (sem chamada LLM) ==========
     if (confirmAction && !mensagem) {
