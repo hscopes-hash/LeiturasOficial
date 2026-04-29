@@ -2448,7 +2448,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     }
     try {
       const hoje = new Date().toISOString().split('T')[0];
-      const res = await fetch(`/api/contas?empresaId=${empresaId}&clienteId=${clienteSelecionado.id}&paga=false&dataMax=${hoje}`);
+      const res = await fetch(`/api/contas?empresaId=${empresaId}&clienteId=${clienteSelecionado.id}&paga=false&tipo=1&dataMax=${hoje}`);
       const data = await res.json();
       console.log("[CHAT-IA] Response:", res.status, JSON.stringify(data).substring(0, 300));
       const total = Array.isArray(data) ? data.reduce((sum: number, d: any) => sum + d.valor, 0) : 0;
@@ -3840,7 +3840,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       if (debitosVencidos > 0) {
         try {
           const hoje = new Date().toISOString().split('T')[0];
-          const debRes = await fetch(`/api/contas?empresaId=${empresaId}&clienteId=${clienteSelecionado.id}&paga=false&dataMax=${hoje}`);
+          const debRes = await fetch(`/api/contas?empresaId=${empresaId}&clienteId=${clienteSelecionado.id}&paga=false&tipo=1&dataMax=${hoje}`);
           const debitos = await debRes.json();
           if (Array.isArray(debitos) && debitos.length > 0) {
             await Promise.all(
@@ -3848,7 +3848,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                 fetch(`/api/contas/${d.id}`, {
                   method: 'PUT',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ paga: true }),
+                  body: JSON.stringify({ paga: true, dataPagamento: hoje }),
                 })
               )
             );
@@ -3952,7 +3952,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     mensagem += `Saídas.......: ${formatNumber(totaisSalvos.saidas)}\n`;
     mensagem += `Jogado.......: ${formatNumber(totaisSalvos.jogado)}\n`;
     mensagem += `Cliente......: ${formatNumber(totaisSalvos.cliente)}\n`;
-    mensagem += `Débito(Saldo): ${formatNumber(totaisSalvos.debitoSaldo || 0)}\n`;
+    mensagem += `Total dos Débitos(Saldo): ${formatNumber(totaisSalvos.debitoSaldo || 0)}\n`;
     // Receitas detalhadas
     if (receitasSalvas.length > 0) {
       receitasSalvas.forEach(d => {
@@ -4434,7 +4434,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   <span className="text-warning">R$ {formatNumber(totais.cliente)}</span>
                 </div>
                 <div className="flex justify-between col-span-2">
-                  <span className="text-muted-foreground">Débito(Saldo):</span>
+                  <span className="text-muted-foreground">Total dos Débitos(Saldo):</span>
                   <span className={debitosVencidos > 0 ? 'text-red-400 font-bold' : 'text-muted-foreground'}>R$ {formatNumber(debitosVencidos)}</span>
                 </div>
                 {totais.totalReceitas !== 0 && (
@@ -5041,7 +5041,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   <p>Saídas.......: {formatNumber(calcularTotaisSalvos().saidas)}</p>
                   <p>Jogado.......: {formatNumber(calcularTotaisSalvos().jogado)}</p>
                   <p>Cliente......: {formatNumber(calcularTotaisSalvos().cliente)}</p>
-                  <p>Débito(Saldo): {formatNumber(calcularTotaisSalvos().debitoSaldo || 0)}</p>
+                  <p>Total dos Débitos(Saldo): {formatNumber(calcularTotaisSalvos().debitoSaldo || 0)}</p>
                   {/* Receitas detalhadas */}
                   {receitasSalvas.filter(d => d.valor > 0).map((d, i) => (
                     <p key={`rec-${i}`}>  {d.descricao.padEnd(13)}: {formatNumber(d.valor)}</p>
@@ -5681,7 +5681,7 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
     if (totais.totalDespesas !== 0) {
       mensagem += `Despesas: ${formatCurrency(totais.totalDespesas)}\n`;
     }
-    mensagem += `Débito(Saldo): ${formatCurrency(debitoTotal)}\n`;
+    mensagem += `Total dos Débitos(Saldo): ${formatCurrency(debitoTotal)}\n`;
     mensagem += `Cobranças: ${formatCurrency(totais.totalSaldo)}\n`;
     mensagem += `A Cobrar: ${formatCurrency(totais.totalSaldo - totais.totalDespesas + debitoTotal)}\n`;
     
@@ -5767,7 +5767,7 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
                   </div>
                 )}
                 <div>
-                  <p className="text-muted-foreground">Débito(Saldo)</p>
+                  <p className="text-muted-foreground">Total dos Débitos(Saldo)</p>
                   <p className={`text-xl font-bold ${debitoTotal > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{formatCurrency(debitoTotal)}</p>
                 </div>
                 <div>
@@ -5814,10 +5814,10 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
                           </td>
                         </tr>
                       ))}
-                      {/* Linha Débito(Saldo) */}
+                      {/* Linha Total dos Débitos(Saldo) */}
                       {debitoTotal > 0 && (
                         <tr className="border-t border-border bg-orange-500/10 font-medium">
-                          <td className="py-2 px-2 text-orange-400" colSpan={3}>Débito(Saldo)</td>
+                          <td className="py-2 px-2 text-orange-400" colSpan={3}>Total dos Débitos(Saldo)</td>
                           <td className="py-2 px-2 text-orange-400 text-right font-bold">
                             {formatCurrency(debitoTotal)}
                           </td>
