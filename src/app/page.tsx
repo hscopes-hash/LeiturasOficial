@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { useAuthStore, type Usuario, type Empresa, type NivelAcesso } from '@/stores/auth-store';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -2219,6 +2220,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   // Descrições detalhadas das despesas salvas (para WhatsApp/resumo)
   const [despesasSalvas, setDespesasSalvas] = useState<{ descricao: string; valor: number }[]>([]);
 
+  // Estados para cortina (collapsible) de Receitas e Despesas
+  const [receitasAberto, setReceitasAberto] = useState(false);
+  const [despesasAberto, setDespesasAberto] = useState(false);
+
   // Funções para gerenciar receitas
   const calcularTotalReceitas = () => {
     return receitasItens.reduce((total, item) => {
@@ -4291,126 +4296,146 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           </div>
 
           {/* Receitas */}
-          <Card className="border-0 shadow-lg bg-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-foreground">Receitas</h3>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={adicionarReceita}
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <Plus className="w-3 h-3 mr-1" /> Outra
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {receitasItens.map((item) => (
-                  <div key={item.id} className="grid grid-cols-[1fr_100px_28px] gap-2 items-center">
-                    <Input
-                      type="text"
-                      value={item.descricao}
-                      onChange={(e) => atualizarReceita(item.id, 'descricao', e.target.value)}
-                      placeholder={item.fixo ? item.descricao : 'DESCRIÇÃO...'}
-                      disabled={item.fixo}
-                      className={`bg-muted border-border text-foreground text-sm h-8 ${item.fixo ? 'font-semibold text-muted-foreground' : ''}`}
-                      style={{ textTransform: 'uppercase' }}
-                    />
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={item.valor}
-                      onChange={(e) => atualizarReceita(item.id, 'valor', e.target.value)}
-                      onBlur={(e) => formatarValorReceita(item.id, e.target.value)}
-                      placeholder="0,00"
-                      className="bg-muted border-border text-foreground text-sm h-8 text-right"
-                    />
-                    {!item.fixo ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removerReceita(item.id)}
-                        className="h-8 w-7 p-0 text-muted-foreground hover:text-danger"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    ) : (
-                      <div className="w-7" />
-                    )}
+          <Collapsible open={receitasAberto} onOpenChange={setReceitasAberto}>
+            <Card className="border-0 shadow-lg bg-card">
+              <CollapsibleTrigger asChild>
+                <CardContent className="p-4 cursor-pointer hover:bg-accent/30 transition-colors rounded-t-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${receitasAberto ? 'rotate-90' : ''}`} />
+                      <h3 className="font-semibold text-foreground">Receitas</h3>
+                    </div>
+                    <span className="text-sm font-bold text-success">
+                      R$ {formatNumber(calcularTotalReceitas())}
+                    </span>
                   </div>
-                ))}
-              </div>
-              <div className="flex justify-between items-center mt-3 pt-3 border-t border-border">
-                <span className="text-sm font-semibold text-muted-foreground">Total das Receitas</span>
-                <span className="text-sm font-bold text-success">
-                  R$ {formatNumber(calcularTotalReceitas())}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="px-4 pb-4 pt-0">
+                  <div className="space-y-2">
+                    {receitasItens.map((item) => (
+                      <div key={item.id} className="grid grid-cols-[1fr_100px_28px] gap-2 items-center">
+                        <Input
+                          type="text"
+                          value={item.descricao}
+                          onChange={(e) => atualizarReceita(item.id, 'descricao', e.target.value)}
+                          placeholder={item.fixo ? item.descricao : 'DESCRIÇÃO...'}
+                          disabled={item.fixo}
+                          className={`bg-muted border-border text-foreground text-sm h-8 ${item.fixo ? 'font-semibold text-muted-foreground' : ''}`}
+                          style={{ textTransform: 'uppercase' }}
+                        />
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={item.valor}
+                          onChange={(e) => atualizarReceita(item.id, 'valor', e.target.value)}
+                          onBlur={(e) => formatarValorReceita(item.id, e.target.value)}
+                          placeholder="0,00"
+                          className="bg-muted border-border text-foreground text-sm h-8 text-right"
+                        />
+                        {!item.fixo ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removerReceita(item.id)}
+                            className="h-8 w-7 p-0 text-muted-foreground hover:text-danger"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        ) : (
+                          <div className="w-7" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end mt-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); adicionarReceita(); }}
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <Plus className="w-3 h-3 mr-1" /> Outra
+                    </Button>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
           {/* Despesas */}
-          <Card className="border-0 shadow-lg bg-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-foreground">Despesas</h3>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={adicionarDespesa}
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <Plus className="w-3 h-3 mr-1" /> Outra
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {despesasItens.map((item, index) => (
-                  <div key={item.id} className="grid grid-cols-[1fr_100px_28px] gap-2 items-center">
-                    <Input
-                      type="text"
-                      value={item.descricao}
-                      onChange={(e) => atualizarDespesa(item.id, 'descricao', e.target.value)}
-                      placeholder={item.fixo ? item.descricao : 'DESCRIÇÃO...'}
-                      disabled={item.fixo}
-                      className={`bg-muted border-border text-foreground text-sm h-8 ${item.fixo ? 'font-semibold text-muted-foreground' : ''}`}
-                      style={{ textTransform: 'uppercase' }}
-                    />
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={item.valor}
-                      onChange={(e) => atualizarDespesa(item.id, 'valor', e.target.value)}
-                      onBlur={(e) => formatarValorDespesa(item.id, e.target.value)}
-                      placeholder="0,00"
-                      className="bg-muted border-border text-foreground text-sm h-8 text-right"
-                    />
-                    {!item.fixo ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removerDespesa(item.id)}
-                        className="h-8 w-7 p-0 text-muted-foreground hover:text-danger"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    ) : (
-                      <div className="w-7" />
-                    )}
+          <Collapsible open={despesasAberto} onOpenChange={setDespesasAberto}>
+            <Card className="border-0 shadow-lg bg-card">
+              <CollapsibleTrigger asChild>
+                <CardContent className="p-4 cursor-pointer hover:bg-accent/30 transition-colors rounded-t-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${despesasAberto ? 'rotate-90' : ''}`} />
+                      <h3 className="font-semibold text-foreground">Despesas</h3>
+                    </div>
+                    <span className="text-sm font-bold text-red-400">
+                      R$ {formatNumber(calcularTotalDespesas())}
+                    </span>
                   </div>
-                ))}
-              </div>
-              <div className="flex justify-between items-center mt-3 pt-3 border-t border-border">
-                <span className="text-sm font-semibold text-muted-foreground">Total das Despesas</span>
-                <span className="text-sm font-bold text-red-400">
-                  R$ {formatNumber(calcularTotalDespesas())}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="px-4 pb-4 pt-0">
+                  <div className="space-y-2">
+                    {despesasItens.map((item, index) => (
+                      <div key={item.id} className="grid grid-cols-[1fr_100px_28px] gap-2 items-center">
+                        <Input
+                          type="text"
+                          value={item.descricao}
+                          onChange={(e) => atualizarDespesa(item.id, 'descricao', e.target.value)}
+                          placeholder={item.fixo ? item.descricao : 'DESCRIÇÃO...'}
+                          disabled={item.fixo}
+                          className={`bg-muted border-border text-foreground text-sm h-8 ${item.fixo ? 'font-semibold text-muted-foreground' : ''}`}
+                          style={{ textTransform: 'uppercase' }}
+                        />
+                        <Input
+                          type="text"
+                          inputMode="decimal"
+                          value={item.valor}
+                          onChange={(e) => atualizarDespesa(item.id, 'valor', e.target.value)}
+                          onBlur={(e) => formatarValorDespesa(item.id, e.target.value)}
+                          placeholder="0,00"
+                          className="bg-muted border-border text-foreground text-sm h-8 text-right"
+                        />
+                        {!item.fixo ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removerDespesa(item.id)}
+                            className="h-8 w-7 p-0 text-muted-foreground hover:text-danger"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        ) : (
+                          <div className="w-7" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end mt-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => { e.stopPropagation(); adicionarDespesa(); }}
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <Plus className="w-3 h-3 mr-1" /> Outra
+                    </Button>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
           {/* Resumo */}
           <Card className="border-0 shadow-lg bg-card">
