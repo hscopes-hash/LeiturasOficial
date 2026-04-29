@@ -3148,7 +3148,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
         try {
           resIdentificar = await fetch('/api/leituras/identificar-lote', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useAuthStore.getState().token}` },
             signal: controllerIdentificar.signal,
             body: JSON.stringify({
               imagem: foto.imagem,
@@ -3186,7 +3186,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
             try {
               resExtrair = await fetch('/api/leituras/extrair', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useAuthStore.getState().token}` },
                 signal: controllerExtrairManual.signal,
                 body: JSON.stringify({
                   imagem: foto.imagem,
@@ -3506,7 +3506,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       try {
         resIdentificar = await fetch('/api/leituras/identificar-lote', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useAuthStore.getState().token}` },
           signal: controller.signal,
           body: JSON.stringify({
             imagem: imagemBase64,
@@ -3549,7 +3549,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           try {
             resExtrair = await fetch('/api/leituras/extrair', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${useAuthStore.getState().token}` },
               signal: controllerExtrair.signal,
               body: JSON.stringify({
                 imagem: imagemBase64,

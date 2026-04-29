@@ -4,6 +4,11 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 
 ---
 
+## [v2.27.0.128] - 2026-04-30
+
+v2.27.0.128 - Fix critico: OCR/lote nao enviava Authorization header — super admin era bloqueado pelo plano
+v2.27.0.128 - Fix: adicionado Bearer token em todas as chamadas de lote (identificar-lote + extrair)
+
 ## [v2.25.10.31] - 2026-04-24
 
 v2.25.10.31 - Fix: build command removido prisma db push (schema gerenciado pelo sync-schema em runtime)
