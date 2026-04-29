@@ -6,28 +6,36 @@ export const maxDuration = 60;
 
 // POST /api/test-vision-compare
 // Compara Gemini vs GLM no OCR de canhotos com a mesma imagem
+// Aceita empresaId (busca keys do banco) OU geminiKey + glmKey diretamente (teste sem DB)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { empresaId, imagem } = body;
+    const { empresaId, imagem, geminiKey, glmKey: glmKeyParam } = body;
 
-    if (!empresaId || !imagem) {
-      return NextResponse.json({ error: 'empresaId e imagem obrigatorios' }, { status: 400 });
+    if (!imagem) {
+      return NextResponse.json({ error: 'imagem obrigatoria' }, { status: 400 });
     }
 
-    // Buscar config da empresa
-    const empresas = await db.$queryRawUnsafe<Array<any>>(
-      `SELECT "llmModel", "llmApiKey", "llmApiKeyGemini", "llmApiKeyGlm" FROM empresa WHERE id = $1 LIMIT 1`,
-      empresaId
-    );
-
-    if (!empresas || empresas.length === 0) {
-      return NextResponse.json({ error: 'Empresa nao encontrada' }, { status: 404 });
-    }
-
-    const empresa = empresas[0];
     const base64Data = imagem.split(',')[1];
     const mimeType = imagem.split(';')[0].split(':')[1];
+
+    let geminiApiKey = geminiKey || null;
+    let glmApiKey = glmKeyParam || null;
+
+    // Se passou empresaId, buscar keys do banco
+    if (empresaId && !geminiApiKey && !glmApiKey) {
+      try {
+        const empresas = await db.$queryRawUnsafe<Array<any>>(
+          `SELECT "llmApiKey", "llmApiKeyGemini", "llmApiKeyGlm" FROM empresa WHERE id = $1 LIMIT 1`,
+          empresaId
+        );
+        if (empresas?.length > 0) {
+          const empresa = empresas[0];
+          geminiApiKey = getApiKeyForModel('gemini-2.0-flash', empresa.llmApiKey, empresa.llmApiKeyGemini, empresa.llmApiKeyGlm);
+          glmApiKey = getApiKeyForModel('glm-4v-flash', empresa.llmApiKey, empresa.llmApiKeyGemini, empresa.llmApiKeyGlm);
+        }
+      } catch {}
+    }
 
     const PROMPT = `Voce e um especialista em OCR de cupons fiscais brasileiros de cartao de credito/debito.
 
@@ -45,8 +53,7 @@ IMPORTANTE: O campo "total" deve ser a SOMA MATEMATICA CORRETA de todos os valor
     const results: Record<string, any> = {};
 
     // Testar Gemini
-    const geminiKey = getApiKeyForModel('gemini-2.0-flash', empresa.llmApiKey, empresa.llmApiKeyGemini, empresa.llmApiKeyGlm);
-    if (geminiKey) {
+    if (geminiApiKey) {
       try {
         const start = Date.now();
         const response = await fetch(
@@ -73,12 +80,11 @@ IMPORTANTE: O campo "total" deve ser a SOMA MATEMATICA CORRETA de todos os valor
         results.gemini = { erro: e.message };
       }
     } else {
-      results.gemini = { erro: 'API Key do Gemini nao configurada para esta empresa' };
+      results.gemini = { erro: 'API Key do Gemini nao fornecida' };
     }
 
     // Testar GLM
-    const glmKey = getApiKeyForModel('glm-4v-flash', empresa.llmApiKey, empresa.llmApiKeyGemini, empresa.llmApiKeyGlm);
-    if (glmKey) {
+    if (glmApiKey) {
       try {
         const authToken = generateZhipuToken(glmKey);
         const start = Date.now();
@@ -109,7 +115,7 @@ IMPORTANTE: O campo "total" deve ser a SOMA MATEMATICA CORRETA de todos os valor
         results.glm = { erro: e.message };
       }
     } else {
-      results.glm = { erro: 'API Key do GLM nao configurada para esta empresa' };
+      results.glm = { erro: 'API Key do GLM nao fornecida' };
     }
 
     // Comparativo
