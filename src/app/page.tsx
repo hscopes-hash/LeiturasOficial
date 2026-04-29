@@ -4299,17 +4299,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           <Collapsible open={receitasAberto} onOpenChange={setReceitasAberto}>
             <Card className="border-0 shadow-lg bg-card">
               <CollapsibleTrigger asChild>
-                <CardContent className="p-4 cursor-pointer hover:bg-accent/30 transition-colors rounded-t-xl">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${receitasAberto ? 'rotate-90' : ''}`} />
-                      <h3 className="font-semibold text-foreground">Receitas</h3>
-                    </div>
-                    {receitasAberto && (
-                      <span className="text-sm font-bold text-success">
-                        R$ {formatNumber(calcularTotalReceitas())}
-                      </span>
-                    )}
+                <CardContent className="p-4 cursor-pointer hover:bg-accent/30 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${receitasAberto ? 'rotate-90' : ''}`} />
+                    <h3 className="font-semibold text-foreground">Receitas</h3>
                   </div>
                 </CardContent>
               </CollapsibleTrigger>
@@ -4367,22 +4360,19 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
               </CollapsibleContent>
             </Card>
           </Collapsible>
+          <div className="flex justify-between items-center px-4 -mt-2 mb-2">
+            <span className="text-xs font-semibold text-muted-foreground">Total das Receitas</span>
+            <span className="text-xs font-bold text-success">R$ {formatNumber(calcularTotalReceitas())}</span>
+          </div>
 
           {/* Despesas */}
           <Collapsible open={despesasAberto} onOpenChange={setDespesasAberto}>
             <Card className="border-0 shadow-lg bg-card">
               <CollapsibleTrigger asChild>
-                <CardContent className="p-4 cursor-pointer hover:bg-accent/30 transition-colors rounded-t-xl">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${despesasAberto ? 'rotate-90' : ''}`} />
-                      <h3 className="font-semibold text-foreground">Despesas</h3>
-                    </div>
-                    {despesasAberto && (
-                      <span className="text-sm font-bold text-red-400">
-                        R$ {formatNumber(calcularTotalDespesas())}
-                      </span>
-                    )}
+                <CardContent className="p-4 cursor-pointer hover:bg-accent/30 transition-colors">
+                  <div className="flex items-center gap-2">
+                    <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${despesasAberto ? 'rotate-90' : ''}`} />
+                    <h3 className="font-semibold text-foreground">Despesas</h3>
                   </div>
                 </CardContent>
               </CollapsibleTrigger>
@@ -4440,6 +4430,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
               </CollapsibleContent>
             </Card>
           </Collapsible>
+          <div className="flex justify-between items-center px-4 -mt-2 mb-2">
+            <span className="text-xs font-semibold text-muted-foreground">Total das Despesas</span>
+            <span className="text-xs font-bold text-red-400">R$ {formatNumber(calcularTotalDespesas())}</span>
+          </div>
 
           {/* Resumo */}
           <Card className="border-0 shadow-lg bg-card">
