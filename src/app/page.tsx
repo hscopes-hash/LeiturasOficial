@@ -2193,6 +2193,17 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   const [maquinasSalvas, setMaquinasSalvas] = useState<MaquinaLeitura[]>([]);
   // Estado para rastrear origem da foto (CÂMERA ou GALERIA)
   const [fotoOrigem, setFotoOrigem] = useState<'CÂMERA' | 'GALERIA' | 'LOTE' | null>(null);
+  // Estados para receitas detalhadas
+  const [receitasItens, setReceitasItens] = useState<{ id: string; descricao: string; valor: string; fixo: boolean }[]>([
+    { id: 'caixa_inicial', descricao: 'CAIXA INICIAL', valor: '', fixo: true },
+    { id: 'reforco', descricao: 'REFORÇO', valor: '', fixo: true },
+    { id: 'dinheiro', descricao: 'DINHEIRO', valor: '', fixo: true },
+    { id: 'cartao', descricao: 'CARTÃO', valor: '', fixo: true },
+    { id: 'pix', descricao: 'PIX', valor: '', fixo: true },
+  ]);
+  // Descrições detalhadas das receitas salvas (para WhatsApp/resumo)
+  const [receitasSalvas, setReceitasSalvas] = useState<{ descricao: string; valor: number }[]>([]);
+
   // Estados para despesas detalhadas
   const [despesasItens, setDespesasItens] = useState<{ id: string; descricao: string; valor: string; fixo: boolean }[]>([
     { id: 'uber', descricao: 'UBER', valor: '', fixo: true },
@@ -2203,8 +2214,61 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   ]);
   // Estado para o valor total das despesas salvas (para exibir no resumo)
   const [valorDespesaSalva, setValorDespesaSalva] = useState<number>(0);
+  // Estado para o valor total das receitas salvas (para exibir no resumo)
+  const [valorReceitaSalva, setValorReceitaSalva] = useState<number>(0);
   // Descrições detalhadas das despesas salvas (para WhatsApp/resumo)
   const [despesasSalvas, setDespesasSalvas] = useState<{ descricao: string; valor: number }[]>([]);
+
+  // Funções para gerenciar receitas
+  const calcularTotalReceitas = () => {
+    return receitasItens.reduce((total, item) => {
+      const val = parseFloat(item.valor.replace(',', '.')) || 0;
+      return total + val;
+    }, 0);
+  };
+
+  const formatarValorReceita = (id: string, valor: string) => {
+    if (!valor || valor.trim() === '') return;
+    const limpo = valor.replace(/[^\d]/g, '');
+    if (!limpo) return;
+    if (!valor.includes(',') && !valor.includes('.')) {
+      setReceitasItens(prev => prev.map(item =>
+        item.id === id ? { ...item, valor: limpo + ',00' } : item
+      ));
+    } else if (valor.includes(',') && !valor.includes('.')) {
+      const partes = valor.split(',');
+      const decimais = (partes[1] || '').replace(/[^\d]/g, '');
+      const formatado = partes[0] + ',' + decimais.padEnd(2, '0').substring(0, 2);
+      setReceitasItens(prev => prev.map(item =>
+        item.id === id ? { ...item, valor: formatado } : item
+      ));
+    }
+  };
+
+  const atualizarReceita = (id: string, campo: 'descricao' | 'valor', valor: string) => {
+    setReceitasItens(prev => prev.map(item =>
+      item.id === id ? { ...item, [campo]: campo === 'valor' ? valor.replace(/[^\d.,]/g, '') : valor.toUpperCase() } : item
+    ));
+  };
+
+  const adicionarReceita = () => {
+    const novoId = `custom_rec_${Date.now()}`;
+    setReceitasItens(prev => [...prev, { id: novoId, descricao: '', valor: '', fixo: false }]);
+  };
+
+  const removerReceita = (id: string) => {
+    setReceitasItens(prev => prev.filter(item => item.id !== id));
+  };
+
+  const resetReceitas = () => {
+    setReceitasItens([
+      { id: 'caixa_inicial', descricao: 'CAIXA INICIAL', valor: '', fixo: true },
+      { id: 'reforco', descricao: 'REFORÇO', valor: '', fixo: true },
+      { id: 'dinheiro', descricao: 'DINHEIRO', valor: '', fixo: true },
+      { id: 'cartao', descricao: 'CARTÃO', valor: '', fixo: true },
+      { id: 'pix', descricao: 'PIX', valor: '', fixo: true },
+    ]);
+  };
 
   // Funções para gerenciar despesas
   const calcularTotalDespesas = () => {
@@ -2238,7 +2302,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
 
   const atualizarDespesa = (id: string, campo: 'descricao' | 'valor', valor: string) => {
     setDespesasItens(prev => prev.map(item =>
-      item.id === id ? { ...item, [campo]: campo === 'valor' ? valor.replace(/[^\d.,]/g, '') : valor } : item
+      item.id === id ? { ...item, [campo]: campo === 'valor' ? valor.replace(/[^\d.,]/g, '') : valor.toUpperCase() } : item
     ));
   };
 
@@ -2400,7 +2464,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     setExtratoVisivel(false);
     setRecebido('');
     setSaldoAnterior(0);
-    // Limpar campos de despesa ao trocar de cliente
+    // Limpar campos de receita e despesa ao trocar de cliente
+    resetReceitas();
     resetDespesas();
     if (clienteId) {
       loadMaquinasCliente(clienteId);
@@ -3635,12 +3700,13 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     const acertoPct = clienteSelecionado?.acertoPercentual ?? 50;
     const cliente = jogado * (acertoPct / 100);
     const debitoSaldo = debitosVencidos;
+    const totalReceitas = calcularTotalReceitas();
     const totalDespesas = calcularTotalDespesas();
-    const liquido = cliente + totalDespesas + debitoSaldo;
+    const liquido = cliente + totalReceitas + totalDespesas + debitoSaldo;
     const recebidoNum = parseFloat(recebido) || 0;
     const saldoAtual = liquido - recebidoNum;
 
-    return { ...totais, jogado, cliente, debitoSaldo, totalDespesas, liquido, recebido: recebidoNum, saldoAtual };
+    return { ...totais, jogado, cliente, debitoSaldo, totalReceitas, totalDespesas, liquido, recebido: recebidoNum, saldoAtual };
   };
 
   const formatNumber = (num: number, decimals: number = 2): string => {
@@ -3678,15 +3744,20 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   const salvarLeituras = async () => {
     const maquinasPreenchidas = maquinas.filter(m => m.novaEntrada || m.novaSaida);
     
-    // Verificar se há valor de despesa preenchido
+    // Verificar se há valor de receita e despesa preenchido
+    const totalRec = calcularTotalReceitas();
     const totalDesp = calcularTotalDespesas();
+    const temReceita = totalRec > 0;
     const temDespesa = totalDesp > 0;
-    // Coletar itens de despesa com valor > 0 para salvar
+    // Coletar itens com valor > 0 para salvar
+    const receitasParaSalvar = receitasItens
+      .filter(d => (parseFloat(d.valor.replace(',', '.')) || 0) > 0)
+      .map(d => ({ descricao: d.descricao || 'OUTROS', valor: parseFloat(d.valor.replace(',', '.')) || 0 }));
     const despesasParaSalvar = despesasItens
       .filter(d => (parseFloat(d.valor.replace(',', '.')) || 0) > 0)
       .map(d => ({ descricao: d.descricao || 'OUTROS', valor: parseFloat(d.valor.replace(',', '.')) || 0 }));
 
-    if (maquinasPreenchidas.length === 0 && !temDespesa) {
+    if (maquinasPreenchidas.length === 0 && !temReceita && !temDespesa) {
       toast.error('Nenhuma leitura ou despesa para salvar');
       return;
     }
@@ -3720,6 +3791,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
           usuarioId: usuarioId,
           despesa: despesasParaSalvar.length > 0 ? JSON.stringify(despesasParaSalvar) : null,
           valorDespesa: totalDesp > 0 ? totalDesp : null,
+          receita: receitasParaSalvar.length > 0 ? JSON.stringify(receitasParaSalvar) : null,
+          valorReceita: totalRec > 0 ? totalRec : null,
         }),
       });
 
@@ -3739,7 +3812,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       setMaquinasSalvas([...maquinasPreenchidas]);
       // Guarda o valor da despesa para o resumo
       setValorDespesaSalva(totalDesp);
-      // Guarda as descrições detalhadas das despesas
+      // Guarda o valor da receita para o resumo
+      setValorReceitaSalva(totalRec);
+      // Guarda as descrições detalhadas das receitas e despesas
+      setReceitasSalvas(receitasParaSalvar);
       setDespesasSalvas(despesasParaSalvar);
       setResumoModalOpen(true);
       
@@ -3804,7 +3880,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       }
       setExtratoVisivel(false);
       setRecebido('');
-      // Limpar campos de despesa após salvar
+      // Limpar campos de receita e despesa após salvar
+      resetReceitas();
       resetDespesas();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Erro ao salvar leituras';
@@ -3826,10 +3903,11 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     const acertoPct = clienteSelecionado?.acertoPercentual ?? 50;
     const cliente = jogado * (acertoPct / 100);
     const debitoSaldo = debitosVencidos;
+    const receitaTotal = valorReceitaSalva;
     const despesaTotal = valorDespesaSalva;
-    const liquido = cliente + despesaTotal + debitoSaldo;
+    const liquido = cliente + receitaTotal + despesaTotal + debitoSaldo;
 
-    return { ...totais, jogado, cliente, despesa: despesaTotal, debitoSaldo, liquido };
+    return { ...totais, jogado, cliente, receita: receitaTotal, despesa: despesaTotal, debitoSaldo, liquido };
   };
 
   // Gerar mensagem para WhatsApp
@@ -3858,6 +3936,17 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     mensagem += `Jogado.......: ${formatNumber(totaisSalvos.jogado)}\n`;
     mensagem += `Cliente......: ${formatNumber(totaisSalvos.cliente)}\n`;
     mensagem += `Débito(Saldo): ${formatNumber(totaisSalvos.debitoSaldo || 0)}\n`;
+    // Receitas detalhadas
+    if (receitasSalvas.length > 0) {
+      receitasSalvas.forEach(d => {
+        if (d.valor > 0) {
+          mensagem += `  ${d.descricao.padEnd(15)}: ${formatNumber(d.valor)}\n`;
+        }
+      });
+    }
+    if (totaisSalvos.receita > 0) {
+      mensagem += `Total Receitas: ${formatNumber(totaisSalvos.receita)}\n`;
+    }
     // Despesas detalhadas
     if (despesasSalvas.length > 0) {
       despesasSalvas.forEach(d => {
@@ -4171,6 +4260,67 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
             ))}
           </div>
 
+          {/* Receitas */}
+          <Card className="border-0 shadow-lg bg-card">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-foreground">Receitas</h3>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={adicionarReceita}
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Plus className="w-3 h-3 mr-1" /> Outra
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {receitasItens.map((item) => (
+                  <div key={item.id} className="grid grid-cols-[1fr_100px_28px] gap-2 items-center">
+                    <Input
+                      type="text"
+                      value={item.descricao}
+                      onChange={(e) => atualizarReceita(item.id, 'descricao', e.target.value)}
+                      placeholder={item.fixo ? item.descricao : 'DESCRIÇÃO...'}
+                      disabled={item.fixo}
+                      className={`bg-muted border-border text-foreground text-sm h-8 ${item.fixo ? 'font-semibold text-muted-foreground' : ''}`}
+                      style={{ textTransform: 'uppercase' }}
+                    />
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      value={item.valor}
+                      onChange={(e) => atualizarReceita(item.id, 'valor', e.target.value)}
+                      onBlur={(e) => formatarValorReceita(item.id, e.target.value)}
+                      placeholder="0,00"
+                      className="bg-muted border-border text-foreground text-sm h-8 text-right"
+                    />
+                    {!item.fixo ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removerReceita(item.id)}
+                        className="h-8 w-7 p-0 text-muted-foreground hover:text-danger"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : (
+                      <div className="w-7" />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between items-center mt-3 pt-3 border-t border-border">
+                <span className="text-sm font-semibold text-muted-foreground">Total das Receitas</span>
+                <span className="text-sm font-bold text-success">
+                  R$ {formatNumber(calcularTotalReceitas())}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Despesas */}
           <Card className="border-0 shadow-lg bg-card">
             <CardContent className="p-4">
@@ -4193,9 +4343,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       type="text"
                       value={item.descricao}
                       onChange={(e) => atualizarDespesa(item.id, 'descricao', e.target.value)}
-                      placeholder={item.fixo ? item.descricao : 'Descrição...'}
+                      placeholder={item.fixo ? item.descricao : 'DESCRIÇÃO...'}
                       disabled={item.fixo}
                       className={`bg-muted border-border text-foreground text-sm h-8 ${item.fixo ? 'font-semibold text-muted-foreground' : ''}`}
+                      style={{ textTransform: 'uppercase' }}
                     />
                     <Input
                       type="text"
@@ -4255,6 +4406,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                 <div className="flex justify-between col-span-2">
                   <span className="text-muted-foreground">Débito(Saldo):</span>
                   <span className={debitosVencidos > 0 ? 'text-red-400 font-bold' : 'text-muted-foreground'}>R$ {formatNumber(debitosVencidos)}</span>
+                </div>
+                <div className="flex justify-between col-span-2">
+                  <span className="text-muted-foreground">Total das Receitas:</span>
+                  <span className={totais.totalReceitas > 0 ? 'text-success font-bold' : 'text-muted-foreground'}>R$ {formatNumber(totais.totalReceitas)}</span>
                 </div>
                 <div className="flex justify-between col-span-2">
                   <span className="text-muted-foreground">Total das Despesas:</span>
@@ -4853,9 +5008,16 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   <p>Jogado.......: {formatNumber(calcularTotaisSalvos().jogado)}</p>
                   <p>Cliente......: {formatNumber(calcularTotaisSalvos().cliente)}</p>
                   <p>Débito(Saldo): {formatNumber(calcularTotaisSalvos().debitoSaldo || 0)}</p>
+                  {/* Receitas detalhadas */}
+                  {receitasSalvas.filter(d => d.valor > 0).map((d, i) => (
+                    <p key={`rec-${i}`}>  {d.descricao.padEnd(13)}: {formatNumber(d.valor)}</p>
+                  ))}
+                  {calcularTotaisSalvos().receita > 0 && (
+                    <p className="font-bold text-success">Total Receitas: {formatNumber(calcularTotaisSalvos().receita)}</p>
+                  )}
                   {/* Despesas detalhadas */}
                   {despesasSalvas.filter(d => d.valor > 0).map((d, i) => (
-                    <p key={i}>  {d.descricao.padEnd(13)}: {formatNumber(d.valor)}</p>
+                    <p key={`desp-${i}`}>  {d.descricao.padEnd(13)}: {formatNumber(d.valor)}</p>
                   ))}
                   <p className="font-bold">Total Despesas: {formatNumber(calcularTotaisSalvos().despesa)}</p>
                   <p>Líquido......: {formatNumber(calcularTotaisSalvos().liquido)}</p>
