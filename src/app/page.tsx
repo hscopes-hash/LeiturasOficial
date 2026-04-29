@@ -2225,6 +2225,13 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   const [receitasAberto, setReceitasAberto] = useState(false);
   const [despesasAberto, setDespesasAberto] = useState(false);
 
+  // Estados para foto do cartao (canhotos)
+  const [cartaoModalOpen, setCartaoModalOpen] = useState(false);
+  const [cartaoFotoCapturada, setCartaoFotoCapturada] = useState<string | null>(null);
+  const [cartaoFotoProcessada, setCartaoFotoProcessada] = useState<string | null>(null);
+  const [extraindoCartao, setExtraindoCartao] = useState(false);
+  const [cartaoResultado, setCartaoResultado] = useState<{ tickets: number[]; total: number; quantidade: number } | null>(null);
+
   // Funções para gerenciar receitas
   const calcularTotalReceitas = () => {
     return receitasItens.reduce((total, item) => {
@@ -2274,6 +2281,173 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       { id: 'cartao', descricao: 'CARTÃO', valor: '', fixo: true },
       { id: 'pix', descricao: 'PIX', valor: '', fixo: true },
     ]);
+  };
+
+  // ============================================
+  // Funções para foto do cartão (canhotos)
+  // ============================================
+  const abrirModalCartao = () => {
+    setCartaoFotoCapturada(null);
+    setCartaoFotoProcessada(null);
+    setCartaoResultado(null);
+    setExtraindoCartao(false);
+    setCartaoModalOpen(true);
+  };
+
+  const handleFileChangeCartao = (event: React.ChangeEvent<HTMLInputElement>, origem: 'CÂMERA' | 'GALERIA') => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxDimensao = 1920;
+            let largura = img.width;
+            let altura = img.height;
+            if (largura > maxDimensao || altura > maxDimensao) {
+              if (largura > altura) {
+                altura = Math.round((altura / largura) * maxDimensao);
+                largura = maxDimensao;
+              } else {
+                largura = Math.round((largura / altura) * maxDimensao);
+                altura = maxDimensao;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = largura;
+            canvas.height = altura;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, largura, altura);
+              const imagemRedimensionada = canvas.toDataURL('image/jpeg', 0.8);
+              setCartaoFotoCapturada(imagemRedimensionada);
+              setCartaoFotoProcessada(null);
+              setCartaoResultado(null);
+            } else {
+              setCartaoFotoCapturada(reader.result as string);
+            }
+          } catch (error) {
+            console.error('Erro ao processar imagem:', error);
+            toast.error('Erro ao processar imagem. Tente outra foto.');
+          }
+        };
+        img.onerror = () => {
+          toast.error('Erro ao carregar imagem. Tente outra foto.');
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const extrairValoresCartao = async () => {
+    if (!cartaoFotoCapturada) {
+      toast.error('Nenhuma foto capturada');
+      return;
+    }
+    setExtraindoCartao(true);
+    setCartaoResultado(null);
+    try {
+      const res = await fetch('/api/leituras/extrair-cartao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imagem: cartaoFotoCapturada, empresaId: empresaId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao extrair valores');
+      }
+      const resultado = {
+        tickets: data.tickets || [],
+        total: data.total || 0,
+        quantidade: data.quantidade || 0,
+      };
+      setCartaoResultado(resultado);
+      toast.success(`${resultado.quantidade} ticket(s) identificado(s) - Total: R$ ${resultado.total.toFixed(2)}`);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error(msg);
+    } finally {
+      setExtraindoCartao(false);
+    }
+  };
+
+  // Adicionar tarja vermelha com total dos canhotos na foto
+  const adicionarTarjaCartao = (imagemBase64: string, total: number, quantidade: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout ao processar imagem'));
+      }, 10000);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          clearTimeout(timeout);
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Não foi possível criar contexto do canvas'));
+            return;
+          }
+          let larguraOriginal = img.width;
+          let alturaOriginal = img.height;
+          const maxDimensao = 1920;
+          if (larguraOriginal > maxDimensao || alturaOriginal > maxDimensao) {
+            const ratio = Math.min(maxDimensao / larguraOriginal, maxDimensao / alturaOriginal);
+            larguraOriginal = Math.round(larguraOriginal * ratio);
+            alturaOriginal = Math.round(alturaOriginal * ratio);
+          }
+          const tamanhoFonteBase = Math.max(20, Math.min(44, Math.round(larguraOriginal / 30)));
+          const alturaTarja = Math.round(tamanhoFonteBase * 2.5);
+          canvas.width = larguraOriginal;
+          canvas.height = alturaOriginal + alturaTarja;
+          if (img.width !== larguraOriginal || img.height !== alturaOriginal) {
+            ctx.drawImage(img, 0, 0, larguraOriginal, alturaOriginal);
+          } else {
+            ctx.drawImage(img, 0, 0);
+          }
+          // Tarja vermelha
+          ctx.fillStyle = '#dc2626';
+          ctx.fillRect(0, alturaOriginal, larguraOriginal, alturaTarja);
+          // Texto branco
+          ctx.fillStyle = '#ffffff';
+          ctx.textBaseline = 'middle';
+          const totalStr = `CARTAO: ${quantidade} ticket(s) | TOTAL: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+          const tamanhoFonte = Math.max(16, Math.min(tamanhoFonteBase, Math.round((larguraOriginal - 24) / (totalStr.length * 0.55))));
+          ctx.font = `bold ${tamanhoFonte}px Arial, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText(totalStr, larguraOriginal / 2, alturaOriginal + alturaTarja / 2);
+          resolve(canvas.toDataURL('image/jpeg', 0.9));
+        } catch (error) {
+          clearTimeout(timeout);
+          reject(error);
+        }
+      };
+      img.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error('Erro ao carregar imagem'));
+      };
+      img.src = imagemBase64;
+    });
+  };
+
+  const aplicarValoresCartao = async () => {
+    if (!cartaoResultado || !cartaoFotoCapturada) return;
+    try {
+      // Gerar foto com tarja
+      const fotoComTarja = await adicionarTarjaCartao(cartaoFotoCapturada, cartaoResultado.total, cartaoResultado.quantidade);
+      setCartaoFotoProcessada(fotoComTarja);
+      // Atualizar campo Cartão com o valor total
+      const valorFormatado = cartaoResultado.total.toFixed(2).replace('.', ',');
+      setReceitasItens(prev => prev.map(item =>
+        item.id === 'cartao' ? { ...item, valor: valorFormatado } : item
+      ));
+      toast.success(`Total R$ ${valorFormatado} aplicado ao campo CARTÃO`);
+      setCartaoModalOpen(false);
+    } catch (error) {
+      console.error('Erro ao aplicar valores:', error);
+      toast.error('Erro ao processar a foto. Tente novamente.');
+    }
   };
 
   // Funções para gerenciar despesas
@@ -4053,6 +4227,17 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       }
     }
 
+    // Adicionar foto dos canhotos de cartão (se houver)
+    if (cartaoFotoProcessada) {
+      try {
+        const response = await fetch(cartaoFotoProcessada);
+        const blob = await response.blob();
+        fotosProcessadas.push(new File([blob], `canhoto_cartao_${Date.now()}.jpg`, { type: 'image/jpeg' }));
+      } catch (err) {
+        console.error('Erro ao processar foto dos canhotos:', err);
+      }
+    }
+
     // Gerar extrato como imagem e adicionar ao array
     try {
       const extratoBase64 = await gerarExtratoImagem();
@@ -4455,15 +4640,29 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                           className={`bg-muted border-border text-foreground text-sm h-8 ${item.fixo ? 'font-semibold text-muted-foreground' : ''}`}
                           style={{ textTransform: 'uppercase' }}
                         />
-                        <Input
-                          type="text"
-                          inputMode="decimal"
-                          value={item.valor}
-                          onChange={(e) => atualizarReceita(item.id, 'valor', e.target.value)}
-                          onBlur={(e) => formatarValorReceita(item.id, e.target.value)}
-                          placeholder="0,00"
-                          className="bg-muted border-border text-foreground text-sm h-8 text-right"
-                        />
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={item.valor}
+                            onChange={(e) => atualizarReceita(item.id, 'valor', e.target.value)}
+                            onBlur={(e) => formatarValorReceita(item.id, e.target.value)}
+                            placeholder="0,00"
+                            className="bg-muted border-border text-foreground text-sm h-8 text-right flex-1 min-w-0"
+                          />
+                          {item.id === 'cartao' && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => abrirModalCartao()}
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-warning shrink-0"
+                              title="Capturar canhotos de cartão"
+                            >
+                              <Camera className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                         {!item.fixo ? (
                           <Button
                             type="button"
@@ -5068,6 +5267,145 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                         ENVIAR PARA GRUPO WHATSAPP
                       </Button>
                     )}
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal Capturar Canhotos de Cartão */}
+          <Dialog open={cartaoModalOpen} onOpenChange={setCartaoModalOpen}>
+            <DialogContent className="bg-card border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5" />
+                  Capturar Canhotos de Cartão
+                </DialogTitle>
+                <DialogDescription className="text-muted-foreground">
+                  Tire uma foto dos canhotos ou selecione da galeria. A IA irá identificar e totalizar os valores.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                {/* Preview da foto */}
+                {cartaoFotoCapturada ? (
+                  <div className="relative">
+                    <img
+                      src={cartaoFotoProcessada || cartaoFotoCapturada}
+                      alt="Canhotos capturados"
+                      className="w-full max-h-[40vh] object-contain rounded-lg border border-border mx-auto"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 right-2 bg-background/80 hover:bg-card"
+                      onClick={() => { setCartaoFotoCapturada(null); setCartaoFotoProcessada(null); setCartaoResultado(null); }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                    <CreditCard className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground text-sm">Nenhum canhoto capturado</p>
+                    <p className="text-muted-foreground text-xs mt-1">Fotografe todos os canhotos de uma vez</p>
+                  </div>
+                )}
+
+                {/* Botões de captura */}
+                {!cartaoFotoCapturada ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => handleFileChangeCartao(e, 'CÂMERA')}
+                        className="hidden"
+                      />
+                      <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-500/30 transition-colors">
+                        <Camera className="w-6 h-6 text-warning" />
+                        <span className="text-sm text-warning font-medium">Câmera</span>
+                      </div>
+                    </label>
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileChangeCartao(e, 'GALERIA')}
+                        className="hidden"
+                      />
+                      <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-muted border-border hover:bg-accent transition-colors">
+                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground font-medium">Galeria</span>
+                      </div>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Botão Extrair Valores */}
+                    <Button
+                      className="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700"
+                      onClick={extrairValoresCartao}
+                      disabled={extraindoCartao}
+                    >
+                      {extraindoCartao ? (
+                        <>
+                          <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Analisando canhotos...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          EXTRAIR VALORES
+                        </>
+                      )}
+                    </Button>
+
+                    {/* Resultado da extração */}
+                    {cartaoResultado && (
+                      <div className="bg-card rounded-lg p-3 border border-border space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">Resultado da leitura:</p>
+                          <span className="text-xs text-success font-medium">{cartaoResultado.quantidade} ticket(s)</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="text-center p-2 bg-success-bg rounded border border-success/30">
+                            <p className="text-xs text-success">TICKETS</p>
+                            <p className="text-lg font-bold text-success">{cartaoResultado.quantidade}</p>
+                          </div>
+                          <div className="text-center p-2 bg-blue-50 rounded border border-blue-300">
+                            <p className="text-xs text-blue-600">TOTAL</p>
+                            <p className="text-lg font-bold text-blue-600">R$ {cartaoResultado.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                          </div>
+                        </div>
+                        {cartaoResultado.tickets.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {cartaoResultado.tickets.map((t, i) => (
+                              <span key={i} className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                                R$ {t.toFixed(2)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <Button
+                          className="w-full mt-2 bg-gradient-to-r from-green-500 to-emerald-600"
+                          onClick={aplicarValoresCartao}
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          APLICAR AO CARTÃO
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Botão Nova Foto */}
+                    <Button
+                      className="w-full bg-red-600 hover:bg-red-700 text-white"
+                      onClick={() => { setCartaoFotoCapturada(null); setCartaoFotoProcessada(null); setCartaoResultado(null); }}
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Nova Foto
+                    </Button>
                   </div>
                 )}
               </div>
