@@ -3972,7 +3972,9 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
         }
       });
     }
-    mensagem += `Total Despesas: ${formatNumber(totaisSalvos.despesa)}\n`;
+    if (totaisSalvos.despesa !== 0) {
+      mensagem += `Total Despesas: ${formatNumber(totaisSalvos.despesa)}\n`;
+    }
     mensagem += `Líquido......: ${formatNumber(totaisSalvos.liquido)}\n`;
     
     return mensagem;
@@ -4435,14 +4437,18 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   <span className="text-muted-foreground">Débito(Saldo):</span>
                   <span className={debitosVencidos > 0 ? 'text-red-400 font-bold' : 'text-muted-foreground'}>R$ {formatNumber(debitosVencidos)}</span>
                 </div>
-                <div className="flex justify-between col-span-2">
-                  <span className="text-muted-foreground">Total das Receitas:</span>
-                  <span className={totais.totalReceitas > 0 ? 'text-success font-bold' : 'text-muted-foreground'}>R$ {formatNumber(totais.totalReceitas)}</span>
-                </div>
-                <div className="flex justify-between col-span-2">
-                  <span className="text-muted-foreground">Total das Despesas:</span>
-                  <span className={totais.totalDespesas > 0 ? 'text-red-400 font-bold' : 'text-muted-foreground'}>R$ {formatNumber(totais.totalDespesas)}</span>
-                </div>
+                {totais.totalReceitas !== 0 && (
+                  <div className="flex justify-between col-span-2">
+                    <span className="text-muted-foreground">Total das Receitas:</span>
+                    <span className={totais.totalReceitas > 0 ? 'text-success font-bold' : 'text-danger font-bold'}>R$ {formatNumber(totais.totalReceitas)}</span>
+                  </div>
+                )}
+                {totais.totalDespesas !== 0 && (
+                  <div className="flex justify-between col-span-2">
+                    <span className="text-muted-foreground">Total das Despesas:</span>
+                    <span className={totais.totalDespesas > 0 ? 'text-danger font-bold' : 'text-success font-bold'}>R$ {formatNumber(totais.totalDespesas)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between col-span-2 border-t border-border pt-2 mt-1">
                   <span className="text-foreground font-semibold">Líquido:</span>
                   <span className={`font-bold ${totais.liquido >= 0 ? 'text-success' : 'text-danger'}`}>R$ {formatNumber(totais.liquido)}</span>
@@ -5040,14 +5046,16 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   {receitasSalvas.filter(d => d.valor > 0).map((d, i) => (
                     <p key={`rec-${i}`}>  {d.descricao.padEnd(13)}: {formatNumber(d.valor)}</p>
                   ))}
-                  {calcularTotaisSalvos().receita > 0 && (
+                  {calcularTotaisSalvos().receita !== 0 && (
                     <p className="font-bold text-success">Total Receitas: {formatNumber(calcularTotaisSalvos().receita)}</p>
                   )}
                   {/* Despesas detalhadas */}
                   {despesasSalvas.filter(d => d.valor > 0).map((d, i) => (
                     <p key={`desp-${i}`}>  {d.descricao.padEnd(13)}: {formatNumber(d.valor)}</p>
                   ))}
-                  <p className="font-bold">Total Despesas: {formatNumber(calcularTotaisSalvos().despesa)}</p>
+                  {calcularTotaisSalvos().despesa !== 0 && (
+                    <p className="font-bold">Total Despesas: {formatNumber(calcularTotaisSalvos().despesa)}</p>
+                  )}
                   <p>Líquido......: {formatNumber(calcularTotaisSalvos().liquido)}</p>
                 </div>
               </div>
@@ -5670,7 +5678,9 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
     });
     
     mensagem += `\n*TOTAIS*\n`;
-    mensagem += `Despesas: ${formatCurrency(totais.totalDespesas)}\n`;
+    if (totais.totalDespesas !== 0) {
+      mensagem += `Despesas: ${formatCurrency(totais.totalDespesas)}\n`;
+    }
     mensagem += `Débito(Saldo): ${formatCurrency(debitoTotal)}\n`;
     mensagem += `Cobranças: ${formatCurrency(totais.totalSaldo)}\n`;
     mensagem += `A Cobrar: ${formatCurrency(totais.totalSaldo - totais.totalDespesas + debitoTotal)}\n`;
@@ -5750,10 +5760,12 @@ function RelatoriosPage({ empresaId }: { empresaId: string }) {
                     {formatCurrency(totais.totalSaldo)}
                   </p>
                 </div>
-                <div>
-                  <p className="text-muted-foreground">Total Despesas</p>
-                  <p className="text-xl font-bold text-red-400">{formatCurrency(totais.totalDespesas)}</p>
-                </div>
+                {totais.totalDespesas !== 0 && (
+                  <div>
+                    <p className="text-muted-foreground">Total Despesas</p>
+                    <p className="text-xl font-bold text-red-400">{formatCurrency(totais.totalDespesas)}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-muted-foreground">Débito(Saldo)</p>
                   <p className={`text-xl font-bold ${debitoTotal > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>{formatCurrency(debitoTotal)}</p>
