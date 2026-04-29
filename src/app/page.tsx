@@ -4305,9 +4305,11 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${receitasAberto ? 'rotate-90' : ''}`} />
                       <h3 className="font-semibold text-foreground">Receitas</h3>
                     </div>
-                    <span className="text-sm font-bold text-success">
-                      R$ {formatNumber(calcularTotalReceitas())}
-                    </span>
+                    {receitasAberto && (
+                      <span className="text-sm font-bold text-success">
+                        R$ {formatNumber(calcularTotalReceitas())}
+                      </span>
+                    )}
                   </div>
                 </CardContent>
               </CollapsibleTrigger>
@@ -4376,9 +4378,11 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       <ChevronRight className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${despesasAberto ? 'rotate-90' : ''}`} />
                       <h3 className="font-semibold text-foreground">Despesas</h3>
                     </div>
-                    <span className="text-sm font-bold text-red-400">
-                      R$ {formatNumber(calcularTotalDespesas())}
-                    </span>
+                    {despesasAberto && (
+                      <span className="text-sm font-bold text-red-400">
+                        R$ {formatNumber(calcularTotalDespesas())}
+                      </span>
+                    )}
                   </div>
                 </CardContent>
               </CollapsibleTrigger>
