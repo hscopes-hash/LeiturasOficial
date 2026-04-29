@@ -2564,6 +2564,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
         const newZoom = Math.min(5, Math.max(0.5, pinchStartZoom.current * scale));
         setZoomFoto(newZoom);
       }
+      // Com 1 dedo: scroll nativo (sem preventDefault)
     };
 
     const handleTouchEnd = () => {
@@ -5441,32 +5442,36 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
               </div>
 
               {/* Container da imagem */}
-              <div 
+              <div
                 ref={imageContainerRef}
-                className="flex-1 flex items-center justify-center overflow-hidden touch-none"
+                className="flex-1 overflow-auto"
               >
                 {fotoCapturada && (
-                  <img
-                    src={fotoCapturada}
-                    alt="Foto ampliada"
-                    className="max-w-full max-h-full object-contain select-none"
-                    style={{ 
-                      transform: `scale(${zoomFoto})`,
-                      transformOrigin: 'center center',
+                  <div
+                    className="min-w-full min-h-full flex items-center justify-center p-4"
+                    style={{
+                      width: `${zoomFoto * 100}%`,
+                      height: `${zoomFoto * 100}%`,
                     }}
-                    draggable={false}
-                    onWheel={(e) => {
-                      e.preventDefault();
-                      const delta = e.deltaY > 0 ? -0.2 : 0.2;
-                      setZoomFoto(prev => Math.min(5, Math.max(0.5, prev + delta)));
-                    }}
-                  />
+                  >
+                    <img
+                      src={fotoCapturada}
+                      alt="Foto ampliada"
+                      className="max-w-full max-h-full object-contain select-none"
+                      draggable={false}
+                      onWheel={(e) => {
+                        e.preventDefault();
+                        const delta = e.deltaY > 0 ? -0.2 : 0.2;
+                        setZoomFoto(prev => Math.min(5, Math.max(0.5, prev + delta)));
+                      }}
+                    />
+                  </div>
                 )}
               </div>
 
               {/* Instrução */}
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/50 text-sm text-center px-4 pointer-events-none">
-                Use dois dedos para zoom • Scroll para zoom (desktop)
+                Arraste para mover • Scroll/pinch para zoom
               </div>
             </DialogContent>
           </Dialog>
