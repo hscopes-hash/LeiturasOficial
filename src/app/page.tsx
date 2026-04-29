@@ -2571,6 +2571,23 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     }
   };
 
+  // Função para repetir leitura anterior (copia ANTERIOR para ATUAL)
+  const repetirLeitura = (index: number) => {
+    const novasMaquinas = [...maquinas];
+    const entradaAnterior = String(maquinas[index].entradaAtual || 0);
+    const saidaAnterior = String(maquinas[index].saidaAtual || 0);
+
+    novasMaquinas[index].novaEntrada = entradaAnterior;
+    novasMaquinas[index].novaSaida = saidaAnterior;
+    // Diferenca será 0 (repetição = sem movimento)
+    novasMaquinas[index].diferencaEntrada = 0;
+    novasMaquinas[index].diferencaSaida = 0;
+    novasMaquinas[index].saldoMaquina = 0;
+
+    setMaquinas(novasMaquinas);
+    toast.success(`Leitura repetida para ${maquinas[index].codigo}`);
+  };
+
   // Funções para captura de foto
   const abrirModalFoto = (maquina: MaquinaLeitura) => {
     setMaquinaFoto(maquina);
@@ -4159,22 +4176,33 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       <p className="font-medium text-foreground">{maquina.codigo} - {maquina.tipo?.descricao || 'Tipo não definido'}</p>
                       <p className="text-xs text-muted-foreground">Moeda: {getMoedaLabel(maquina.moeda)}</p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={`h-9 w-9 overflow-hidden rounded-md ${maquina.fotoProcessada ? 'p-0 hover:opacity-80' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-                      onClick={() => abrirModalFoto(maquina)}
-                    >
-                      {maquina.fotoProcessada ? (
-                        <img
-                          src={maquina.fotoProcessada}
-                          alt="Foto com tarja"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Camera className="w-5 h-5" />
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+                        onClick={() => repetirLeitura(index)}
+                        title="Repetir leitura anterior"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-9 w-9 overflow-hidden rounded-md ${maquina.fotoProcessada ? 'p-0 hover:opacity-80' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
+                        onClick={() => abrirModalFoto(maquina)}
+                      >
+                        {maquina.fotoProcessada ? (
+                          <img
+                            src={maquina.fotoProcessada}
+                            alt="Foto com tarja"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Camera className="w-5 h-5" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   {/* Cabeçalho das colunas */}
                   <div className="grid grid-cols-3 gap-2 mb-2 text-xs text-muted-foreground text-center">
