@@ -4356,14 +4356,14 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       <Plus className="w-3 h-3 mr-1" /> Outra
                     </Button>
                   </div>
+                  <div className="flex justify-between items-center mt-2 pt-2 border-t border-border">
+                    <span className="text-xs font-semibold text-muted-foreground">Total das Receitas</span>
+                    <span className="text-xs font-bold text-success">R$ {formatNumber(calcularTotalReceitas())}</span>
+                  </div>
                 </CardContent>
               </CollapsibleContent>
             </Card>
           </Collapsible>
-          <div className="flex justify-between items-center px-4 -mt-2 mb-2">
-            <span className="text-xs font-semibold text-muted-foreground">Total das Receitas</span>
-            <span className="text-xs font-bold text-success">R$ {formatNumber(calcularTotalReceitas())}</span>
-          </div>
 
           {/* Despesas */}
           <Collapsible open={despesasAberto} onOpenChange={setDespesasAberto}>
@@ -4426,14 +4426,14 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                       <Plus className="w-3 h-3 mr-1" /> Outra
                     </Button>
                   </div>
+                  <div className="flex justify-between items-center mt-2 pt-2 border-t border-border">
+                    <span className="text-xs font-semibold text-muted-foreground">Total das Despesas</span>
+                    <span className="text-xs font-bold text-red-400">R$ {formatNumber(calcularTotalDespesas())}</span>
+                  </div>
                 </CardContent>
               </CollapsibleContent>
             </Card>
           </Collapsible>
-          <div className="flex justify-between items-center px-4 -mt-2 mb-2">
-            <span className="text-xs font-semibold text-muted-foreground">Total das Despesas</span>
-            <span className="text-xs font-bold text-red-400">R$ {formatNumber(calcularTotalDespesas())}</span>
-          </div>
 
           {/* Resumo */}
           <Card className="border-0 shadow-lg bg-card">
