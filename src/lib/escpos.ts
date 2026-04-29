@@ -218,7 +218,11 @@ export function buildCaixaFacilReceipt(data: {
   lines.push({ text: separator(width), align: 'center' });
 
   // Machine readings
-  data.maquinas.forEach((m) => {
+  data.maquinas.forEach((m, idx) => {
+    // Separador entre máquinas
+    if (idx > 0) {
+      lines.push({ text: separator(width), align: 'center' });
+    }
     lines.push({ text: `${m.codigo} - ${m.tipo}`, bold: true });
     lines.push({ text: `E ${String(m.entradaAnterior).padStart(6)} ${String(m.entradaNova).padStart(6)} D:${String(m.diferencaEntrada).padStart(6)}` });
     lines.push({ text: `S ${String(m.saidaAnterior).padStart(6)} ${String(m.saidaNova).padStart(6)} D:${String(m.diferencaSaida).padStart(6)}` });
@@ -236,35 +240,43 @@ export function buildCaixaFacilReceipt(data: {
 
   // Debitos
   if (data.debitosVencidos && data.debitosVencidos !== 0) {
-    lines.push({ text: `DEBITOS..: R$ ${data.debitosVencidos.toFixed(2).replace('.', ',')}` });
+    lines.push({ text: `DEBITO(SALDO): R$ ${data.debitosVencidos.toFixed(2).replace('.', ',')}` });
   }
 
-  // Receitas
-  if (data.receitas && data.receitas.length > 0) {
-    const totalRec = data.receitas.reduce((s, r) => s + r.valor, 0);
-    if (totalRec !== 0) {
-      data.receitas.filter(r => r.valor > 0).forEach(r => {
-        lines.push({ text: `  ${r.descricao.padEnd(12)} R$ ${r.valor.toFixed(2).replace('.', ',')}` });
-      });
-      lines.push({ text: `RECEITAS.: R$ ${totalRec.toFixed(2).replace('.', ',')}` });
-    }
+  // Receitas e Despesas - detectar se há ambos para escolher RECEBIDO vs FECHAMENTO
+  const hasReceitas = !!(data.receitas && data.receitas.some(r => r.valor > 0));
+  const hasDespesas = !!(data.despesas && data.despesas.some(d => d.valor > 0));
+  const temAmbos = hasReceitas && hasDespesas;
+
+  // Receitas - separador antes
+  if (hasReceitas) {
+    lines.push({ text: separator(width), align: 'center' });
+    const totalRec = data.receitas!.reduce((s, r) => s + r.valor, 0);
+    data.receitas!.filter(r => r.valor > 0).forEach(r => {
+      lines.push({ text: `  ${r.descricao.padEnd(12)} R$ ${r.valor.toFixed(2).replace('.', ',')}` });
+    });
+    lines.push({ text: `RECEITAS.: R$ ${totalRec.toFixed(2).replace('.', ',')}` });
   }
 
-  // Despesas
-  if (data.despesas && data.despesas.length > 0) {
-    const totalDesp = data.despesas.reduce((s, d) => s + d.valor, 0);
-    if (totalDesp !== 0) {
-      data.despesas.filter(d => d.valor > 0).forEach(d => {
-        lines.push({ text: `  ${d.descricao.padEnd(12)} R$ ${d.valor.toFixed(2).replace('.', ',')}` });
-      });
-      lines.push({ text: `DESPESAS.: R$ ${totalDesp.toFixed(2).replace('.', ',')}` });
-    }
+  // Despesas - separador depois
+  if (hasDespesas) {
+    const totalDesp = data.despesas!.reduce((s, d) => s + d.valor, 0);
+    data.despesas!.filter(d => d.valor > 0).forEach(d => {
+      lines.push({ text: `  ${d.descricao.padEnd(12)} R$ ${d.valor.toFixed(2).replace('.', ',')}` });
+    });
+    lines.push({ text: `DESPESAS.: R$ ${totalDesp.toFixed(2).replace('.', ',')}` });
+    lines.push({ text: separator(width), align: 'center' });
   }
 
-  // Liquid
+  // RECEBIDO ou FECHAMENTO
   if (data.liquido !== undefined) {
     lines.push({ text: separator(width), align: 'center' });
-    lines.push({ text: `LIQUIDO..: R$ ${data.liquido.toFixed(2).replace('.', ',')}`, bold: true, doubleSize: true });
+    if (temAmbos) {
+      const suffix = data.liquido >= 0 ? '[Sobrou]' : '[Faltou]';
+      lines.push({ text: `FECHAMENTO: R$ ${data.liquido.toFixed(2).replace('.', ',')} ${suffix}`, bold: true, doubleSize: true });
+    } else {
+      lines.push({ text: `RECEBIDO..: R$ ${data.liquido.toFixed(2).replace('.', ',')}`, bold: true, doubleSize: true });
+    }
   }
 
   return buildEscPosBuffer({

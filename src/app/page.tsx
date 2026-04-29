@@ -4120,9 +4120,16 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     const debitoSaldo = debitosVencidos;
     const receitaTotal = valorReceitaSalva;
     const despesaTotal = valorDespesaSalva;
-    const liquido = cliente + receitaTotal + despesaTotal + debitoSaldo;
 
-    return { ...totais, jogado, cliente, receita: receitaTotal, despesa: despesaTotal, debitoSaldo, liquido };
+    // RECEBIDO: Jogado - cliente - débito
+    const temReceitas = receitaTotal > 0;
+    const temDespesas = despesaTotal > 0;
+    const temAmbos = temReceitas && temDespesas;
+    const liquido = temAmbos
+      ? jogado - cliente - debitoSaldo - despesaTotal + receitaTotal  // FECHAMENTO
+      : jogado - cliente - debitoSaldo;                                // RECEBIDO
+
+    return { ...totais, jogado, cliente, receita: receitaTotal, despesa: despesaTotal, debitoSaldo, liquido, temAmbos };
   };
 
   // Gerar mensagem para WhatsApp
@@ -4137,7 +4144,11 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     mensagem += `Lançado por: ${usuarioNome}\n`;
     mensagem += `_____________\n`;
     
-    maquinasSalvas.forEach((m) => {
+    maquinasSalvas.forEach((m, idx) => {
+      // Separador entre máquinas
+      if (idx > 0) {
+        mensagem += `_____________\n`;
+      }
       const nomeMaquina = (m.tipo?.descricao || m.codigo || 'MÁQUINA').toUpperCase();
       mensagem += `${m.codigo} - ${nomeMaquina}\n`;
       mensagem += `E ${String(m.entradaAtual || 0).padStart(8)} ${String(m.novaEntrada || m.entradaAtual || 0).padStart(8)}___${formatNumber(calcularValor(m.moeda, m.diferencaEntrada))}\n`;
@@ -4145,35 +4156,43 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       mensagem += `Saldo: ${formatNumber(m.saldoMaquina || 0)}\n`;
     });
     
+    mensagem += `_____________\n`;
     mensagem += `Qtde Maqs....: ${String(maquinasSalvas.length).padStart(2, '0')}\n`;
     mensagem += `Entradas.....: ${formatNumber(totaisSalvos.entradas)}\n`;
     mensagem += `Saídas.......: ${formatNumber(totaisSalvos.saidas)}\n`;
     mensagem += `Jogado.......: ${formatNumber(totaisSalvos.jogado)}\n`;
     mensagem += `Cliente......: ${formatNumber(totaisSalvos.cliente)}\n`;
-    mensagem += `Total dos Débitos(Saldo): ${formatNumber(totaisSalvos.debitoSaldo || 0)}\n`;
-    // Receitas detalhadas
-    if (receitasSalvas.length > 0) {
+    mensagem += `Débitos (Saldo): ${formatNumber(totaisSalvos.debitoSaldo || 0)}\n`;
+    // Receitas detalhadas - separador antes
+    const hasRecItems = receitasSalvas.some(d => d.valor > 0);
+    if (hasRecItems) {
+      mensagem += `_____________\n`;
       receitasSalvas.forEach(d => {
         if (d.valor > 0) {
           mensagem += `  ${d.descricao.padEnd(15)}: ${formatNumber(d.valor)}\n`;
         }
       });
-    }
-    if (totaisSalvos.receita > 0) {
       mensagem += `Total Receitas: ${formatNumber(totaisSalvos.receita)}\n`;
     }
-    // Despesas detalhadas
-    if (despesasSalvas.length > 0) {
+    // Despesas detalhadas - separador depois
+    const hasDespItems = despesasSalvas.some(d => d.valor > 0);
+    if (hasDespItems) {
       despesasSalvas.forEach(d => {
         if (d.valor > 0) {
           mensagem += `  ${d.descricao.padEnd(15)}: ${formatNumber(d.valor)}\n`;
         }
       });
-    }
-    if (totaisSalvos.despesa !== 0) {
       mensagem += `Total Despesas: ${formatNumber(totaisSalvos.despesa)}\n`;
+      mensagem += `_____________\n`;
     }
-    mensagem += `Líquido......: ${formatNumber(totaisSalvos.liquido)}\n`;
+    // RECEBIDO ou FECHAMENTO
+    mensagem += `_____________\n`;
+    if (totaisSalvos.temAmbos) {
+      const tag = totaisSalvos.liquido >= 0 ? '[sobrou]' : '[faltou]';
+      mensagem += `FECHAMENTO...: ${formatNumber(totaisSalvos.liquido)} ${tag}\n`;
+    } else {
+      mensagem += `RECEBIDO.....: ${formatNumber(totaisSalvos.liquido)}\n`;
+    }
     
     return mensagem;
   };

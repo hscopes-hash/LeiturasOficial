@@ -210,7 +210,11 @@ export function generateReceiptText(data: Parameters<typeof buildCaixaFacilRecei
   text += `OPERADOR: ${data.usuario}\n`;
   text += sep + '\n';
   
-  data.maquinas.forEach(m => {
+  data.maquinas.forEach((m, idx) => {
+    // Separador entre máquinas
+    if (idx > 0) {
+      text += sep + '\n';
+    }
     text += `${m.codigo} - ${m.tipo}\n`;
     text += `E ${String(m.entradaAnterior).padStart(6)} ${String(m.entradaNova).padStart(6)} D:${String(m.diferencaEntrada).padStart(6)}\n`;
     text += `S ${String(m.saidaAnterior).padStart(6)} ${String(m.saidaNova).padStart(6)} D:${String(m.diferencaSaida).padStart(6)}\n`;
@@ -225,32 +229,40 @@ export function generateReceiptText(data: Parameters<typeof buildCaixaFacilRecei
   text += `CLIENTE..: R$ ${data.totais.cliente.toFixed(2)} (${data.totais.acertoPct}%)\n`;
   
   if (data.debitosVencidos && data.debitosVencidos !== 0) {
-    text += `DEBITOS..: R$ ${data.debitosVencidos.toFixed(2)}\n`;
+    text += `DEBITO(SALDO): R$ ${data.debitosVencidos.toFixed(2)}\n`;
   }
   
-  if (data.receitas) {
-    const totalRec = data.receitas.reduce((s, r) => s + r.valor, 0);
-    if (totalRec !== 0) {
-      data.receitas.filter(r => r.valor > 0).forEach(r => {
-        text += `  ${r.descricao.padEnd(12)} R$ ${r.valor.toFixed(2)}\n`;
-      });
-      text += `RECEITAS.: R$ ${totalRec.toFixed(2)}\n`;
-    }
+  // Receitas e Despesas
+  const hasReceitas = !!(data.receitas && data.receitas.some(r => r.valor > 0));
+  const hasDespesas = !!(data.despesas && data.despesas.some(d => d.valor > 0));
+  const temAmbos = hasReceitas && hasDespesas;
+
+  if (hasReceitas) {
+    text += sep + '\n';
+    const totalRec = data.receitas!.reduce((s, r) => s + r.valor, 0);
+    data.receitas!.filter(r => r.valor > 0).forEach(r => {
+      text += `  ${r.descricao.padEnd(12)} R$ ${r.valor.toFixed(2)}\n`;
+    });
+    text += `RECEITAS.: R$ ${totalRec.toFixed(2)}\n`;
   }
   
-  if (data.despesas) {
-    const totalDesp = data.despesas.reduce((s, d) => s + d.valor, 0);
-    if (totalDesp !== 0) {
-      data.despesas.filter(d => d.valor > 0).forEach(d => {
-        text += `  ${d.descricao.padEnd(12)} R$ ${d.valor.toFixed(2)}\n`;
-      });
-      text += `DESPESAS.: R$ ${totalDesp.toFixed(2)}\n`;
-    }
+  if (hasDespesas) {
+    const totalDesp = data.despesas!.reduce((s, d) => s + d.valor, 0);
+    data.despesas!.filter(d => d.valor > 0).forEach(d => {
+      text += `  ${d.descricao.padEnd(12)} R$ ${d.valor.toFixed(2)}\n`;
+    });
+    text += `DESPESAS.: R$ ${totalDesp.toFixed(2)}\n`;
+    text += sep + '\n';
   }
   
   if (data.liquido !== undefined) {
     text += sep + '\n';
-    text += `LIQUIDO..: R$ ${data.liquido.toFixed(2)}\n`;
+    if (temAmbos) {
+      const suffix = data.liquido >= 0 ? '[Sobrou]' : '[Faltou]';
+      text += `FECHAMENTO: R$ ${data.liquido.toFixed(2)} ${suffix}\n`;
+    } else {
+      text += `RECEBIDO..: R$ ${data.liquido.toFixed(2)}\n`;
+    }
   }
   
   text += sep + '\n';
