@@ -4441,35 +4441,6 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
             </Card>
           </Collapsible>
 
-          {/* Fechamento de Caixa */}
-          {(totais.totalReceitas !== 0 || totais.totalDespesas !== 0) && (
-            <Card className="border-0 shadow-lg bg-card">
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-foreground mb-3">Fechamento de Caixa</h3>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="flex justify-between col-span-2">
-                    <span className="text-muted-foreground">Receita:</span>
-                    <span className="text-success font-bold">R$ {formatNumber(totais.totalReceitas)}</span>
-                  </div>
-                  <div className="flex justify-between col-span-2">
-                    <span className="text-muted-foreground">Despesas:</span>
-                    <span className="text-danger font-bold">R$ {formatNumber(totais.totalDespesas)}</span>
-                  </div>
-                  <div className="flex justify-between col-span-2">
-                    <span className="text-muted-foreground">Leitura:</span>
-                    <span className="text-foreground font-bold">R$ {formatNumber(totais.jogado)}</span>
-                  </div>
-                  <div className="flex justify-between col-span-2 border-t border-border pt-2 mt-1">
-                    <span className="text-foreground font-semibold">Resultado:</span>
-                    <span className={`font-bold ${totais.totalReceitas - totais.totalDespesas - totais.jogado >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                      R$ {formatNumber(totais.totalReceitas - totais.totalDespesas - totais.jogado)}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Resumo */}
           <Card className="border-0 shadow-lg bg-card">
             <CardContent className="p-4">
@@ -4514,6 +4485,35 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
               </div>
             </CardContent>
           </Card>
+
+          {/* Fechamento de Caixa */}
+          {(totais.totalReceitas !== 0 || totais.totalDespesas !== 0) && (
+            <Card className="border-0 shadow-lg bg-card">
+              <CardContent className="p-4">
+                <h3 className="font-semibold text-foreground mb-3">Fechamento de Caixa</h3>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="flex justify-between col-span-2">
+                    <span className="text-muted-foreground">Receita:</span>
+                    <span className="text-success font-bold">R$ {formatNumber(totais.totalReceitas)}</span>
+                  </div>
+                  <div className="flex justify-between col-span-2">
+                    <span className="text-muted-foreground">Despesas:</span>
+                    <span className="text-danger font-bold">R$ {formatNumber(totais.totalDespesas)}</span>
+                  </div>
+                  <div className="flex justify-between col-span-2">
+                    <span className="text-muted-foreground">Leitura:</span>
+                    <span className="text-foreground font-bold">R$ {formatNumber(totais.jogado)}</span>
+                  </div>
+                  <div className="flex justify-between col-span-2 border-t border-border pt-2 mt-1">
+                    <span className="text-foreground font-semibold">Resultado:</span>
+                    <span className={`font-bold ${totais.totalReceitas - totais.totalDespesas - totais.jogado >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                      R$ {formatNumber(totais.totalReceitas - totais.totalDespesas - totais.jogado)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Botões de Ação */}
           <div className="flex gap-3">
