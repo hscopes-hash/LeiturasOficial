@@ -63,6 +63,7 @@ export async function PUT(
       bloqueado,
       motivoBloqueio,
       ativo,
+      acertoPercentual,
     } = body;
 
     const data: Record<string, unknown> = {};
@@ -83,6 +84,12 @@ export async function PUT(
       data.motivoBloqueio = motivoBloqueio;
     }
     if (ativo !== undefined) data.ativo = ativo;
+    if (acertoPercentual !== undefined && acertoPercentual !== null) {
+      const parsed = parseInt(acertoPercentual);
+      if (!isNaN(parsed)) {
+        data.acertoPercentual = Math.min(100, Math.max(0, parsed));
+      }
+    }
 
     const cliente = await db.cliente.update({
       where: { id },

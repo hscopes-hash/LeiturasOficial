@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       observacoes,
       whatsapp,
       empresaId,
+      acertoPercentual,
     } = body;
 
     if (!nome || !empresaId) {
@@ -90,6 +91,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validar e clampar acertoPercentual (0-100, padrão 50)
+    let acerto = 50;
+    if (acertoPercentual !== undefined && acertoPercentual !== null && acertoPercentual !== '') {
+      const parsed = parseInt(acertoPercentual);
+      if (!isNaN(parsed)) {
+        acerto = Math.min(100, Math.max(0, parsed));
+      }
+    }
+
     const cliente = await db.cliente.create({
       data: {
         nome,
@@ -104,6 +114,7 @@ export async function POST(request: NextRequest) {
         observacoes,
         whatsapp,
         empresaId,
+        acertoPercentual: acerto,
       },
     });
 
