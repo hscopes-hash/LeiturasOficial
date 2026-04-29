@@ -4504,11 +4504,16 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                     <span className="text-muted-foreground">Leitura:</span>
                     <span className="text-foreground font-bold">R$ {formatNumber(totais.jogado)}</span>
                   </div>
-                  <div className="flex justify-between col-span-2 border-t border-border pt-2 mt-1">
+                  <div className="flex justify-between items-center col-span-2 border-t border-border pt-2 mt-1">
                     <span className="text-foreground font-semibold">Resultado:</span>
-                    <span className={`font-bold ${totais.totalReceitas - totais.totalDespesas - totais.jogado >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-                      R$ {formatNumber(totais.totalReceitas - totais.totalDespesas - totais.jogado)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-bold ${totais.totalReceitas - totais.totalDespesas - totais.jogado >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+                        R$ {formatNumber(totais.totalReceitas - totais.totalDespesas - totais.jogado)}
+                      </span>
+                      <Badge className={`${totais.totalReceitas - totais.totalDespesas - totais.jogado >= 0 ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'} text-[10px] px-1.5 py-0`}>
+                        {totais.totalReceitas - totais.totalDespesas - totais.jogado >= 0 ? 'Sobrou' : 'Faltou'}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
               </CardContent>
