@@ -192,26 +192,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompt = `Voce e um especialista em leitura de canhotos de cartao de credito/debito brasileiros. Esta foto contem VARIOS canhotos empilhados.
+    const prompt = `Voce e um especialista em leitura de cupons fiscais e canhotos de cartao de credito/debito brasileiros. Esta foto contem VARIOS cupons/canhotos empilhados.
 
 INSTRUCOES CRITICAS:
 1. ESCANEIE A IMAGEM INTEIRA, de cima para baixo, da esquerda para a direita, em cada area visivel.
-2. CONTE quantos canhotos existem na foto. NAO PARE ate encontrar TODOS.
-3. Cada canhoto e um ticket/receibo individual, mesmo que parcialmente coberto por outro.
-4. Canhotos geralmente mostram: nome da operadora (Visa, Master, Elo, etc), bandeira, e o VALOR TOTAL da transacao.
-5. Cuidado para nao confundir TAXA DE SERVICO com o VALOR DA VENDA. O valor principal e sempre o MAIOR.
-6. Se houver dois valores (ex: venda + taxa), pegue APENAS o valor da venda.
-7. Para canhotos parciais ou dobrados, tente identificar o valor pela parte visivel.
-8. Formatos comuns: "R$ 100,00", "TOTAL: 150.00", "VL.TOTAL", "VALOR TOTAL R$"
+2. CONTE quantos cupons/canhotos existem na foto. NAO PARE ate encontrar TODOS.
+3. Cada cupom/canhoto e um ticket/receibo individual, mesmo que parcialmente coberto por outro.
+4. Para cupons fiscais: procure o VALOR TOTAL GERAL (geralmente o ULTIMO valor em negrito no cupom).
+5. Para canhotos de cartao: procure o VALOR TOTAL da transacao (Visa, Master, Elo, etc).
+6. Cuidado para nao confundir TAXA DE SERVICO com o VALOR DA VENDA. O valor principal e sempre o MAIOR.
+7. Se houver dois valores (ex: venda + taxa), pegue APENAS o valor da venda.
+8. Para cupons parciais ou dobrados, tente identificar o valor pela parte visivel.
+9. Formatos comuns: "R$ 100,00", "TOTAL: 150.00", "VL.TOTAL", "VALOR TOTAL R$", "TOTAL R$"
+
+ATENCAO - NAO confundir com campos internos do cupom:
+- NUNCA considere "TROCO" como um cupom separado. Troco pertence ao cupom em que aparece.
+- NUNCA considere "DINHEIRO", "CARTAO DEBITO", "CARTAO CREDITO" como cupom separado. Esses sao formas de pagamento dentro de um unico cupom.
+- NUNCA considere "DESCONTO", "ACRESCIMO", "SUBTOTAL", "ITENS" como cupom separado. Apenas o TOTAL GERAL do cupom.
+- Cada cupom fiscal tem UM UNICO valor total. Identifique apenas esse valor.
+
+Como identificar o TOTAL GERAL de cada cupom fiscal:
+- Procure a palavra "TOTAL" seguida de um valor em negrito, geralmente no final do cupom.
+- O valor total geralmente e o maior valor numerico do cupom, aparecendo em negrito ou em fonte maior.
+- Desconsidere subtotais parciais, valores de itens individuais e formas de pagamento.
 
 Regras de saida:
 - Formato decimal com ponto: 100.00 (nao 100,00)
 - Retorne apenas numeros positivos
-- Nao duplique valores - cada canhoto = um valor
+- Nao duplique valores - cada cupom = um valor
 - Se nao conseguir ler um valor especifico, pule-o mas CONTINUE procurando os outros
 - O total deve ser a soma EXATA de todos os valores encontrados
 
-PRIMEIRO conte quantos canhotos voce ve na imagem e certifique-se de que extraiu cada um.
+PRIMEIRO conte quantos cupons/canhotos voce ve na imagem e certifique-se de que extraiu cada um.
 
 Responda APENAS com JSON neste formato exato, sem nenhum texto adicional:
 {"tickets": [{"valor": 100.00}, {"valor": 30.00}, {"valor": 45.50}],"total": 175.50}`;
