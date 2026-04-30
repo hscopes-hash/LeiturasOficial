@@ -9605,16 +9605,21 @@ export default function App() {
                       </button>
                     </>
                   )}
-                  {usuario?.email === 'hscopes@gmail.com' && (
+                  {isSuperAdmin && (
                     <>
                       <Separator className="my-2 bg-border" />
-                      <button
+                      <div
                         onClick={() => { setActiveTab('gestao-empresas'); setMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeTab === 'gestao-empresas' ? 'bg-amber-500/20 text-amber-400' : 'text-muted-foreground hover:bg-card'}`}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all border ${activeTab === 'gestao-empresas' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white border-amber-500 shadow-lg shadow-amber-500/20' : 'bg-card border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50'}`}
                       >
-                        <Building2 className="w-5 h-5" />
-                        <span>Gestão de Empresas</span>
-                      </button>
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${activeTab === 'gestao-empresas' ? 'bg-white/20' : 'bg-amber-500/15'}`}>
+                          <Building2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="text-sm font-semibold">Gestão de Empresas</span>
+                          <p className="text-xs opacity-70">Cadastro e administração</p>
+                        </div>
+                      </div>
                     </>
                   )}
                   <Separator className="my-2 bg-border" />
@@ -9695,7 +9700,7 @@ export default function App() {
         {activeTab === 'configuracoes' && isSuperAdmin && (
           <ConfiguracoesPage empresaId={empresa?.id || ''} />
         )}
-        {activeTab === 'gestao-empresas' && usuario?.email === 'hscopes@gmail.com' && (
+        {activeTab === 'gestao-empresas' && isSuperAdmin && (
           <GestaoEmpresasPage adminEmail={usuario.email} />
         )}
         {activeTab === 'chat-ia' && (
@@ -9705,21 +9710,6 @@ export default function App() {
           <AssinaturaTab />
         )}
       </main>
-
-      {/* Botão de Gestão de Empresas - Apenas para Super Admin */}
-      {isSuperAdmin && (
-        <button
-          onClick={() => setActiveTab('gestao-empresas')}
-          className={`fixed bottom-20 left-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg transition-all ${
-            activeTab === 'gestao-empresas'
-              ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white'
-              : 'bg-card border border-amber-500/50 text-amber-400 hover:bg-muted'
-          }`}
-        >
-          <Building2 className="w-5 h-5" />
-          <span className="text-sm font-medium">Gestão</span>
-        </button>
-      )}
 
       {/* Bottom Navigation */}
       <nav className="sticky bottom-0 bg-background/95 backdrop-blur border-t border-border px-4 py-2 safe-area-bottom">
