@@ -7528,7 +7528,7 @@ function GestaoEmpresasPage({ adminEmail }: { adminEmail: string }) {
 // ============================================
 // CONFIGURACOES PAGE
 // ============================================
-function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
+function ConfiguracoesPage({ empresaId, onShowGestao }: { empresaId: string; onShowGestao: () => void }) {
   const { updateEmpresa } = useAuthStore();
   const [llmApiKey, setLlmApiKey] = useState('');
   const [llmModel, setLlmModel] = useState('');
@@ -8058,6 +8058,31 @@ function ConfiguracoesPage({ empresaId }: { empresaId: string }) {
       <div className="pt-4">
         <Separator className="bg-border mb-6" />
         <GestaoPlanosSaaS />
+      </div>
+
+      {/* Gestão de Empresas */}
+      <div className="pt-4">
+        <Separator className="bg-border mb-6" />
+        <Card className="border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-orange-500/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-amber-500" />
+              Gestão de Empresas
+            </CardTitle>
+            <CardDescription className="text-sm">
+              Cadastro e administração das empresas do sistema
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              onClick={onShowGestao}
+              className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white"
+            >
+              <Building2 className="w-4 h-4 mr-2" />
+              Abrir Gestão de Empresas
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -9599,23 +9624,6 @@ export default function App() {
                       </button>
                     </>
                   )}
-                  {isSuperAdmin && (
-                    <>
-                      <Separator className="my-2 bg-border" />
-                      <div
-                        onClick={() => { setActiveTab('gestao-empresas'); setMenuOpen(false); }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all border ${activeTab === 'gestao-empresas' ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white border-amber-500 shadow-lg shadow-amber-500/20' : 'bg-card border-amber-500/30 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50'}`}
-                      >
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${activeTab === 'gestao-empresas' ? 'bg-white/20' : 'bg-amber-500/15'}`}>
-                          <Building2 className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold">Gestão de Empresas</span>
-                          <p className="text-xs opacity-70">Cadastro e administração</p>
-                        </div>
-                      </div>
-                    </>
-                  )}
                   <Separator className="my-2 bg-border" />
                   <ThemeToggle />
                 </div>
@@ -9692,7 +9700,7 @@ export default function App() {
           <BackupRestorePage empresaId={empresa?.id || ''} nomeEmpresa={empresa?.nome || ''} />
         )}
         {activeTab === 'configuracoes' && isSuperAdmin && (
-          <ConfiguracoesPage empresaId={empresa?.id || ''} />
+          <ConfiguracoesPage empresaId={empresa?.id || ''} onShowGestao={() => setActiveTab('gestao-empresas')} />
         )}
         {activeTab === 'gestao-empresas' && isSuperAdmin && (
           <GestaoEmpresasPage adminEmail={usuario.email} />
