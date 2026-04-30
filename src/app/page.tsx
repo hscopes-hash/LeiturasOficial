@@ -4810,10 +4810,11 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
             </Card>
           </Collapsible>
 
-          {/* Resumo */}
+          {/* Resultado da Leitura - ocultar se houver receita ou despesa */}
+          {totais.totalReceitas === 0 && totais.totalDespesas === 0 && (
           <Card className="border-0 shadow-lg bg-card">
             <CardContent className="p-4">
-              <h3 className="font-semibold text-foreground mb-3">Total da Leitura</h3>
+              <h3 className="font-semibold text-foreground mb-3">Resultado da Leitura</h3>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Entrada:</span>
@@ -4835,18 +4836,6 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   <span className="text-muted-foreground">Total dos Débitos(Saldo):</span>
                   <span className={debitosVencidos > 0 ? 'text-red-400 font-bold' : 'text-muted-foreground'}>R$ {formatNumber(debitosVencidos)}</span>
                 </div>
-                {totais.totalReceitas !== 0 && (
-                  <div className="flex justify-between col-span-2">
-                    <span className="text-muted-foreground">Total das Receitas:</span>
-                    <span className={totais.totalReceitas > 0 ? 'text-success font-bold' : 'text-danger font-bold'}>R$ {formatNumber(totais.totalReceitas)}</span>
-                  </div>
-                )}
-                {totais.totalDespesas !== 0 && (
-                  <div className="flex justify-between col-span-2">
-                    <span className="text-muted-foreground">Total das Despesas:</span>
-                    <span className={totais.totalDespesas > 0 ? 'text-danger font-bold' : 'text-success font-bold'}>R$ {formatNumber(totais.totalDespesas)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between col-span-2 border-t border-border pt-2 mt-1">
                   <span className="text-foreground font-semibold">Líquido:</span>
                   <span className={`font-bold ${totais.liquido >= 0 ? 'text-success' : 'text-danger'}`}>R$ {formatNumber(totais.liquido)}</span>
@@ -4854,6 +4843,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
               </div>
             </CardContent>
           </Card>
+          )}
 
           {/* Fechamento de Caixa */}
           {(totais.totalReceitas !== 0 || totais.totalDespesas !== 0) && (
