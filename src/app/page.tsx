@@ -29,7 +29,7 @@ import {
   ClipboardList, Printer, Camera, X, Image as ImageIcon, Layers, MessageCircle, LogIn,
   CalendarDays, ShieldAlert, FileText, Sun, Moon, DatabaseBackup, Download, Upload, HardDrive, SlidersHorizontal,
   Key, Wifi, EyeOff, CreditCard, ExternalLink, ChevronDown, RotateCcw, Crown, Check, CheckCircle2, XCircle, Sparkles, Zap, Shield, Info,
-  Receipt, Mic, MicOff, Send, Volume2
+  Receipt, Mic, MicOff, Send, Volume2, ShoppingCart
 } from 'lucide-react';
 import { VERSION_DISPLAY, VERSION_WITH_DATE } from '@/lib/version';
 import GestaoPlanosSaaS from '@/components/GestaoPlanosSaaS';
@@ -2235,6 +2235,13 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
   const [extraindoCartao, setExtraindoCartao] = useState(false);
   const [cartaoResultado, setCartaoResultado] = useState<{ tickets: number[]; total: number; totalIA?: number; totalConferido: boolean; quantidade: number } | null>(null);
 
+  // Estados para foto do mercado (cupons fiscais)
+  const [mercadoModalOpen, setMercadoModalOpen] = useState(false);
+  const [mercadoFotoCapturada, setMercadoFotoCapturada] = useState<string | null>(null);
+  const [mercadoFotoProcessada, setMercadoFotoProcessada] = useState<string | null>(null);
+  const [extraindoMercado, setExtraindoMercado] = useState(false);
+  const [mercadoResultado, setMercadoResultado] = useState<{ tickets: number[]; total: number; totalIA?: number; totalConferido: boolean; quantidade: number } | null>(null);
+
   // Funções para gerenciar receitas
   const calcularTotalReceitas = () => {
     return receitasItens.reduce((total, item) => {
@@ -2462,6 +2469,182 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       ));
       toast.success(`Total R$ ${valorFormatado} aplicado ao campo CARTÃO`);
       setCartaoModalOpen(false);
+    } catch (error) {
+      console.error('Erro ao aplicar valores:', error);
+      toast.error('Erro ao processar a foto. Tente novamente.');
+    }
+  };
+
+  // ============================================
+  // Funções para foto do mercado (cupons fiscais)
+  // ============================================
+  const abrirModalMercado = () => {
+    setMercadoFotoCapturada(null);
+    setMercadoFotoProcessada(null);
+    setMercadoResultado(null);
+    setExtraindoMercado(false);
+    setMercadoModalOpen(true);
+  };
+
+  const handleFileChangeMercado = (event: React.ChangeEvent<HTMLInputElement>, origem: 'CÂMERA' | 'GALERIA') => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxDimensao = 1920;
+            let largura = img.width;
+            let altura = img.height;
+            if (largura > maxDimensao || altura > maxDimensao) {
+              if (largura > altura) {
+                altura = Math.round((altura / largura) * maxDimensao);
+                largura = maxDimensao;
+              } else {
+                largura = Math.round((largura / altura) * maxDimensao);
+                altura = maxDimensao;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = largura;
+            canvas.height = altura;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, largura, altura);
+              const imagemRedimensionada = canvas.toDataURL('image/jpeg', 0.8);
+              setMercadoFotoCapturada(imagemRedimensionada);
+              setMercadoFotoProcessada(null);
+              setMercadoResultado(null);
+            } else {
+              setMercadoFotoCapturada(reader.result as string);
+            }
+          } catch (error) {
+            console.error('Erro ao processar imagem:', error);
+            toast.error('Erro ao processar imagem. Tente outra foto.');
+          }
+        };
+        img.onerror = () => {
+          toast.error('Erro ao carregar imagem. Tente outra foto.');
+        };
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const extrairValoresMercado = async () => {
+    if (!mercadoFotoCapturada) {
+      toast.error('Nenhuma foto capturada');
+      return;
+    }
+    setExtraindoMercado(true);
+    setMercadoResultado(null);
+    try {
+      const token = useAuthStore.getState().token;
+      const res = await fetch('/api/leituras/extrair-cartao', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ imagem: mercadoFotoCapturada, empresaId: empresaId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao extrair valores');
+      }
+      const totalBackend = data.total || 0;
+      const tickets = (data.tickets || []).map((v: any) => typeof v === 'number' ? v : parseFloat(v)).filter((v: number) => !isNaN(v) && v > 0);
+      const totalFrontend = tickets.reduce((s: number, v: number) => s + v, 0);
+      const totalFinal = Math.abs(totalBackend - totalFrontend) < 0.01 ? totalBackend : totalFrontend;
+
+      const resultado = {
+        tickets: tickets,
+        total: totalFinal,
+        totalIA: data.totalConferido ? undefined : data.totalIA,
+        totalConferido: data.totalConferido ?? true,
+        quantidade: data.quantidade || tickets.length,
+      };
+      setMercadoResultado(resultado);
+
+      if (!resultado.totalConferido && resultado.totalIA !== undefined) {
+        toast.warning(`IA disse R$ ${resultado.totalIA.toFixed(2)} mas a soma correta e R$ ${totalFinal.toFixed(2)}. Usando valor conferido.`);
+      } else {
+        toast.success(`${resultado.quantidade} cupom(ns) identificado(s) - Total: R$ ${totalFinal.toFixed(2)}`);
+      }
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Erro desconhecido';
+      toast.error(msg);
+    } finally {
+      setExtraindoMercado(false);
+    }
+  };
+
+  // Adicionar tarja vermelha com total dos cupons na foto
+  const adicionarTarjaMercado = (imagemBase64: string, total: number, quantidade: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout ao processar imagem'));
+      }, 10000);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          clearTimeout(timeout);
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Nao foi possivel criar contexto do canvas'));
+            return;
+          }
+          let larguraOriginal = img.width;
+          let alturaOriginal = img.height;
+          const maxDimensao = 1920;
+          if (larguraOriginal > maxDimensao || alturaOriginal > maxDimensao) {
+            const ratio = Math.min(maxDimensao / larguraOriginal, maxDimensao / alturaOriginal);
+            larguraOriginal = Math.round(larguraOriginal * ratio);
+            alturaOriginal = Math.round(alturaOriginal * ratio);
+          }
+          const tamanhoFonteBase = Math.max(20, Math.min(44, Math.round(larguraOriginal / 30)));
+          const alturaTarja = Math.round(tamanhoFonteBase * 2.5);
+          canvas.width = larguraOriginal;
+          canvas.height = alturaOriginal + alturaTarja;
+          if (img.width !== larguraOriginal || img.height !== alturaOriginal) {
+            ctx.drawImage(img, 0, 0, larguraOriginal, alturaOriginal);
+          } else {
+            ctx.drawImage(img, 0, 0);
+          }
+          ctx.fillStyle = '#dc2626';
+          ctx.fillRect(0, alturaOriginal, larguraOriginal, alturaTarja);
+          ctx.fillStyle = '#ffffff';
+          ctx.textBaseline = 'middle';
+          const totalStr = `MERCADO: ${quantidade} cupom(ns) | TOTAL: R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+          const tamanhoFonte = Math.max(16, Math.min(tamanhoFonteBase, Math.round((larguraOriginal - 24) / (totalStr.length * 0.55))));
+          ctx.font = `bold ${tamanhoFonte}px Arial, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.fillText(totalStr, larguraOriginal / 2, alturaOriginal + alturaTarja / 2);
+          resolve(canvas.toDataURL('image/jpeg', 0.9));
+        } catch (error) {
+          clearTimeout(timeout);
+          reject(error);
+        }
+      };
+      img.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error('Erro ao carregar imagem'));
+      };
+      img.src = imagemBase64;
+    });
+  };
+
+  const aplicarValoresMercado = async () => {
+    if (!mercadoResultado || !mercadoFotoCapturada) return;
+    try {
+      const fotoComTarja = await adicionarTarjaMercado(mercadoFotoCapturada, mercadoResultado.total, mercadoResultado.quantidade);
+      setMercadoFotoProcessada(fotoComTarja);
+      const valorFormatado = mercadoResultado.total.toFixed(2).replace('.', ',');
+      setDespesasItens(prev => prev.map(item =>
+        item.id === 'mercado' ? { ...item, valor: valorFormatado } : item
+      ));
+      toast.success(`Total R$ ${valorFormatado} aplicado ao campo MERCADO`);
+      setMercadoModalOpen(false);
     } catch (error) {
       console.error('Erro ao aplicar valores:', error);
       toast.error('Erro ao processar a foto. Tente novamente.');
@@ -4756,15 +4939,29 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                   <div className="space-y-2">
                     {despesasItens.map((item, index) => (
                       <div key={item.id} className="grid grid-cols-[1fr_100px_28px] gap-2 items-center">
-                        <Input
-                          type="text"
-                          value={item.descricao}
-                          onChange={(e) => atualizarDespesa(item.id, 'descricao', e.target.value)}
-                          placeholder={item.fixo ? item.descricao : 'DESCRIÇÃO...'}
-                          disabled={item.fixo}
-                          className={`bg-muted border-border text-foreground text-sm h-8 ${item.fixo ? 'font-semibold text-muted-foreground' : ''}`}
-                          style={{ textTransform: 'uppercase' }}
-                        />
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="text"
+                            value={item.descricao}
+                            onChange={(e) => atualizarDespesa(item.id, 'descricao', e.target.value)}
+                            placeholder={item.fixo ? item.descricao : 'DESCRIÇÃO...'}
+                            disabled={item.fixo}
+                            className={`bg-muted border-border text-foreground text-sm h-8 flex-1 min-w-0 ${item.fixo ? 'font-semibold text-muted-foreground' : ''}`}
+                            style={{ textTransform: 'uppercase' }}
+                          />
+                          {item.id === 'mercado' && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => abrirModalMercado()}
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-warning shrink-0"
+                              title="Capturar cupons fiscais"
+                            >
+                              <Camera className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                         <Input
                           type="text"
                           inputMode="decimal"
@@ -5452,6 +5649,124 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
                     >
                       <X className="w-4 h-4 mr-2" />
                       Nova Foto
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Modal de Cupons Fiscais do Mercado */}
+          <Dialog open={mercadoModalOpen} onOpenChange={setMercadoModalOpen}>
+            <DialogContent className="bg-card border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5" />
+                  Capturar Cupons Fiscais
+                </DialogTitle>
+                <DialogDescription className="text-muted-foreground">
+                  Tire uma foto dos cupons fiscais ou selecione da galeria. A IA ira identificar e totalizar os valores.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                {mercadoFotoCapturada ? (
+                  <div className="relative">
+                    <img
+                      src={mercadoFotoProcessada || mercadoFotoCapturada}
+                      alt="Cupons fiscais"
+                      className="w-full max-h-[40vh] object-contain rounded-lg border border-border mx-auto"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 right-2 bg-background/80 hover:bg-card"
+                      onClick={() => { setMercadoFotoCapturada(null); setMercadoFotoProcessada(null); setMercadoResultado(null); }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                    <ShoppingCart className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-muted-foreground text-sm">Nenhum cupom capturado</p>
+                    <p className="text-muted-foreground text-xs mt-1">Fotografe todos os cupons de uma vez</p>
+                  </div>
+                )}
+
+                {!mercadoFotoCapturada ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="cursor-pointer">
+                      <input type="file" accept="image/*" capture="environment" onChange={(e) => handleFileChangeMercado(e, 'CAMERA')} className="hidden" />
+                      <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 hover:from-amber-500/30 hover:to-orange-500/30 transition-colors">
+                        <Camera className="w-6 h-6 text-warning" />
+                        <span className="text-sm text-warning font-medium">Camera</span>
+                      </div>
+                    </label>
+                    <label className="cursor-pointer">
+                      <input type="file" accept="image/*" onChange={(e) => handleFileChangeMercado(e, 'GALERIA')} className="hidden" />
+                      <div className="flex flex-col items-center justify-center gap-2 p-4 rounded-lg bg-muted border-border hover:bg-accent transition-colors">
+                        <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground font-medium">Galeria</span>
+                      </div>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <Button className="w-full bg-gradient-to-r from-purple-500 to-violet-600 hover:from-purple-600 hover:to-violet-700" onClick={extrairValoresMercado} disabled={extraindoMercado}>
+                      {extraindoMercado ? (
+                        <><div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin" />Analisando cupons...</>
+                      ) : (
+                        <><Sparkles className="w-4 h-4 mr-2" />EXTRAIR VALORES</>
+                      )}
+                    </Button>
+
+                    {mercadoResultado && (
+                      <div className="bg-card rounded-lg p-3 border border-border space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-muted-foreground">Resultado da leitura:</p>
+                          <span className="text-xs text-success font-medium">{mercadoResultado.quantidade} cupom(ns)</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="text-center p-2 bg-success-bg rounded border border-success/30">
+                            <p className="text-xs text-success">CUPONS</p>
+                            <p className="text-lg font-bold text-success">{mercadoResultado.quantidade}</p>
+                          </div>
+                          {mercadoResultado.totalConferido ? (
+                            <div className="text-center p-2 bg-blue-50 rounded border border-blue-300">
+                              <p className="text-xs text-blue-600">TOTAL</p>
+                              <p className="text-lg font-bold text-blue-600">R$ {mercadoResultado.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                            </div>
+                          ) : (
+                            <div className="text-center p-2 bg-amber-50 rounded border border-amber-300">
+                              <p className="text-xs text-amber-600">TOTAL (CORRIGIDO)</p>
+                              <p className="text-lg font-bold text-amber-600">R$ {mercadoResultado.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                            </div>
+                          )}
+                        </div>
+                        {!mercadoResultado.totalConferido && mercadoResultado.totalIA !== undefined && (
+                          <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-300 rounded-lg">
+                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                            <p className="text-xs text-amber-700">
+                              A IA informou R$ {mercadoResultado.totalIA!.toFixed(2)} mas a soma dos valores e R$ {mercadoResultado.total.toFixed(2)}. O total foi corrigido automaticamente.
+                            </p>
+                          </div>
+                        )}
+                        {mercadoResultado.tickets.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {mercadoResultado.tickets.map((t, i) => (
+                              <span key={i} className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">R$ {t.toFixed(2)}</span>
+                            ))}
+                          </div>
+                        )}
+                        <Button className="w-full mt-2 bg-gradient-to-r from-green-500 to-emerald-600" onClick={aplicarValoresMercado}>
+                          <CheckCircle className="w-4 h-4 mr-2" />APLICAR AO CAMPO MERCADO
+                        </Button>
+                      </div>
+                    )}
+
+                    <Button className="w-full bg-red-600 hover:bg-red-700 text-white" onClick={() => { setMercadoFotoCapturada(null); setMercadoFotoProcessada(null); setMercadoResultado(null); }}>
+                      <X className="w-4 h-4 mr-2" />Nova Foto
                     </Button>
                   </div>
                 )}
