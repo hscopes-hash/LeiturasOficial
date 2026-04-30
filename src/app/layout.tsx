@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { ThemeProvider } from "next-themes";
 import { PWARegister } from "@/components/pwa-register";
+import { KioskMode } from "@/components/kiosk-mode";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -57,6 +58,7 @@ export default function RootLayout({
           <Toaster />
           <SonnerToaster position="top-center" richColors />
           <PWARegister />
+          <KioskMode />
         </ThemeProvider>
       </body>
     </html>
