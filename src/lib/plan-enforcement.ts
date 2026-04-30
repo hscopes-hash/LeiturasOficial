@@ -13,7 +13,7 @@ import type { NextRequest } from 'next/server';
  */
 
 type LimitType = 'clientes' | 'usuarios' | 'maquinas';
-type FeatureType = 'recIA' | 'recRelatorios' | 'recBackup' | 'recAPI';
+type FeatureType = 'recIA' | 'recChatIA' | 'recRelatorios' | 'recBackup' | 'recAPI';
 
 export interface PlanInfo {
   planoId: string;
@@ -23,6 +23,7 @@ export interface PlanInfo {
   limiteUsuarios: number;
   limiteMaquinas: number;
   recIA: boolean;
+  recChatIA: boolean;
   recRelatorios: boolean;
   recBackup: boolean;
   recAPI: boolean;
@@ -63,6 +64,7 @@ async function getPlanInfo(empresaId: string): Promise<PlanInfo | null> {
         limiteUsuarios: 1,
         limiteMaquinas: 2,
         recIA: false,
+        recChatIA: false,
         recRelatorios: false,
         recBackup: false,
         recAPI: false,
@@ -93,6 +95,7 @@ async function getPlanInfo(empresaId: string): Promise<PlanInfo | null> {
       limiteUsuarios: plano.limiteUsuarios,
       limiteMaquinas: plano.limiteMaquinas,
       recIA: plano.recIA,
+      recChatIA: plano.recChatIA,
       recRelatorios: plano.recRelatorios,
       recBackup: plano.recBackup,
       recAPI: plano.recAPI,
@@ -193,6 +196,7 @@ export async function checkFeature(empresaId: string, feature: FeatureType, requ
 
   const features: Record<FeatureType, boolean> = {
     recIA: info.recIA,
+    recChatIA: info.recChatIA,
     recRelatorios: info.recRelatorios,
     recBackup: info.recBackup,
     recAPI: info.recAPI,
@@ -200,7 +204,8 @@ export async function checkFeature(empresaId: string, feature: FeatureType, requ
 
   if (!features[feature]) {
     const labels: Record<FeatureType, string> = {
-      recIA: 'IA (OCR e Chat IA)',
+      recIA: 'IA Vision (OCR)',
+      recChatIA: 'Chat IA (assistente)',
       recRelatorios: 'Relatorios avancados',
       recBackup: 'Backup automatico',
       recAPI: 'API dedicada',

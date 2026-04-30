@@ -1348,6 +1348,7 @@ function EmpresasTab() {
                   {detailAssinatura.planoSaaS && (
                     <div className="flex flex-wrap gap-1 mt-3">
                       {detailAssinatura.planoSaaS.recIA && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">IA Vision</Badge>}
+                      {detailAssinatura.planoSaaS.recChatIA && <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">Chat IA</Badge>}
                       {detailAssinatura.planoSaaS.recRelatorios && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Relatorios</Badge>}
                       {detailAssinatura.planoSaaS.recBackup && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Backup</Badge>}
                       {detailAssinatura.planoSaaS.recAPI && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">API</Badge>}
@@ -1504,6 +1505,7 @@ interface PlanoSaaS {
   limiteUsuarios: number;
   limiteMaquinas: number;
   recIA: boolean;
+  recChatIA: boolean;
   recRelatorios: boolean;
   recBackup: boolean;
   recAPI: boolean;
@@ -1537,6 +1539,7 @@ const emptyPlanoForm = {
   limiteUsuarios: '1',
   limiteMaquinas: '5',
   recIA: false,
+  recChatIA: false,
   recRelatorios: false,
   recBackup: false,
   recAPI: false,
@@ -1627,6 +1630,7 @@ function PlanosTab() {
       limiteUsuarios: String(plano.limiteUsuarios),
       limiteMaquinas: String(plano.limiteMaquinas),
       recIA: plano.recIA,
+      recChatIA: plano.recChatIA,
       recRelatorios: plano.recRelatorios,
       recBackup: plano.recBackup,
       recAPI: plano.recAPI,
@@ -1993,6 +1997,7 @@ function PlanosTab() {
 
                   <div className="flex flex-wrap gap-1 mb-3">
                     {plano.recIA && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">IA</Badge>}
+                    {plano.recChatIA && <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">Chat IA</Badge>}
                     {plano.recRelatorios && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Relatorios</Badge>}
                     {plano.recBackup && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Backup</Badge>}
                     {plano.recAPI && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">API</Badge>}
@@ -2137,6 +2142,13 @@ function PlanosTab() {
                   <p className="text-xs text-muted-foreground">Leitura por IA</p>
                 </div>
                 <Switch checked={form.recIA} onCheckedChange={(v) => setForm({ ...form, recIA: v })} />
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div>
+                  <Label className="text-sm">Chat IA</Label>
+                  <p className="text-xs text-muted-foreground">Assistente virtual</p>
+                </div>
+                <Switch checked={form.recChatIA} onCheckedChange={(v) => setForm({ ...form, recChatIA: v })} />
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div>

@@ -56,6 +56,7 @@ interface PlanoSaaSItem {
   limiteUsuarios: number;
   limiteMaquinas: number;
   recIA: boolean;
+  recChatIA: boolean;
   recRelatorios: boolean;
   recBackup: boolean;
   recAPI: boolean;
@@ -95,6 +96,7 @@ interface PlanoSugestao {
   limiteUsuarios: number;
   limiteMaquinas: number;
   recIA: boolean;
+  recChatIA: boolean;
   recRelatorios: boolean;
   recBackup: boolean;
   recAPI: boolean;
@@ -117,6 +119,7 @@ const PLANOS_SUGESTOES: PlanoSugestao[] = [
     limiteUsuarios: 1,
     limiteMaquinas: 2,
     recIA: false,
+    recChatIA: false,
     recRelatorios: false,
     recBackup: false,
     recAPI: false,
@@ -137,6 +140,7 @@ const PLANOS_SUGESTOES: PlanoSugestao[] = [
     limiteUsuarios: 2,
     limiteMaquinas: 5,
     recIA: false,
+    recChatIA: true,
     recRelatorios: true,
     recBackup: false,
     recAPI: false,
@@ -157,6 +161,7 @@ const PLANOS_SUGESTOES: PlanoSugestao[] = [
     limiteUsuarios: 5,
     limiteMaquinas: 15,
     recIA: true,
+    recChatIA: true,
     recRelatorios: true,
     recBackup: true,
     recAPI: false,
@@ -177,6 +182,7 @@ const PLANOS_SUGESTOES: PlanoSugestao[] = [
     limiteUsuarios: 15,
     limiteMaquinas: 50,
     recIA: true,
+    recChatIA: true,
     recRelatorios: true,
     recBackup: true,
     recAPI: true,
@@ -197,6 +203,7 @@ const PLANOS_SUGESTOES: PlanoSugestao[] = [
     limiteUsuarios: -1,
     limiteMaquinas: -1,
     recIA: true,
+    recChatIA: true,
     recRelatorios: true,
     recBackup: true,
     recAPI: true,
@@ -222,6 +229,7 @@ const emptyPlanoForm = {
   limiteUsuarios: '1',
   limiteMaquinas: '5',
   recIA: false,
+  recChatIA: false,
   recRelatorios: false,
   recBackup: false,
   recAPI: false,
@@ -324,6 +332,7 @@ export default function GestaoPlanosSaaS() {
       limiteUsuarios: String(sugestao.limiteUsuarios),
       limiteMaquinas: String(sugestao.limiteMaquinas),
       recIA: sugestao.recIA,
+      recChatIA: sugestao.recChatIA,
       recRelatorios: sugestao.recRelatorios,
       recBackup: sugestao.recBackup,
       recAPI: sugestao.recAPI,
@@ -347,6 +356,7 @@ export default function GestaoPlanosSaaS() {
       limiteUsuarios: String(plano.limiteUsuarios),
       limiteMaquinas: String(plano.limiteMaquinas),
       recIA: plano.recIA,
+      recChatIA: plano.recChatIA,
       recRelatorios: plano.recRelatorios,
       recBackup: plano.recBackup,
       recAPI: plano.recAPI,
@@ -850,6 +860,7 @@ export default function GestaoPlanosSaaS() {
 
                   <div className="flex flex-wrap gap-1 mb-3">
                     {plano.recIA && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">IA</Badge>}
+                    {plano.recChatIA && <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-xs">Chat IA</Badge>}
                     {plano.recRelatorios && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Relatorios</Badge>}
                     {plano.recBackup && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Backup</Badge>}
                     {plano.recAPI && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">API</Badge>}
@@ -994,6 +1005,13 @@ export default function GestaoPlanosSaaS() {
                   <p className="text-xs text-muted-foreground">Leitura por IA</p>
                 </div>
                 <Switch checked={form.recIA} onCheckedChange={(v) => setForm({ ...form, recIA: v })} />
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div>
+                  <Label className="text-sm">Chat IA</Label>
+                  <p className="text-xs text-muted-foreground">Assistente virtual</p>
+                </div>
+                <Switch checked={form.recChatIA} onCheckedChange={(v) => setForm({ ...form, recChatIA: v })} />
               </div>
               <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div>

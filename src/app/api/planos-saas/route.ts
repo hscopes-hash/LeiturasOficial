@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const {
       nome, descricao, valorMensal, valorAnual,
       limiteClientes, limiteUsuarios, limiteMaquinas,
-      recIA, recRelatorios, recBackup, recAPI, recSuporte,
+      recIA, recChatIA, recRelatorios, recBackup, recAPI, recSuporte,
       ordem, ativo, popular,
     } = body;
 
@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
         limiteUsuarios: parseInt(limiteUsuarios),
         limiteMaquinas: parseInt(limiteMaquinas),
         recIA: recIA || false,
+        recChatIA: recChatIA || false,
         recRelatorios: recRelatorios || false,
         recBackup: recBackup || false,
         recAPI: recAPI || false,

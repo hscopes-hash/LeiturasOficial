@@ -308,6 +308,7 @@ export async function GET() {
         "limiteUsuarios" INTEGER NOT NULL DEFAULT 1,
         "limiteMaquinas" INTEGER NOT NULL DEFAULT -1,
         "recIA" BOOLEAN DEFAULT false,
+        "recChatIA" BOOLEAN DEFAULT false,
         "recRelatorios" BOOLEAN DEFAULT false,
         "recBackup" BOOLEAN DEFAULT false,
         "recAPI" BOOLEAN DEFAULT false,
@@ -464,6 +465,14 @@ export async function GET() {
       results.push('✓ Colunas de impressora térmica adicionadas');
     } catch (e) {
       results.push('  (colunas de impressora ja existem ou erro: ' + (e instanceof Error ? e.message : 'desconhecido') + ')');
+    }
+
+    // Adicionar coluna recChatIA na tabela planos_saas (v2.28.0.136)
+    try {
+      await db.$executeRawUnsafe(`ALTER TABLE planos_saas ADD COLUMN IF NOT EXISTS "recChatIA" BOOLEAN DEFAULT false`);
+      results.push('✓ Coluna recChatIA adicionada em planos_saas');
+    } catch (e) {
+      results.push('  (coluna recChatIA ja existe ou erro: ' + (e instanceof Error ? e.message : 'desconhecido') + ')');
     }
 
     results.push('✓ Todas as tabelas foram criadas/verificadas com sucesso!');

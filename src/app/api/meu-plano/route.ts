@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
       },
       features: {
         recIA: info.recIA,
+        recChatIA: info.recChatIA,
         recRelatorios: info.recRelatorios,
         recBackup: info.recBackup,
         recAPI: info.recAPI,

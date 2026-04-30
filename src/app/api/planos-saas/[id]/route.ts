@@ -25,6 +25,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         ...(body.limiteUsuarios !== undefined && { limiteUsuarios: parseInt(body.limiteUsuarios) }),
         ...(body.limiteMaquinas !== undefined && { limiteMaquinas: parseInt(body.limiteMaquinas) }),
         ...(body.recIA !== undefined && { recIA: body.recIA }),
+        ...(body.recChatIA !== undefined && { recChatIA: body.recChatIA }),
         ...(body.recRelatorios !== undefined && { recRelatorios: body.recRelatorios }),
         ...(body.recBackup !== undefined && { recBackup: body.recBackup }),
         ...(body.recAPI !== undefined && { recAPI: body.recAPI }),

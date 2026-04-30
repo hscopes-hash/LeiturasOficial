@@ -8048,6 +8048,7 @@ interface PlanoSaaS {
   limiteUsuarios: number;
   limiteMaquinas: number;
   recIA: boolean;
+  recChatIA: boolean;
   recRelatorios: boolean;
   recBackup: boolean;
   recAPI: boolean;
@@ -8502,6 +8503,14 @@ function AssinaturaTab() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">IA Vision (OCR)</span>
                         {plano.recIA ? (
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <X className="w-4 h-4 text-zinc-500" />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Chat IA</span>
+                        {plano.recChatIA ? (
                           <Check className="w-4 h-4 text-emerald-400" />
                         ) : (
                           <X className="w-4 h-4 text-zinc-500" />
@@ -9394,7 +9403,7 @@ export default function App() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [planoFeatures, setPlanoFeatures] = useState<{ recIA: boolean } | null>(null);
+  const [planoFeatures, setPlanoFeatures] = useState<{ recIA: boolean; recChatIA: boolean } | null>(null);
 
   // Carregar info do plano SaaS (features)
   useEffect(() => {
@@ -9403,7 +9412,7 @@ export default function App() {
         .then(r => r.json())
         .then(data => {
           if (data && data.features) {
-            setPlanoFeatures({ recIA: data.features.recIA });
+            setPlanoFeatures({ recIA: data.features.recIA, recChatIA: data.features.recChatIA });
           }
         })
         .catch(() => {}); // Falha silenciosa = nao bloqueia UI
@@ -9691,7 +9700,7 @@ export default function App() {
             { id: 'clientes', icon: Users, label: 'Clientes' },
             { id: 'leituras', icon: ClipboardList, label: 'Cobrança' },
             { id: 'pagamentos', icon: DollarSign, label: 'Financeiro' },
-            { id: 'chat-ia', icon: Sparkles, label: 'Chat IA' },
+            ...(planoFeatures?.recChatIA || isSuperAdmin ? [{ id: 'chat-ia' as const, icon: Sparkles, label: 'Chat IA' }] : []),
           ].map((item) => (
             <button
               key={item.id}
@@ -9706,7 +9715,7 @@ export default function App() {
           ))}
         </div>
       </nav>
-      {activeTab !== 'chat-ia' && <FloatingChat enabled={planoFeatures?.recIA ?? false} />}
+      {activeTab !== 'chat-ia' && <FloatingChat enabled={planoFeatures?.recChatIA ?? false} />}
     </div>
   );
 }

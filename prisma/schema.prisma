@@ -394,6 +394,7 @@ model PlanoSaaS {
   limiteMaquinas  Int     // -1 = ilimitado
   // Recursos habilitados
   recIA          Boolean @default(false)  // IA Vision (OCR de leitura)
+  recChatIA      Boolean @default(false)  // Chat IA (assistente virtual)
   recRelatorios  Boolean @default(false)  // Relatórios avançados
   recBackup      Boolean @default(false)  // Backup automático
   recAPI         Boolean @default(false)  // API dedicada
