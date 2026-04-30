@@ -2710,6 +2710,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
 
   // Débitos vencidos não pagos do cliente (saldo acumulado)
   const [debitosVencidos, setDebitosVencidos] = useState<number>(0);
+  const [debitosVencidosSalvos, setDebitosVencidosSalvos] = useState<number>(0);
   // Estados para Lançamento de Lote
   const [loteModalOpen, setLoteModalOpen] = useState(false);
   const [fotosLote, setFotosLote] = useState<{ id: string; imagem: string; status: 'pendente' | 'processando' | 'concluido' | 'erro'; origem?: 'CÂMERA' | 'GALERIA' | 'LOTE'; resultado?: { codigoMaquina: string; codigoReconhecido: boolean; entrada?: number | null; saida?: number | null; confianca: number; observacoes: string; confiancaOCR?: number }; erro?: string }[]>([]);
@@ -4104,7 +4105,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     const debitoSaldo = debitosVencidos;
     const totalReceitas = calcularTotalReceitas();
     const totalDespesas = calcularTotalDespesas();
-    const liquido = cliente + totalReceitas + totalDespesas + debitoSaldo;
+    // Liquido = parte do operador (jogado - cliente) + receitas - despesas + debitos do cliente
+    const liquido = jogado - cliente + totalReceitas - totalDespesas + debitoSaldo;
     const recebidoNum = parseFloat(recebido) || 0;
     const saldoAtual = liquido - recebidoNum;
 
@@ -4219,8 +4221,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
       // Guarda as descrições detalhadas das receitas e despesas
       setReceitasSalvas(receitasParaSalvar);
       setDespesasSalvas(despesasParaSalvar);
+      // Guardar valor dos débitos ANTES de zerar para exibir no resumo/extrato
+      setDebitosVencidosSalvos(debitosVencidos);
       setResumoModalOpen(true);
-      
+
       // Marcar débitos vencidos como pagos
       if (debitosVencidos > 0) {
         try {
@@ -4304,17 +4308,15 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome }: { emp
     const jogado = totais.entradas - totais.saidas;
     const acertoPct = clienteSelecionado?.acertoPercentual ?? 50;
     const cliente = jogado * (acertoPct / 100);
-    const debitoSaldo = debitosVencidos;
+    const debitoSaldo = debitosVencidosSalvos;
     const receitaTotal = valorReceitaSalva;
     const despesaTotal = valorDespesaSalva;
 
-    // RECEBIDO: Jogado - cliente - débito
+    // Liquido = parte do operador (jogado - cliente) + debitos do cliente + receitas - despesas
     const temReceitas = receitaTotal > 0;
     const temDespesas = despesaTotal > 0;
     const temAmbos = temReceitas && temDespesas;
-    const liquido = temAmbos
-      ? jogado - cliente - debitoSaldo - despesaTotal + receitaTotal  // FECHAMENTO
-      : jogado - cliente - debitoSaldo;                                // RECEBIDO
+    const liquido = jogado - cliente + debitoSaldo + receitaTotal - despesaTotal;
 
     return { ...totais, jogado, cliente, receita: receitaTotal, despesa: despesaTotal, debitoSaldo, liquido, temAmbos };
   };
