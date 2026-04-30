@@ -9603,10 +9603,8 @@ export default function App() {
                         <SlidersHorizontal className="w-5 h-5" />
                         <span>CONFIG SAAS</span>
                       </button>
-                      <ThemeToggle />
                     </>
                   )}
-                  {!isSuperAdmin && <ThemeToggle />}
                   {usuario?.email === 'hscopes@gmail.com' && (
                     <>
                       <Separator className="my-2 bg-border" />
@@ -9619,6 +9617,8 @@ export default function App() {
                       </button>
                     </>
                   )}
+                  <Separator className="my-2 bg-border" />
+                  <ThemeToggle />
                 </div>
                 <Separator className="my-4 bg-border" />
                 <div className="px-4">
