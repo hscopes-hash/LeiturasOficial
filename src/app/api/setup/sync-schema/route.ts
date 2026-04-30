@@ -475,6 +475,18 @@ export async function GET() {
       results.push('  (coluna recChatIA ja existe ou erro: ' + (e instanceof Error ? e.message : 'desconhecido') + ')');
     }
 
+    // Atualizar recChatIA=true para planos Starter ou superiores (v2.28.0.136)
+    try {
+      const updated = await db.$executeRawUnsafe(`
+        UPDATE planos_saas SET "recChatIA" = true
+        WHERE nome IN ('Starter', 'Profissional', 'Empresarial', 'Enterprise')
+        AND "recChatIA" = false
+      `);
+      results.push('✓ Planos Starter+ atualizados com recChatIA=true');
+    } catch (e) {
+      results.push('  (erro ao atualizar recChatIA dos planos: ' + (e instanceof Error ? e.message : 'desconhecido') + ')');
+    }
+
     results.push('✓ Todas as tabelas foram criadas/verificadas com sucesso!');
 
     return NextResponse.json({
