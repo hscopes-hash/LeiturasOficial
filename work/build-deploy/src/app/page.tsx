@@ -9113,32 +9113,58 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome, ajusteM
       document.body.appendChild(clone);
       console.log('[WhatsApp PDF Canvas] Clone adicionado ao DOM');
 
-      // ⚠️ CORRIGIR CORES lab() — html2canvas não suporta função lab() (Tailwind v4 usa)
-      // Converte todos os elementos para usar cores RGB explícitas
+      // ⚠️ CORRIGIR CORES lab()/oklab()/oklch() — html2canvas não suporta (Tailwind v4 usa)
+      // Abordagem robusta: criar um elemento temporário, setar a cor lab() como style.color,
+      // e ler getComputedStyle que retorna rgb() resolvido pelo navegador.
+      const converterCor = (corLab: string): string => {
+        try {
+          const tmp = document.createElement('div');
+          tmp.style.color = corLab;
+          tmp.style.display = 'none';
+          document.body.appendChild(tmp);
+          const resolved = window.getComputedStyle(tmp).color;
+          document.body.removeChild(tmp);
+          return resolved || corLab;
+        } catch {
+          return corLab;
+        }
+      };
+
+      const propsCor = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor', 'fill', 'stroke'] as const;
+      let countConvertido = 0;
+
       const processarCoresLab = (el: HTMLElement) => {
         const computed = window.getComputedStyle(el);
-        const props = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor', 'fill', 'stroke'] as const;
-        props.forEach(prop => {
+        propsCor.forEach(prop => {
           const val = computed[prop];
           if (val && (val.includes('lab(') || val.includes('oklab(') || val.includes('oklch(') || val.includes('color('))) {
-            // Converter para rgb via canvas temporário (navegador faz a conversão)
-            try {
-              const tmpCtx = document.createElement('canvas').getContext('2d');
-              if (tmpCtx) {
-                tmpCtx.fillStyle = val;
-                const rgb = tmpCtx.fillStyle; // navegador converte para rgb/rgba
-                (el.style as any)[prop] = rgb;
-              }
-            } catch {}
+            const rgb = converterCor(val);
+            if (rgb && rgb !== val) {
+              // Usar setProperty com important para sobrescrever qualquer CSS
+              el.style.setProperty(prop === 'backgroundColor' ? 'background-color'
+                : prop === 'borderColor' ? 'border-color'
+                : prop === 'borderTopColor' ? 'border-top-color'
+                : prop === 'borderBottomColor' ? 'border-bottom-color'
+                : prop === 'borderLeftColor' ? 'border-left-color'
+                : prop === 'borderRightColor' ? 'border-right-color'
+                : prop, rgb, 'important');
+              countConvertido++;
+            }
           }
         });
+        // Também processar box-shadow e outras propriedades que podem conter lab()
+        const boxShadow = computed.boxShadow;
+        if (boxShadow && (boxShadow.includes('lab(') || boxShadow.includes('oklab(') || boxShadow.includes('oklch('))) {
+          // Simplificar: remover box-shadow (não essencial para o PDF)
+          el.style.setProperty('box-shadow', 'none', 'important');
+        }
       };
-      // Aplicar a todos os elementos do clone
+
       processarCoresLab(clone);
       clone.querySelectorAll('*').forEach(el => {
         processarCoresLab(el as HTMLElement);
       });
-      console.log('[WhatsApp PDF Canvas] Cores lab()/oklab()/oklch() convertidas para RGB');
+      console.log(`[WhatsApp PDF Canvas] ${countConvertido} cor(es) lab()/oklab()/oklch() convertidas para RGB`);
 
       // Aguardar imagens carregarem no clone
       const imgs = clone.querySelectorAll('img');
