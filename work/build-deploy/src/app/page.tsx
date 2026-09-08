@@ -8008,6 +8008,10 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome, ajusteM
         const titulo = modo2via === 'COBRANCA' ? 'RELATÓRIO DE COBRANÇA' : 'RELATÓRIO DE LEITURA';
         const nomeCliente = clienteSelecionado?.nome?.toUpperCase() || '';
         const dataRelatorio = segundaViaSelecionada?.data || '';
+        const turno2viaCab = segundaViaDados.find((l: any) => l.turno)?.turno;
+        const turnoDisplay = turno2viaCab && turno2viaCab !== 'INTEGRAL'
+          ? (turno2viaCab === 'MANHA' ? 'MANHÃ' : turno2viaCab)
+          : '';
         const operadoresStr = operadores.size > 0 ? Array.from(operadores).join(', ') : '';
 
         // Função helper para desenhar o cabeçalho em uma página
@@ -8022,7 +8026,7 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome, ajusteM
           ctxPag.fillText(nomeCliente, A4_W / 2, yp);
           yp += 30;
           ctxPag.font = FONT_VALUE;
-          ctxPag.fillText(`Data: ${dataRelatorio}`, A4_W / 2, yp);
+          ctxPag.fillText(`Data: ${dataRelatorio}${turnoDisplay ? ` — Turno: ${turnoDisplay}` : ''}`, A4_W / 2, yp);
           yp += 30;
           if (operadoresStr) { ctxPag.fillText(`Operador: ${operadoresStr}`, A4_W / 2, yp); yp += 30; }
           // Indicador de página
