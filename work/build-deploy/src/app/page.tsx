@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo, startTransition } from 'react';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { useSwipeNavigation } from '@/hooks/use-swipe-navigation';
 import { useKioskMode } from '@/hooks/use-kiosk-mode';
 import { useTheme } from 'next-themes';
@@ -9117,58 +9117,8 @@ function LeiturasPage({ empresaId, isSupervisor, usuarioId, usuarioNome, ajusteM
       document.body.appendChild(clone);
       console.log('[WhatsApp PDF Canvas] Clone adicionado ao DOM');
 
-      // ⚠️ CORRIGIR CORES lab()/oklab()/oklch() — html2canvas não suporta (Tailwind v4 usa)
-      // Abordagem robusta: criar um elemento temporário, setar a cor lab() como style.color,
-      // e ler getComputedStyle que retorna rgb() resolvido pelo navegador.
-      const converterCor = (corLab: string): string => {
-        try {
-          const tmp = document.createElement('div');
-          tmp.style.color = corLab;
-          tmp.style.display = 'none';
-          document.body.appendChild(tmp);
-          const resolved = window.getComputedStyle(tmp).color;
-          document.body.removeChild(tmp);
-          return resolved || corLab;
-        } catch {
-          return corLab;
-        }
-      };
-
-      const propsCor = ['color', 'backgroundColor', 'borderColor', 'borderTopColor', 'borderBottomColor', 'borderLeftColor', 'borderRightColor', 'fill', 'stroke'] as const;
-      let countConvertido = 0;
-
-      const processarCoresLab = (el: HTMLElement) => {
-        const computed = window.getComputedStyle(el);
-        propsCor.forEach(prop => {
-          const val = computed[prop];
-          if (val && (val.includes('lab(') || val.includes('oklab(') || val.includes('oklch(') || val.includes('color('))) {
-            const rgb = converterCor(val);
-            if (rgb && rgb !== val) {
-              // Usar setProperty com important para sobrescrever qualquer CSS
-              el.style.setProperty(prop === 'backgroundColor' ? 'background-color'
-                : prop === 'borderColor' ? 'border-color'
-                : prop === 'borderTopColor' ? 'border-top-color'
-                : prop === 'borderBottomColor' ? 'border-bottom-color'
-                : prop === 'borderLeftColor' ? 'border-left-color'
-                : prop === 'borderRightColor' ? 'border-right-color'
-                : prop, rgb, 'important');
-              countConvertido++;
-            }
-          }
-        });
-        // Também processar box-shadow e outras propriedades que podem conter lab()
-        const boxShadow = computed.boxShadow;
-        if (boxShadow && (boxShadow.includes('lab(') || boxShadow.includes('oklab(') || boxShadow.includes('oklch('))) {
-          // Simplificar: remover box-shadow (não essencial para o PDF)
-          el.style.setProperty('box-shadow', 'none', 'important');
-        }
-      };
-
-      processarCoresLab(clone);
-      clone.querySelectorAll('*').forEach(el => {
-        processarCoresLab(el as HTMLElement);
-      });
-      console.log(`[WhatsApp PDF Canvas] ${countConvertido} cor(es) lab()/oklab()/oklch() convertidas para RGB`);
+      // Nota: html2canvas-pro suporta nativamente lab()/oklab()/oklch()
+      // (funções de cor modernas do Tailwind v4). Não precisa mais conversão manual.
 
       // Aguardar imagens carregarem no clone
       const imgs = clone.querySelectorAll('img');
